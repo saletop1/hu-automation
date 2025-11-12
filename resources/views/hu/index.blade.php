@@ -101,10 +101,6 @@
             margin: 3px 0;
             font-size: 0.7rem;
         }
-        .scenario-item .material-code {
-            font-weight: bold;
-            font-family: 'Courier New', monospace;
-        }
         .scenario-badge {
             position: absolute;
             top: -6px;
@@ -152,18 +148,34 @@
             max-height: 95vh;
             overflow-y: auto;
         }
-        /* Tanda untuk material yang sudah dipilih */
-        .selected-material {
+        /* Tanda untuk material yang sudah dipilih - BERBEDA UNTUK SETIAP SKENARIO */
+        .selected-material-s1 {
             background-color: #e6f7ff !important;
             border-left: 3px solid #1890ff !important;
         }
-        .selected-material-indicator {
+        .selected-material-s2 {
+            background-color: #f6ffed !important;
+            border-left: 3px solid #52c41a !important;
+        }
+        .selected-material-s3 {
+            background-color: #f9f0ff !important;
+            border-left: 3px solid #722ed1 !important;
+        }
+        .status-indicator {
             display: inline-block;
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background-color: #1890ff;
             margin-right: 5px;
+        }
+        .status-s1 {
+            background-color: #1890ff;
+        }
+        .status-s2 {
+            background-color: #52c41a;
+        }
+        .status-s3 {
+            background-color: #722ed1;
         }
         /* Style untuk item material di card skenario (lebih rapi) */
         .material-item-compact {
@@ -184,6 +196,25 @@
         .material-qty-compact {
             font-weight: bold;
             color: #10b981;
+        }
+        /* Style untuk select box dan tombol select */
+        .selection-controls {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .select-all-checkbox {
+            margin-right: 10px;
+        }
+        .selected-count {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-left: 10px;
+        }
+        .drag-selected-btn {
+            font-size: 0.8rem;
+            padding: 0.2rem 0.5rem;
         }
     </style>
 </head>
@@ -215,6 +246,25 @@
         <div class="row">
             <!-- Kolom kiri untuk data stock (lebih lebar) -->
             <div class="col-lg-10 mb-4">
+                <!-- Kontrol seleksi -->
+                <div class="selection-controls mb-3">
+                    <div class="d-flex align-items-center">
+                        <div class="form-check select-all-checkbox">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                            <label class="form-check-label small" for="selectAll">
+                                Pilih Semua
+                            </label>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm drag-selected-btn me-2" id="dragSelected">
+                            <i class="fas fa-arrows-alt me-1"></i> Drag Item Terpilih
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm drag-selected-btn" id="clearSelection">
+                            <i class="fas fa-times me-1"></i> Hapus Pilihan
+                        </button>
+                        <span class="selected-count" id="selectedCount">0 item terpilih</span>
+                    </div>
+                </div>
+
                 <div class="card border-0 shadow-sm h-100">
                     <div class="card-header bg-white py-3">
                         <div class="d-flex justify-content-between align-items-center">
@@ -266,6 +316,9 @@
                             <table class="table table-hover stock-table mb-0">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="border-0" style="width: 40px;">
+                                            <input type="checkbox" id="selectAllHeader" class="form-check-input">
+                                        </th>
                                         <th class="border-0">Status</th>
                                         <th class="border-0">Material</th>
                                         <th class="border-0">Deskripsi</th>
@@ -281,6 +334,9 @@
                                     @if($stockData['success'] && count($stockData['data']) > 0)
                                         @foreach($stockData['data'] as $index => $item)
                                             <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="{{ $index }}" data-material="{{ $item->material }}" data-batch="{{ $item->batch }}" data-plant="{{ $item->plant }}" data-storage-location="{{ $item->storage_location }}">
+                                                <td class="border-0">
+                                                    <input type="checkbox" class="form-check-input row-select" data-index="{{ $index }}">
+                                                </td>
                                                 <td class="border-0">
                                                     <span class="material-status" id="status-{{ $item->material }}-{{ $item->batch }}"></span>
                                                 </td>
@@ -314,7 +370,7 @@
                                         @endforeach
                                     @else
                                         <tr>
-                                            <td colspan="9" class="text-center py-4 text-muted">
+                                            <td colspan="10" class="text-center py-4 text-muted">
                                                 <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                                                 Tidak ada data stock untuk filter yang dipilih
                                             </td>
@@ -463,6 +519,7 @@
         'single-multi': [],
         'multiple': []
     };
+    let selectedRows = new Set(); // Untuk menyimpan indeks baris yang dipilih
 
     // ===== SEMUA FUNGSI UTILITAS (tidak berubah) =====
     function formatMaterialNumber(material) {
@@ -487,31 +544,116 @@
         return words.join(' ');
     }
 
-    // Fungsi untuk menandai material yang sudah dipilih
+    // Fungsi untuk menandai material yang sudah dipilih PER SKENARIO
     function updateMaterialStatus() {
         // Reset semua status
-        $('.draggable-row').removeClass('selected-material');
+        $('.draggable-row').removeClass('selected-material-s1 selected-material-s2 selected-material-s3');
         $('.material-status').empty();
 
-        // Kumpulkan semua material yang sudah dipilih dari semua skenario
-        const allSelectedMaterials = [];
-        Object.values(scenarioData).forEach(scenario => {
-            scenario.forEach(item => {
-                const key = `${item.material}-${item.batch}-${item.plant}-${item.storage_location}`;
-                if (!allSelectedMaterials.includes(key)) {
-                    allSelectedMaterials.push(key);
-                }
+        // Tandai material berdasarkan skenario
+        Object.keys(scenarioData).forEach(scenario => {
+            const scenarioClass = getScenarioClass(scenario);
+            scenarioData[scenario].forEach(item => {
+                $(`.draggable-row[data-material="${item.material}"][data-batch="${item.batch}"][data-plant="${item.plant}"][data-storage-location="${item.storage_location}"]`)
+                    .addClass(scenarioClass)
+                    .find('.material-status')
+                    .append(`<span class="status-indicator ${getStatusClass(scenario)}" title="Material dipilih di ${getScenarioName(scenario)}"></span>`);
             });
         });
+    }
 
-        // Tandai material yang sudah dipilih
-        allSelectedMaterials.forEach(key => {
-            const [material, batch, plant, storageLocation] = key.split('-');
-            $(`.draggable-row[data-material="${material}"][data-batch="${batch}"][data-plant="${plant}"][data-storage-location="${storageLocation}"]`)
-                .addClass('selected-material')
-                .find('.material-status')
-                .html('<span class="selected-material-indicator" title="Material sudah dipilih di salah satu skenario"></span>');
+    // Helper functions untuk status per skenario
+    function getScenarioClass(scenario) {
+        switch(scenario) {
+            case 'single': return 'selected-material-s1';
+            case 'single-multi': return 'selected-material-s2';
+            case 'multiple': return 'selected-material-s3';
+            default: return '';
+        }
+    }
+
+    function getStatusClass(scenario) {
+        switch(scenario) {
+            case 'single': return 'status-s1';
+            case 'single-multi': return 'status-s2';
+            case 'multiple': return 'status-s3';
+            default: return '';
+        }
+    }
+
+    function getScenarioName(scenario) {
+        switch(scenario) {
+            case 'single': return 'Skenario 1';
+            case 'single-multi': return 'Skenario 2';
+            case 'multiple': return 'Skenario 3';
+            default: return '';
+        }
+    }
+
+    // Fungsi untuk mengelola seleksi baris
+    function updateSelectionCount() {
+        const count = selectedRows.size;
+        $('#selectedCount').text(`${count} item terpilih`);
+
+        // Update tombol drag selected
+        if (count > 0) {
+            $('#dragSelected').prop('disabled', false);
+        } else {
+            $('#dragSelected').prop('disabled', true);
+        }
+    }
+
+    // Fungsi untuk menambahkan item terpilih ke skenario
+    function addSelectedItemsToScenario(scenario) {
+        if (selectedRows.size === 0) {
+            showMessage('Tidak ada item yang dipilih', 'warning');
+            return;
+        }
+
+        let addedCount = 0;
+        selectedRows.forEach(index => {
+            if (allStockData[index]) {
+                const item = allStockData[index];
+                const existingIndex = scenarioData[scenario].findIndex(i =>
+                    i.material === item.material &&
+                    i.batch === item.batch &&
+                    i.plant === item.plant &&
+                    i.storage_location === item.storage_location
+                );
+
+                if (existingIndex === -1) {
+                    // Cek batasan untuk Skenario 1
+                    if (scenario === 'single' && scenarioData[scenario].length > 0) {
+                        showMessage('Skenario 1 hanya boleh berisi 1 material', 'warning');
+                        return;
+                    }
+
+                    scenarioData[scenario].push(item);
+                    addedCount++;
+                }
+            }
         });
+
+        if (addedCount > 0) {
+            updateScenarioDisplay(scenario);
+            saveScenarioDataToSession(scenario);
+            updateMaterialStatus();
+            showMessage(`${addedCount} material ditambahkan ke ${getScenarioName(scenario)}`, 'success');
+
+            // Reset seleksi
+            clearSelection();
+        } else {
+            showMessage('Tidak ada material baru yang ditambahkan', 'warning');
+        }
+    }
+
+    // Fungsi untuk menghapus seleksi
+    function clearSelection() {
+        selectedRows.clear();
+        $('.row-select').prop('checked', false);
+        $('#selectAll').prop('checked', false);
+        $('#selectAllHeader').prop('checked', false);
+        updateSelectionCount();
     }
     // ============================================
 
@@ -546,6 +688,103 @@
 
         // Update status material saat pertama kali load
         updateMaterialStatus();
+
+        // Setup event handlers untuk seleksi
+        $('#selectAll, #selectAllHeader').change(function() {
+            const isChecked = $(this).prop('checked');
+            $('.row-select').prop('checked', isChecked);
+
+            if (isChecked) {
+                // Tambahkan semua indeks ke selectedRows
+                $('.draggable-row').each(function() {
+                    selectedRows.add(parseInt($(this).data('index')));
+                });
+            } else {
+                selectedRows.clear();
+            }
+
+            updateSelectionCount();
+        });
+
+        $('tbody').on('change', '.row-select', function() {
+            const index = parseInt($(this).data('index'));
+            if ($(this).prop('checked')) {
+                selectedRows.add(index);
+            } else {
+                selectedRows.delete(index);
+                $('#selectAll').prop('checked', false);
+                $('#selectAllHeader').prop('checked', false);
+            }
+            updateSelectionCount();
+        });
+
+        $('#clearSelection').click(function() {
+            clearSelection();
+        });
+
+        $('#dragSelected').click(function() {
+            if (selectedRows.size === 0) {
+                showMessage('Pilih minimal 1 item untuk drag & drop', 'warning');
+                return;
+            }
+
+            // Buat elemen draggable untuk multiple items
+            const dragIndicator = $('<div>')
+                .addClass('alert alert-info')
+                .css({
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 10000,
+                    padding: '10px 20px',
+                    borderRadius: '5px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                })
+                .html(`<i class="fas fa-arrows-alt me-2"></i>Drag ${selectedRows.size} item ke skenario yang diinginkan`)
+                .appendTo('body');
+
+            // Setup event untuk menghapus indicator saat selesai drag
+            $(document).one('mouseup', function() {
+                setTimeout(() => {
+                    dragIndicator.remove();
+                }, 500);
+            });
+
+            showMessage(`Siap untuk drag ${selectedRows.size} item. Seret ke skenario yang diinginkan`, 'info');
+        });
+
+        // Modifikasi drop event untuk menerima multiple items
+        $('.drop-zone').each(function() {
+            const dropZone = $(this)[0];
+            const $dropZone = $(this);
+
+            dropZone.addEventListener('dragover', e => {
+                e.preventDefault();
+                $dropZone.addClass('drag-over');
+            });
+
+            dropZone.addEventListener('dragleave', e => {
+                $dropZone.removeClass('drag-over');
+            });
+
+            dropZone.addEventListener('drop', e => {
+                e.preventDefault();
+                $dropZone.removeClass('drag-over');
+                const scenario = $dropZone.data('scenario');
+
+                // Jika ada item yang dipilih, gunakan selectedRows
+                if (selectedRows.size > 0) {
+                    addSelectedItemsToScenario(scenario);
+                } else {
+                    // Fallback ke drag single item
+                    const itemIndex = e.dataTransfer.getData('text/plain');
+                    if (itemIndex !== '' && allStockData[itemIndex]) {
+                        addItemToScenario(scenario, allStockData[itemIndex]);
+                    }
+                }
+            });
+        });
     });
 
     function updateStorageLocations(plant) {
@@ -631,7 +870,7 @@
         if (data.length === 0) {
             tbody.append(`
                 <tr>
-                    <td colspan="9" class="text-center py-4 text-muted">
+                    <td colspan="10" class="text-center py-4 text-muted">
                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                         Tidak ada data stock tersedia
                     </td>
@@ -652,6 +891,9 @@
             const customerName = getCustomerName(item.vendor_name);
             const row = `
                 <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}">
+                    <td class="border-0">
+                        <input type="checkbox" class="form-check-input row-select" data-index="${index}">
+                    </td>
                     <td class="border-0">
                         <span class="material-status" id="status-${item.material}-${item.batch}"></span>
                     </td>
@@ -682,50 +924,26 @@
         });
         setupRowDragEvents();
         updateMaterialStatus(); // Update status setelah tabel di-render ulang
+        clearSelection(); // Reset seleksi setelah data dimuat ulang
     }
 
     // ===== FUNGSI DRAG & DROP DAN SESSION =====
 
     function setupDragAndDrop() {
-        $('.drop-zone').each(function() {
-            const dropZone = $(this)[0];
-            dropZone.addEventListener('dragover', e => { e.preventDefault(); $(this).addClass('drag-over'); });
-            dropZone.addEventListener('dragleave', e => { $(this).removeClass('drag-over'); });
-            dropZone.addEventListener('drop', e => {
-                e.preventDefault();
-                $(this).removeClass('drag-over');
-                const scenario = $(this).data('scenario');
-                const itemIndex = e.dataTransfer.getData('text/plain');
-                if (itemIndex !== '' && allStockData[itemIndex]) {
-                    addItemToScenario(scenario, allStockData[itemIndex]);
-                }
-            });
-        });
-        $('#goToScenario1').on('click', function(e) {
-            if (scenarioData.single.length === 0) {
-                e.preventDefault();
-                showError('Tambah minimal 1 material ke Skenario 1');
-            }
-        });
-        $('#goToScenario2').on('click', function(e) {
-            if (scenarioData['single-multi'].length === 0) {
-                e.preventDefault();
-                showError('Tambah minimal 1 material ke Skenario 2');
-            }
-        });
-        $('#goToScenario3').on('click', function(e) {
-            if (scenarioData.multiple.length === 0) {
-                e.preventDefault();
-                showError('Tambah minimal 1 material ke Skenario 3');
-            }
-        });
+        // Event handlers sudah ditambahkan di $(document).ready()
     }
 
     function setupRowDragEvents() {
         $('.draggable-row').each(function() {
             const row = $(this)[0];
             row.addEventListener('dragstart', function(e) {
-                e.dataTransfer.setData('text/plain', $(this).data('index'));
+                // Jika ada item yang dipilih, set data untuk multiple items
+                if (selectedRows.size > 0) {
+                    e.dataTransfer.setData('text/plain', 'multiple');
+                } else {
+                    // Fallback ke single item
+                    e.dataTransfer.setData('text/plain', $(this).data('index'));
+                }
                 e.dataTransfer.effectAllowed = 'copy';
             });
         });
@@ -746,7 +964,7 @@
         updateScenarioDisplay(scenario);
         saveScenarioDataToSession(scenario);
         updateMaterialStatus(); // Update status material setelah menambah
-        showMessage(`Material ${formatMaterialNumber(item.material)} ditambahkan ke Skenario`, 'success');
+        showMessage(`Material ${formatMaterialNumber(item.material)} ditambahkan ke ${getScenarioName(scenario)}`, 'success');
     }
 
     function updateScenarioDisplay(scenario) {
