@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB; // Pastikan ini di-import
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth; // TAMBAHKAN INI
+use App\Models\HuHistory;
 
 class HUController extends Controller
 {
@@ -18,11 +20,8 @@ class HUController extends Controller
 
     public function index()
     {
-        // PERBAIKAN: Panggil getStockDataFromDB
-        // Hapus batasan "perPage" (kirim null) untuk mengambil semua data
         $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10');
 
-        // Static data for plants
         $plantsData = [
             '2000' => ['21HU', '21LK', '21NH'],
             '3000' => ['3D10', '3DH1', '3DH2']
@@ -46,38 +45,43 @@ class HUController extends Controller
         return view('hu.create-multiple');
     }
 
+    public function history()
+    {
+        try {
+            $historyData = HuHistory::orderBy('created_at', 'desc')->get();
+            return view('hu.history', compact('historyData'));
+        } catch (\Exception $e) {
+            Log::error('History fetch error: ' . $e->getMessage());
+
+            // Fallback jika tabel belum ada
+            $historyData = collect();
+            return view('hu.history', compact('historyData'));
+        }
+    }
+
     // ==================== STOCK DATA METHODS ====================
 
-    /**
-     * Get stock data directly from MySQL database
-     * Ini adalah fungsi privat yang dipanggil oleh index() dan getStock()
-     */
     private function getStockDataFromDB($page = 1, $perPage = null, $material = '', $plant = '', $storageLocation = '')
     {
         try {
-            $query = DB::table('stock_data');
+            $query = DB::table('stock_data')->where('hu_created', false);
 
-            // Terapkan filter (Data diasumsikan sudah bersih, tidak perlu TRIM)
             if ($material) {
                 $query->where('material', 'like', "%{$material}%");
             }
             if ($plant) {
-                $query->where('plant', $plant); // Query cepat (menggunakan index)
+                $query->where('plant', $plant);
             }
             if ($storageLocation) {
-                $query->where('storage_location', $storageLocation); // Query cepat
+                $query->where('storage_location', $storageLocation);
             }
 
-            // Hitung total SEBELUM pagination
             $total = $query->count();
 
-            // PERBAIKAN: Logika untuk menghapus pagination
-            // Jika $perPage tidak null, gunakan pagination. Jika null, ambil semua.
             if ($perPage !== null) {
                 $query->limit($perPage)
                       ->offset(($page - 1) * $perPage);
             }
-            // Jika $perPage == null, jangan gunakan limit/offset (ambil semua)
 
             $data = $query->orderBy('material')
                          ->orderBy('plant')
@@ -86,7 +90,7 @@ class HUController extends Controller
                          ->get();
 
             $finalPerPage = $perPage ?? $total;
-            if ($finalPerPage == 0) $finalPerPage = 1; // hindari divide by zero
+            if ($finalPerPage == 0) $finalPerPage = 1;
 
             return [
                 'success' => true,
@@ -115,7 +119,6 @@ class HUController extends Controller
         }
     }
 
-    // FUNGSI INI (syncStock) TETAP MENGGUNAKAN PYTHON (BENAR)
     public function syncStock(Request $request)
     {
         $request->validate([
@@ -151,14 +154,9 @@ class HUController extends Controller
         }
     }
 
-    /**
-     * PERBAIKAN: Fungsi ini (untuk AJAX) sekarang membaca dari DB lokal
-     * Ini akan menjadi super cepat dan TIDAK AKAN TIMEOUT
-     */
     public function getStock(Request $request)
     {
         $page = $request->get('page', 1);
-        // PERBAIKAN: Hapus batasan "perPage" (kirim null)
         $perPage = $request->get('per_page', null);
         $material = $request->get('material', '');
         $plant = $request->get('plant', '');
@@ -170,17 +168,14 @@ class HUController extends Controller
             'storage_location' => $storageLocation
         ]);
 
-        // Panggil fungsi lokal yang sudah diperbarui
         $result = $this->getStockDataFromDB($page, $perPage, $material, $plant, $storageLocation);
 
         return response()->json($result);
     }
 
-    // PERBAIKAN: Fungsi ini sekarang membaca dari DB lokal
     public function getPlants(Request $request)
     {
         try {
-            // Data bersih, tidak perlu TRIM
             $plants = DB::table('stock_data')
                         ->select('plant')
                         ->distinct()
@@ -201,7 +196,6 @@ class HUController extends Controller
         }
     }
 
-    // PERBAIKAN: Fungsi ini sekarang membaca dari DB lokal
     public function getStorageLocations(Request $request)
     {
         $plant = $request->get('plant', '');
@@ -212,7 +206,6 @@ class HUController extends Controller
                         ->distinct();
 
             if ($plant) {
-                // Data bersih, tidak perlu TRIM
                 $query->where('plant', $plant);
             }
 
@@ -232,13 +225,10 @@ class HUController extends Controller
         }
     }
 
-    // ==========================================================
-    // ===== SEMUA FUNGSI HU CREATION TETAP MENGGUNAKAN PYTHON =====
-    // ==========================================================
+    // ==================== HU CREATION METHODS ====================
 
     public function storeSingle(Request $request)
     {
-        // Validasi ini HARUS sesuai dengan nama <input> di form
         $request->validate([
             'hu_exid' => 'required|string',
             'pack_mat' => 'required|string',
@@ -248,20 +238,19 @@ class HUController extends Controller
             'pack_qty' => 'required|numeric|min:0.001',
             'batch' => 'nullable|string',
             'sp_stck_no' => 'nullable|string',
-            'base_unit_qty' => 'nullable|string', // Dibuat nullable
+            'base_unit_qty' => 'nullable|string',
+            'sap_user' => 'required|string', // TAMBAHKAN VALIDASI
+            'sap_password' => 'required|string', // TAMBAHKAN VALIDASI
         ]);
 
         try {
             $data = $request->all();
-            $data['sap_user'] = env('SAP_USER');
-            $data['sap_password'] = env('SAP_PASSWORD');
 
             Log::info('Sending HU creation request to Python API', [
                 'endpoint' => $this->pythonBaseUrl . '/hu/create-single',
                 'data' => array_merge($data, ['sap_password' => '***'])
             ]);
 
-            // Gunakan 'timeout' (untuk Laravel < 7)
             $response = Http::timeout(120)->post($this->pythonBaseUrl . '/hu/create-single', $data);
 
             Log::info('Python API response', [
@@ -271,6 +260,10 @@ class HUController extends Controller
 
             if ($response->successful()) {
                 $result = $response->json();
+
+                // Update stock status and create history
+                $this->updateStockAndHistory($request, $result, 'single');
+
                 return back()->with('success', $result['message'] ?? 'HU Created Successfully');
             } else {
                 $error = $response->json()['error'] ?? 'Unknown error occurred';
@@ -295,16 +288,15 @@ class HUController extends Controller
             'items.*.pack_qty' => 'required|numeric|min:0.001',
             'items.*.batch' => 'nullable|string',
             'items.*.sp_stck_no' => 'nullable|string',
-            'base_unit_qty' => 'nullable|string', // Dibuat nullable
+            'base_unit_qty' => 'nullable|string',
+            'sap_user' => 'required|string', // TAMBAHKAN VALIDASI
+            'sap_password' => 'required|string', // TAMBAHKAN VALIDASI
         ]);
 
         try {
             $data = $request->all();
-            $data['sap_user'] = env('SAP_USER');
-            $data['sap_password'] = env('SAP_PASSWORD');
 
-            // Tambahkan base_unit_qty ke setiap item
-            $baseUnit = $request->input('base_unit_qty', ''); // Ambil dari hidden input
+            $baseUnit = $request->input('base_unit_qty', '');
             foreach ($data['items'] as &$item) {
                 $item['base_unit_qty'] = $baseUnit;
             }
@@ -323,6 +315,10 @@ class HUController extends Controller
 
             if ($response->successful()) {
                 $result = $response->json();
+
+                // Update stock status and create history for multiple items
+                $this->updateStockAndHistoryMulti($request, $result, 'single-multi');
+
                 return back()->with('success', $result['message'] ?? 'HU with multiple materials created successfully');
             } else {
                 $error = $response->json()['error'] ?? 'Unknown error occurred';
@@ -347,16 +343,15 @@ class HUController extends Controller
             'hus.*.pack_qty' => 'required|numeric|min:0.001',
             'hus.*.batch' => 'nullable|string',
             'hus.*.sp_stck_no' => 'nullable|string',
-            'base_unit_qty' => 'nullable|string', // Dibuat nullable
+            'base_unit_qty' => 'nullable|string',
+            'sap_user' => 'required|string', // TAMBAHKAN VALIDASI
+            'sap_password' => 'required|string', // TAMBAHKAN VALIDASI
         ]);
 
         try {
             $data = $request->all();
-            $data['sap_user'] = env('SAP_USER');
-            $data['sap_password'] = env('SAP_PASSWORD');
-
-            // Tambahkan base_unit_qty ke setiap HU
-            $baseUnit = $request->input('base_unit_qty', ''); // Ambil dari hidden input
+            
+            $baseUnit = $request->input('base_unit_qty', '');
             foreach ($data['hus'] as &$hu) {
                 $hu['base_unit_qty'] = $baseUnit;
             }
@@ -375,6 +370,10 @@ class HUController extends Controller
 
             if ($response->successful()) {
                 $result = $response->json();
+
+                // Update stock status and create history for multiple HUs
+                $this->updateStockAndHistoryMultiple($request, $result, 'multiple');
+
                 return back()->with('success', $result['message'] ?? 'Multiple HUs created successfully');
             } else {
                 $error = $response->json()['error'] ?? 'Unknown error occurred';
@@ -384,6 +383,117 @@ class HUController extends Controller
         } catch (\Exception $e) {
             Log::error('Multiple HU Creation Error: ' . $e->getMessage());
             return back()->with('error', 'Failed to connect to SAP system: ' . $e->getMessage());
+        }
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    private function updateStockAndHistory($request, $result, $scenarioType)
+    {
+        try {
+            // Update stock status
+            DB::table('stock_data')
+                ->where('material', $request->material)
+                ->where('batch', $request->batch)
+                ->where('plant', $request->plant)
+                ->where('storage_location', $request->stge_loc)
+                ->update([
+                    'hu_created' => true,
+                    'hu_created_at' => now(),
+                    'hu_number' => $request->hu_exid
+                ]);
+
+            // Create history record
+            HuHistory::create([
+                'hu_number' => $request->hu_exid,
+                'material' => $request->material,
+                'material_description' => DB::table('stock_data')->where('material', $request->material)->value('material_description'),
+                'batch' => $request->batch,
+                'quantity' => $request->pack_qty,
+                'unit' => 'PC',
+                'plant' => $request->plant,
+                'storage_location' => $request->stge_loc,
+                'sales_document' => $request->sp_stck_no,
+                'scenario_type' => $scenarioType,
+                'created_by' => Auth::check() ? Auth::user()->name : 'System' // PERBAIKAN: Gunakan Auth facade
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating stock and history: ' . $e->getMessage());
+        }
+    }
+
+    private function updateStockAndHistoryMulti($request, $result, $scenarioType)
+    {
+        try {
+            foreach ($request->items as $item) {
+                // Update stock status for each item
+                DB::table('stock_data')
+                    ->where('material', $item['material'])
+                    ->where('batch', $item['batch'] ?? null)
+                    ->where('plant', $request->plant)
+                    ->where('storage_location', $request->stge_loc)
+                    ->update([
+                        'hu_created' => true,
+                        'hu_created_at' => now(),
+                        'hu_number' => $request->hu_exid
+                    ]);
+
+                // Create history record for each item
+                HuHistory::create([
+                    'hu_number' => $request->hu_exid,
+                    'material' => $item['material'],
+                    'material_description' => DB::table('stock_data')->where('material', $item['material'])->value('material_description'),
+                    'batch' => $item['batch'] ?? null,
+                    'quantity' => $item['pack_qty'],
+                    'unit' => 'PC',
+                    'plant' => $request->plant,
+                    'storage_location' => $request->stge_loc,
+                    'sales_document' => $item['sp_stck_no'] ?? null,
+                    'scenario_type' => $scenarioType,
+                    'created_by' => Auth::check() ? Auth::user()->name : 'System' // PERBAIKAN: Gunakan Auth facade
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error updating stock and history for multi: ' . $e->getMessage());
+        }
+    }
+
+    private function updateStockAndHistoryMultiple($request, $result, $scenarioType)
+    {
+        try {
+            foreach ($request->hus as $hu) {
+                // Update stock status for each HU
+                DB::table('stock_data')
+                    ->where('material', $hu['material'])
+                    ->where('batch', $hu['batch'] ?? null)
+                    ->where('plant', $hu['plant'])
+                    ->where('storage_location', $hu['stge_loc'])
+                    ->update([
+                        'hu_created' => true,
+                        'hu_created_at' => now(),
+                        'hu_number' => $hu['hu_exid']
+                    ]);
+
+                // Create history record for each HU
+                HuHistory::create([
+                    'hu_number' => $hu['hu_exid'],
+                    'material' => $hu['material'],
+                    'material_description' => DB::table('stock_data')->where('material', $hu['material'])->value('material_description'),
+                    'batch' => $hu['batch'] ?? null,
+                    'quantity' => $hu['pack_qty'],
+                    'unit' => 'PC',
+                    'plant' => $hu['plant'],
+                    'storage_location' => $hu['stge_loc'],
+                    'sales_document' => $hu['sp_stck_no'] ?? null,
+                    'scenario_type' => $scenarioType,
+                    'created_by' => Auth::check() ? Auth::user()->name : 'System' // PERBAIKAN: Gunakan Auth facade
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error updating stock and history for multiple: ' . $e->getMessage());
         }
     }
 }

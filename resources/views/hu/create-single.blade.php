@@ -2,6 +2,40 @@
 
 @section('content')
 <div class="container-fluid py-4">
+    <!-- Alert Messages dari Laravel Session -->
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    <!-- Action Buttons di ATAS Container -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary px-4">
+                    <i class="fas fa-arrow-left me-2"></i>Kembali ke Home
+                </a>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-danger px-4" onclick="resetForm()">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary px-4" id="createHuButton">
+                        <i class="fas fa-save me-2"></i>Create HU
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Header Section -->
     <div class="row mb-4">
         <div class="col-12">
@@ -17,21 +51,6 @@
         </div>
     </div>
 
-    <!-- Notifications -->
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
     <div class="row justify-content-center">
         <div class="col-xxl-10 col-xl-12">
             <div class="card border-0 shadow-sm">
@@ -46,6 +65,9 @@
                     <form action="{{ route('hu.store-single') }}" method="POST" id="huForm">
                         @csrf
                         <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
+                        <!-- Hidden inputs for SAP Credentials -->
+                        <input type="hidden" id="sap_user" name="sap_user" value="">
+                        <input type="hidden" id="sap_password" name="sap_password" value="">
 
                         <!-- Header Information -->
                         <div class="row mb-4">
@@ -76,11 +98,11 @@
                                 </label>
                                 <select class="form-select" id="pack_mat" name="pack_mat" required>
                                     <option value="">Pilih Packaging Material</option>
-                                    <option value="VSTDPLTBW01" {{ old('pack_mat') == 'VSTDPLTBW01' ? 'selected' : 'selected' }}>VSTDPLTBW01</option>
+                                    <option value="VSTDPLTBW01" {{ old('pack_mat') == 'VSTDPLTBW01' ? 'selected' : '' }}>VSTDPLTBW01</option>
                                     <option value="VSTDPLBW002" {{ old('pack_mat') == 'VSTDPLBW002' ? 'selected' : '' }}>VSTDPLBW002</option>
                                     <option value="50016873" {{ old('pack_mat') == '50016873' ? 'selected' : '' }}>50016873</option>
                                 </select>
-                                <div class="form-text text-muted small">Material untuk packaging</div>
+                                <div class="form-text text-muted small">Pilih packaging material</div>
                             </div>
 
                             <div class="col-md-6 col-lg-4 mb-3">
@@ -164,27 +186,40 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Action Buttons -->
-                        <div class="row mt-5">
-                            <div class="col-12">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary px-4">
-                                        <i class="fas fa-arrow-left me-2"></i>Kembali ke Home
-                                    </a>
-                                    <div class="d-flex gap-2">
-                                        <button type="reset" class="btn btn-outline-danger px-4">
-                                            <i class="fas fa-times me-2"></i>Cancel
-                                        </button>
-                                        <button type="submit" class="btn btn-primary px-4">
-                                            <i class="fas fa-save me-2"></i>Create HU
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </form>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal SAP Credentials -->
+<div class="modal fade" id="sapCredentialsModal" tabindex="-1" aria-labelledby="sapCredentialsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="sapCredentialsModalLabel">
+                    <i class="fas fa-key me-2"></i>SAP Credentials
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sapCredentialsForm">
+                    <div class="mb-3">
+                        <label for="sap_user_modal" class="form-label">SAP User <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="sap_user_modal" name="sap_user_modal" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sap_password_modal" class="form-label">SAP Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="sap_password_modal" name="sap_password_modal" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmSapCredentials">
+                    <i class="fas fa-check me-2"></i>Confirm & Create HU
+                </button>
             </div>
         </div>
     </div>
@@ -196,23 +231,33 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== SKENARIO 1 LOADED ===');
 
-    // Cek jika ada pesan sukses dari server - JANGAN tampilkan pesan "pilih material" jika create berhasil
+    // Cek jika ada pesan sukses dari server dan clear sessionStorage
     const serverSuccessAlert = document.querySelector('.alert-success');
     const serverErrorAlert = document.querySelector('.alert-danger');
 
-    // Jika ada pesan sukses, berarti HU berhasil dibuat, skip loading dari sessionStorage
     if (serverSuccessAlert) {
-        console.log('✅ HU created successfully, skipping sessionStorage load');
-        // Hapus sessionStorage karena data sudah berhasil diproses
+        console.log('✅ HU created successfully, clearing sessionStorage');
         sessionStorage.removeItem('scenario1_data');
-        return;
+
+        // Auto-hide success alert setelah 5 detik
+        setTimeout(() => {
+            serverSuccessAlert.remove();
+        }, 5000);
     }
 
-    // Ambil data dari sessionStorage hanya jika tidak ada pesan sukses
+    if (serverErrorAlert) {
+        console.log('❌ HU creation failed');
+        // Auto-hide error alert setelah 8 detik
+        setTimeout(() => {
+            serverErrorAlert.remove();
+        }, 8000);
+    }
+
+    // Ambil data dari sessionStorage hanya jika tidak ada pesan sukses/error dari server
     const scenarioDataRaw = sessionStorage.getItem('scenario1_data');
     console.log('Raw data from sessionStorage:', scenarioDataRaw);
 
-    if (scenarioDataRaw && !serverSuccessAlert) {
+    if (scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
         try {
             const materials = JSON.parse(scenarioDataRaw);
             console.log('Parsed materials:', materials);
@@ -220,166 +265,70 @@ document.addEventListener('DOMContentLoaded', function() {
             if (materials && Array.isArray(materials) && materials.length > 0) {
                 console.log('✅ Data valid, processing materials...');
                 fillFormWithData(materials[0]);
-
-                // JANGAN hapus sessionStorage di sini, biarkan sampai submit berhasil
                 console.log('✅ Data loaded from sessionStorage');
-
             } else {
                 console.warn('❌ Data invalid');
-                if (!serverErrorAlert) {
-                    showMessage('Data material tidak valid. Silakan pilih ulang dari halaman utama.', 'warning');
-                }
+                showMessage('Data material tidak valid. Silakan pilih ulang dari halaman utama.', 'warning');
             }
         } catch (error) {
             console.error('❌ Error parsing scenario data:', error);
-            if (!serverErrorAlert) {
-                showMessage('Error memuat data material. Silakan pilih ulang.', 'error');
-            }
+            showMessage('Error memuat data material. Silakan pilih ulang.', 'error');
         }
     } else {
-        // Tampilkan pesan ini HANYA jika tidak ada data DAN tidak ada pesan sukses
         if (!scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
             console.warn('❌ No data found in sessionStorage');
             showMessage('Silakan pilih material dari halaman utama dengan drag & drop terlebih dahulu.', 'info');
         }
     }
 
-    function fillFormWithData(material) {
-        console.log('Filling form with data:', material);
-
-        function formatMaterialNumber(material) {
-            if (!material) return '';
-            if (/^\d+$/.test(material)) {
-                return material.replace(/^0+/, '') || '0';
-            }
-            return material;
-        }
-
-        function getSalesOrderNo(item) {
-            if (item.combined_sales_doc && item.combined_sales_doc !== '-') {
-                return item.combined_sales_doc;
-            }
-            if (item.sales_document && item.item_number) {
-                return item.sales_document + item.item_number;
-            }
-            if (item.sales_document) {
-                return item.sales_document;
-            }
-            return '';
-        }
-
-        const salesOrderNo = getSalesOrderNo(material);
-
-        // Isi form fields
-        document.getElementById('plant').value = material.plant || '';
-        document.getElementById('material').value = formatMaterialNumber(material.material) || '';
-        document.getElementById('batch').value = material.batch || '';
-        document.getElementById('stge_loc').value = material.storage_location || '';
-
-        // Isi Qty otomatis
-        const stockQty = parseFloat(material.stock_quantity || '0');
-        document.getElementById('pack_qty').value = stockQty;
-        document.getElementById('pack_qty_text').textContent = `Stock tersedia: ${stockQty.toLocaleString('id-ID')}`;
-
-        document.getElementById('sp_stck_no').value = salesOrderNo;
-        document.getElementById('pack_mat').value = 'VSTDPLTBW01'; // Default
-
-        // Update preview
-        const previewHtml = `
-            <div class="row">
-                <div class="col-md-6">
-                    <strong>Material:</strong> ${formatMaterialNumber(material.material)}<br>
-                    <strong>Deskripsi:</strong> ${material.material_description || '-'}<br>
-                    <strong>Plant:</strong> ${material.plant || '-'}
-                </div>
-                <div class="col-md-6">
-                    <strong>Storage Location:</strong> ${material.storage_location || '-'}<br>
-                    <strong>Batch:</strong> ${material.batch || '-'}<br>
-                    <strong>Stock Quantity:</strong> ${stockQty.toLocaleString('id-ID')} PC
-                </div>
-            </div>
-            ${salesOrderNo ?
-                `<div class="row mt-2">
-                    <div class="col-12">
-                        <strong>Sales Order No:</strong> ${salesOrderNo}
-                    </div>
-                </div>` : ''
-            }
-        `;
-        document.getElementById('materialPreview').innerHTML = previewHtml;
-        document.getElementById('materialPreview').className = 'text-gray-800';
-    }
-
-    // Validasi form sebelum submit
-    document.getElementById('huForm').addEventListener('submit', function(e) {
-        console.log('🚀 Form submission started');
-
-        const huExid = document.getElementById('hu_exid').value.trim();
-        const packMat = document.getElementById('pack_mat').value;
-        const packQty = document.getElementById('pack_qty').value;
-        const material = document.getElementById('material').value.trim();
-
-        if (!material) {
-            e.preventDefault();
-            showMessage('Material kosong. Silakan pilih material dari halaman utama.', 'error');
-            return;
-        }
-        if (!huExid) {
-            e.preventDefault();
-            showMessage('HU External ID harus diisi', 'error');
-            document.getElementById('hu_exid').focus();
-            return;
-        }
-        if (!packMat) {
-            e.preventDefault();
-            showMessage('Packaging Material harus dipilih', 'error');
-            document.getElementById('pack_mat').focus();
-            return;
-        }
-        if (!packQty || parseFloat(packQty) <= 0) {
-            e.preventDefault();
-            showMessage('Pack Quantity harus lebih dari 0', 'error');
-            document.getElementById('pack_qty').focus();
+    // Handle Create HU Button Click
+    document.getElementById('createHuButton').addEventListener('click', function() {
+        if (!validateForm()) {
             return;
         }
 
-        const submitBtn = this.querySelector('button[type="submit"]');
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating HU...';
-        submitBtn.disabled = true;
+        // Tampilkan modal SAP credentials
+        const sapModal = new bootstrap.Modal(document.getElementById('sapCredentialsModal'));
+        sapModal.show();
     });
 
-    function showMessage(message, type) {
-        // Hapus alert existing
-        const existingAlerts = document.querySelectorAll('.alert.alert-dismissible');
-        existingAlerts.forEach(alert => alert.remove());
+    // Handle Confirm SAP Credentials
+    document.getElementById('confirmSapCredentials').addEventListener('click', function() {
+        const modalSapUser = document.querySelector('#sapCredentialsModal input[name="sap_user_modal"]').value;
+        const modalSapPassword = document.querySelector('#sapCredentialsModal input[name="sap_password_modal"]').value;
 
-        const alertClass = type === 'error' ? 'alert-danger' :
-                         type === 'warning' ? 'alert-warning' :
-                         type === 'success' ? 'alert-success' : 'alert-info';
-
-        const iconClass = type === 'error' ? 'fa-exclamation-triangle' :
-                         type === 'warning' ? 'fa-exclamation-triangle' :
-                         type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
-
-        const alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
-                <i class="fas ${iconClass} me-2"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-
-        const cardHeader = document.querySelector('.card-header');
-        cardHeader.insertAdjacentHTML('afterend', alertHtml);
-
-        // Auto-close untuk success/info
-        if (type === 'success' || type === 'info') {
-            setTimeout(() => {
-                const alert = document.querySelector('.alert.' + alertClass);
-                if (alert) alert.remove();
-            }, 5000);
+        if (!modalSapUser || !modalSapPassword) {
+            showMessage('SAP User dan Password harus diisi', 'error');
+            return;
         }
-    }
+
+        // Set nilai ke hidden input
+        document.getElementById('sap_user').value = modalSapUser;
+        document.getElementById('sap_password').value = modalSapPassword;
+
+        // Tampilkan loading state
+        const confirmBtn = document.getElementById('confirmSapCredentials');
+        const originalText = confirmBtn.innerHTML;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating HU...';
+        confirmBtn.disabled = true;
+
+        // Tutup modal
+        const sapModal = bootstrap.Modal.getInstance(document.getElementById('sapCredentialsModal'));
+        sapModal.hide();
+
+        // Submit form
+        setTimeout(() => {
+            document.getElementById('huForm').submit();
+        }, 500);
+    });
+
+    // Reset modal ketika ditutup
+    document.getElementById('sapCredentialsModal').addEventListener('hidden.bs.modal', function () {
+        document.querySelector('#sapCredentialsModal form').reset();
+        const confirmBtn = document.getElementById('confirmSapCredentials');
+        confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirm & Create HU';
+        confirmBtn.disabled = false;
+    });
 
     // Auto-generate HU External ID
     document.getElementById('hu_exid').addEventListener('focus', function() {
@@ -389,5 +338,133 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+function fillFormWithData(material) {
+    console.log('Filling form with data:', material);
+
+    function formatMaterialNumber(material) {
+        if (!material) return '';
+        if (/^\d+$/.test(material)) {
+            return material.replace(/^0+/, '') || '0';
+        }
+        return material;
+    }
+
+    function getSalesOrderNo(item) {
+        if (item.combined_sales_doc && item.combined_sales_doc !== '-') {
+            return item.combined_sales_doc;
+        }
+        if (item.sales_document && item.item_number) {
+            return item.sales_document + item.item_number;
+        }
+        if (item.sales_document) {
+            return item.sales_document;
+        }
+        return '';
+    }
+
+    const salesOrderNo = getSalesOrderNo(material);
+
+    // Isi form fields
+    document.getElementById('plant').value = material.plant || '';
+    document.getElementById('material').value = formatMaterialNumber(material.material) || '';
+    document.getElementById('batch').value = material.batch || '';
+    document.getElementById('stge_loc').value = material.storage_location || '';
+
+    // Isi Qty otomatis
+    const stockQty = parseFloat(material.stock_quantity || '0');
+    document.getElementById('pack_qty').value = stockQty;
+    document.getElementById('pack_qty_text').textContent = `Stock tersedia: ${stockQty.toLocaleString('id-ID')}`;
+
+    document.getElementById('sp_stck_no').value = salesOrderNo;
+
+    // Update preview
+    const previewHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Material:</strong> ${formatMaterialNumber(material.material)}<br>
+                <strong>Deskripsi:</strong> ${material.material_description || '-'}<br>
+                <strong>Plant:</strong> ${material.plant || '-'}
+            </div>
+            <div class="col-md-6">
+                <strong>Storage Location:</strong> ${material.storage_location || '-'}<br>
+                <strong>Batch:</strong> ${material.batch || '-'}<br>
+                <strong>Stock Quantity:</strong> ${stockQty.toLocaleString('id-ID')} PC
+            </div>
+        </div>
+        ${salesOrderNo ?
+            `<div class="row mt-2">
+                <div class="col-12">
+                    <strong>Sales Order No:</strong> ${salesOrderNo}
+                </div>
+            </div>` : ''
+        }
+    `;
+    document.getElementById('materialPreview').innerHTML = previewHtml;
+    document.getElementById('materialPreview').className = 'text-gray-800';
+}
+
+function validateForm() {
+    const huExid = document.getElementById('hu_exid').value.trim();
+    const packMat = document.getElementById('pack_mat').value;
+    const packQty = document.getElementById('pack_qty').value;
+    const material = document.getElementById('material').value.trim();
+
+    if (!material) {
+        showMessage('Material kosong. Silakan pilih material dari halaman utama.', 'error');
+        return false;
+    }
+    if (!huExid) {
+        showMessage('HU External ID harus diisi', 'error');
+        document.getElementById('hu_exid').focus();
+        return false;
+    }
+    if (!packMat) {
+        showMessage('Packaging Material harus dipilih', 'error');
+        document.getElementById('pack_mat').focus();
+        return false;
+    }
+    if (!packQty || parseFloat(packQty) <= 0) {
+        showMessage('Pack Quantity harus lebih dari 0', 'error');
+        document.getElementById('pack_qty').focus();
+        return false;
+    }
+
+    return true;
+}
+
+function resetForm() {
+    if (confirm('Apakah Anda yakin ingin membatalkan? Semua data yang telah diisi akan hilang.')) {
+        document.getElementById('huForm').reset();
+        window.location.href = "{{ route('hu.index') }}";
+    }
+}
+
+function showMessage(message, type) {
+    // Hapus alert existing (kecuali yang dari Laravel session)
+    const existingAlerts = document.querySelectorAll('.alert.alert-dismissible:not(.alert-success):not(.alert-danger)');
+    existingAlerts.forEach(alert => alert.remove());
+
+    const alertClass = type === 'error' ? 'alert-danger' : type === 'warning' ? 'alert-warning' : 'alert-info';
+    const iconClass = type === 'error' ? 'fa-exclamation-triangle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="fas ${iconClass} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+
+    // Auto-hide setelah beberapa detik
+    setTimeout(() => {
+        const alert = document.querySelector('.alert.' + alertClass);
+        if (alert && !alert.classList.contains('alert-success') && !alert.classList.contains('alert-danger')) {
+            alert.remove();
+        }
+    }, type === 'error' ? 8000 : 5000);
+}
 </script>
 @endpush

@@ -143,7 +143,7 @@
         /* Sticky positioning untuk kolom kanan */
         .scenario-sidebar {
             position: sticky;
-            top: 20px;
+            top: 50px;
             height: fit-content;
             max-height: 95vh;
             overflow-y: auto;
@@ -197,7 +197,7 @@
             font-weight: bold;
             color: #10b981;
         }
-        /* Style untuk select box dan tombol select */
+        /* Style untuk checkbox yang lebih jelas */
         .selection-controls {
             background-color: #f8f9fa;
             border-radius: 5px;
@@ -216,6 +216,33 @@
             font-size: 0.8rem;
             padding: 0.2rem 0.5rem;
         }
+        /* Style untuk checkbox yang lebih jelas */
+        .table-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
+        .table-checkbox:checked {
+            background-color: #3b82f6;
+        }
+        .select-all-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #3b82f6;
+        }
+        /* Style untuk baris yang dipilih */
+        .row-selected {
+            background-color: #f0f7ff !important;
+        }
+        /* HAPUS STYLE UNTUK HISTORY BUTTON DI BAWAH */
+        /* .history-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        } */
     </style>
 </head>
 <body class="bg-gray-50">
@@ -224,24 +251,28 @@
             <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
                 <i class="fas fa-cubes me-2"></i>SAP HU Automation
             </a>
+            <div class="d-flex">
+                <a href="{{ route('hu.history') }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-history me-1"></i> History HU
+                </a>
+            </div>
         </div>
     </nav>
 
     <div class="container-fluid mt-4">
         @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-                <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
-        @if(session('error'))
-            <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
-
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
         <!-- Layout utama dengan kolom kiri lebih lebar dan kanan lebih sempit -->
         <div class="row">
             <!-- Kolom kiri untuk data stock (lebih lebar) -->
@@ -251,7 +282,7 @@
                     <div class="d-flex align-items-center">
                         <div class="form-check select-all-checkbox">
                             <input class="form-check-input" type="checkbox" id="selectAll">
-                            <label class="form-check-label small" for="selectAll">
+                            <label class="form-check-label small fw-bold text-dark" for="selectAll">
                                 Pilih Semua
                             </label>
                         </div>
@@ -261,7 +292,7 @@
                         <button class="btn btn-outline-secondary btn-sm drag-selected-btn" id="clearSelection">
                             <i class="fas fa-times me-1"></i> Hapus Pilihan
                         </button>
-                        <span class="selected-count" id="selectedCount">0 item terpilih</span>
+                        <span class="selected-count fw-medium" id="selectedCount">0 item terpilih</span>
                     </div>
                 </div>
 
@@ -271,9 +302,9 @@
                             <div>
                                 <h5 class="card-title mb-0 fw-bold text-gray-800">
                                     <i class="fas fa-warehouse me-2 text-blue-500"></i>
-                                    Data Stock
+                                    Data Stock Tersedia
                                 </h5>
-                                <small class="text-muted">Update otomatis setiap 30 menit untuk Material Type: FERT</small>
+                                <small class="text-muted">Hanya menampilkan material yang belum dibuat HU</small>
                             </div>
                             <div class="d-flex gap-2 align-items-center">
                                 <div class="dropdown">
@@ -317,7 +348,7 @@
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="border-0" style="width: 40px;">
-                                            <input type="checkbox" id="selectAllHeader" class="form-check-input">
+                                            <input type="checkbox" id="selectAllHeader" class="table-checkbox">
                                         </th>
                                         <th class="border-0">Status</th>
                                         <th class="border-0">Material</th>
@@ -333,40 +364,42 @@
                                 <tbody id="stockTableBody">
                                     @if($stockData['success'] && count($stockData['data']) > 0)
                                         @foreach($stockData['data'] as $index => $item)
-                                            <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="{{ $index }}" data-material="{{ $item->material }}" data-batch="{{ $item->batch }}" data-plant="{{ $item->plant }}" data-storage-location="{{ $item->storage_location }}">
-                                                <td class="border-0">
-                                                    <input type="checkbox" class="form-check-input row-select" data-index="{{ $index }}">
-                                                </td>
-                                                <td class="border-0">
-                                                    <span class="material-status" id="status-{{ $item->material }}-{{ $item->batch }}"></span>
-                                                </td>
-                                                <td class="border-0">
-                                                    <span class="material-number">
-                                                        {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
-                                                    </span>
-                                                </td>
-                                                <td class="border-0 text-gray-600">{{ $item->material_description ?? '-' }}</td>
-                                                <td class="border-0 text-gray-600">{{ $item->batch ?? '-' }}</td>
-                                                <td class="border-0 text-end">
-                                                    <span class="badge bg-success bg-opacity-10 text-success fs-6">
-                                                        {{ number_format((float)($item->stock_quantity ?? 0), 0, ',', '.') }}
-                                                    </span>
-                                                </td>
-                                                <td class="border-0 text-gray-600">{{ $item->base_unit == 'ST' ? 'PC' : ($item->base_unit ?? '-') }}</td>
-                                                <td class="border-0">
-                                                    <span class="sales-document">{{ $item->sales_document && $item->item_number ? $item->sales_document . $item->item_number : '-' }}</span>
-                                                </td>
-                                                <td class="border-0 text-gray-600">
-                                                    @if($item->vendor_name)
-                                                        {{ implode(' ', array_slice(explode(' ', $item->vendor_name), 0, 2)) }}
-                                                    @else
-                                                        -
-                                                    @endif
-                                                </td>
-                                                <td class="border-0 text-gray-600">
-                                                    {{ $item->last_updated ? \Carbon\Carbon::parse($item->last_updated)->format('d/m/Y H:i:s') : '-' }}
-                                                </td>
-                                            </tr>
+                                            @if(!$item->hu_created)
+                                                <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="{{ $index }}" data-material="{{ $item->material }}" data-batch="{{ $item->batch }}" data-plant="{{ $item->plant }}" data-storage-location="{{ $item->storage_location }}">
+                                                    <td class="border-0">
+                                                        <input type="checkbox" class="table-checkbox row-select" data-index="{{ $index }}">
+                                                    </td>
+                                                    <td class="border-0">
+                                                        <span class="material-status" id="status-{{ $item->material }}-{{ $item->batch }}"></span>
+                                                    </td>
+                                                    <td class="border-0">
+                                                        <span class="material-number">
+                                                            {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="border-0 text-gray-600">{{ $item->material_description ?? '-' }}</td>
+                                                    <td class="border-0 text-gray-600">{{ $item->batch ?? '-' }}</td>
+                                                    <td class="border-0 text-end">
+                                                        <span class="badge bg-success bg-opacity-10 text-success fs-6">
+                                                            {{ number_format((float)($item->stock_quantity ?? 0), 0, ',', '.') }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="border-0 text-gray-600">{{ $item->base_unit == 'ST' ? 'PC' : ($item->base_unit ?? '-') }}</td>
+                                                    <td class="border-0">
+                                                        <span class="sales-document">{{ $item->sales_document && $item->item_number ? $item->sales_document . $item->item_number : '-' }}</span>
+                                                    </td>
+                                                    <td class="border-0 text-gray-600">
+                                                        @if($item->vendor_name)
+                                                            {{ implode(' ', array_slice(explode(' ', $item->vendor_name), 0, 2)) }}
+                                                        @else
+                                                            -
+                                                        @endif
+                                                    </td>
+                                                    <td class="border-0 text-gray-600">
+                                                        {{ $item->last_updated ? \Carbon\Carbon::parse($item->last_updated)->format('d/m/Y H:i:s') : '-' }}
+                                                    </td>
+                                                </tr>
+                                            @endif
                                         @endforeach
                                     @else
                                         <tr>
@@ -501,6 +534,14 @@
         </div>
     </div>
 
+    {{-- HAPUS TOMBOL HISTORY DI BAWAH INI --}}
+    {{--
+    <!-- Tombol History HU -->
+    <a href="{{ route('hu.history') }}" class="btn btn-info history-btn">
+        <i class="fas fa-history me-2"></i>Lihat History HU
+    </a>
+    --}}
+
     <div class="loading-overlay" style="display: none;">
         {{-- ... --}}
     </div>
@@ -598,8 +639,12 @@
         // Update tombol drag selected
         if (count > 0) {
             $('#dragSelected').prop('disabled', false);
+            // Tambahkan class untuk baris yang dipilih
+            $('.row-select:checked').closest('tr').addClass('row-selected');
         } else {
             $('#dragSelected').prop('disabled', true);
+            // Hapus class untuk baris yang dipilih
+            $('.draggable-row').removeClass('row-selected');
         }
     }
 
@@ -867,7 +912,11 @@
         tbody.empty();
         const paginationContainer = $('.pagination-container');
         const paginationInfo = $('#paginationInfo');
-        if (data.length === 0) {
+
+        // Filter data untuk hanya menampilkan yang belum dibuat HU
+        const availableData = data.filter(item => !item.hu_created);
+
+        if (availableData.length === 0) {
             tbody.append(`
                 <tr>
                     <td colspan="10" class="text-center py-4 text-muted">
@@ -881,8 +930,8 @@
             return;
         }
         paginationContainer.removeClass('d-none');
-        paginationInfo.text(`Showing ${data.length} items`);
-        data.forEach(function(item, index) {
+        paginationInfo.text(`Showing ${availableData.length} items`);
+        availableData.forEach(function(item, index) {
             const formattedMaterial = formatMaterialNumber(item.material);
             const originalMaterial = item.material;
             const showTooltip = formattedMaterial !== originalMaterial;
@@ -892,7 +941,7 @@
             const row = `
                 <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}">
                     <td class="border-0">
-                        <input type="checkbox" class="form-check-input row-select" data-index="${index}">
+                        <input type="checkbox" class="table-checkbox row-select" data-index="${index}">
                     </td>
                     <td class="border-0">
                         <span class="material-status" id="status-${item.material}-${item.batch}"></span>
