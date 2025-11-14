@@ -235,14 +235,6 @@
         .row-selected {
             background-color: #f0f7ff !important;
         }
-        /* HAPUS STYLE UNTUK HISTORY BUTTON DI BAWAH */
-        /* .history-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        } */
     </style>
 </head>
 <body class="bg-gray-50">
@@ -327,8 +319,8 @@
                                         <li><a class="dropdown-item" href="#" data-location="">Semua Lokasi</a></li>
                                     </ul>
                                 </div>
-                                <div class="input-group input-group-sm" style="width: 250px;">
-                                    <input type="text" id="materialSearch" class="form-control" placeholder="Cari material...">
+                                <div class="input-group input-group-sm" style="width: 300px;">
+                                    <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, atau sales order...">
                                     <button class="btn btn-outline-secondary" type="button" id="searchBtn">
                                         <i class="fas fa-search"></i>
                                     </button>
@@ -528,22 +520,15 @@
                 </div>
             </div>
         </div>
-
-        <div class="row mt-5">
-            {{-- ... (Konten About Section tidak berubah) ... --}}
-        </div>
     </div>
 
-    {{-- HAPUS TOMBOL HISTORY DI BAWAH INI --}}
-    {{--
-    <!-- Tombol History HU -->
-    <a href="{{ route('hu.history') }}" class="btn btn-info history-btn">
-        <i class="fas fa-history me-2"></i>Lihat History HU
-    </a>
-    --}}
-
     <div class="loading-overlay" style="display: none;">
-        {{-- ... --}}
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted">Memuat data...</p>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -561,8 +546,9 @@
         'multiple': []
     };
     let selectedRows = new Set(); // Untuk menyimpan indeks baris yang dipilih
+    let searchTimeout; // Untuk live search debounce
 
-    // ===== SEMUA FUNGSI UTILITAS (tidak berubah) =====
+    // ===== SEMUA FUNGSI UTILITAS =====
     function formatMaterialNumber(material) {
         if (!material) return '';
         if (/^\d+$/.test(material)) {
@@ -700,7 +686,24 @@
         $('#selectAllHeader').prop('checked', false);
         updateSelectionCount();
     }
-    // ============================================
+
+    // Fungsi untuk live search dengan debounce
+    function setupLiveSearch() {
+        $('#materialSearch').on('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                loadStockData();
+            }, 500); // Delay 500ms setelah user berhenti mengetik
+        });
+
+        // Enter key juga tetap berfungsi
+        $('#materialSearch').on('keypress', function(e) {
+            if (e.which === 13) {
+                clearTimeout(searchTimeout);
+                loadStockData();
+            }
+        });
+    }
 
     $(document).ready(function() {
         $('#selectedPlant').text(`Plant: ${selectedPlant}`);
@@ -708,12 +711,12 @@
         updateStorageLocations(selectedPlant);
         loadScenariosFromSession();
         setupRowDragEvents();
+
+        // Setup event handlers untuk search
         $('#refreshStock').click(function() { syncStockData(); });
-        $('#searchBtn, #materialSearch').on('click keypress', function(e) {
-            if (e.type === 'click' || (e.type === 'keypress' && e.which === 13)) {
-                loadStockData();
-            }
-        });
+        $('#searchBtn').click(function() { loadStockData(); });
+        setupLiveSearch(); // Setup live search
+
         $(document).on('click', '#plantList .dropdown-item', function(e) {
             e.preventDefault();
             selectedPlant = $(this).data('plant');
@@ -723,12 +726,14 @@
             $('#selectedStorageLocation').text('Pilih Lokasi');
             loadStockData();
         });
+
         $(document).on('click', '#storageLocationList .dropdown-item', function(e) {
             e.preventDefault();
             selectedStorageLocation = $(this).data('location');
             $('#selectedStorageLocation').text(selectedStorageLocation ? `Lokasi: ${selectedStorageLocation}` : 'Semua Lokasi');
             loadStockData();
         });
+
         setupDragAndDrop();
 
         // Update status material saat pertama kali load
@@ -845,12 +850,14 @@
 
     function loadStockData() {
         showLoading(true);
-        const material = $('#materialSearch').val();
+        const searchTerm = $('#materialSearch').val();
+
         $.ajax({
-            url: "{{ route('hu.stock.data') }}",
+            url: "{{ route('hu.get-stock') }}",
             type: 'GET',
             data: {
-                material: material,
+                search: searchTerm, // Parameter baru untuk search general
+                material: searchTerm, // Tetap pertahankan untuk backward compatibility
                 plant: selectedPlant,
                 storage_location: selectedStorageLocation
             },
@@ -864,7 +871,7 @@
             },
             error: function(xhr, status, error) {
                 console.error('Stock data error:', error);
-                showError('Error memuat data stock: ' .trim());
+                showError('Error memuat data stock: ' + error);
             },
             complete: function() {
                 showLoading(false);
@@ -879,7 +886,7 @@
         }
         showLoading(true);
         $.ajax({
-            url: "{{ route('hu.stock.sync') }}",
+            url: "{{ route('hu.sync-stock') }}",
             type: 'POST',
             data: {
                 _token: "{{ csrf_token() }}",

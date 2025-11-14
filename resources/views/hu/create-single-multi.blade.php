@@ -86,10 +86,15 @@
                                     <span class="input-group-text bg-light border-end-0">
                                         <i class="fas fa-barcode text-green-500"></i>
                                     </span>
-                                    <input type="text" class="form-control border-start-0" id="hu_exid" name="hu_exid"
-                                           value="{{ old('hu_exid') }}" required placeholder="Masukkan HU External ID">
+                                    <input type="text" class="form-control border-start-0 hu-exid-input"
+                                           id="hu_exid" name="hu_exid" maxlength="10"
+                                           value="{{ old('hu_exid') }}" required
+                                           placeholder="Masukkan 10 digit angka"
+                                           oninput="validateHuExid(this)">
                                 </div>
-                                <div class="form-text text-muted small">ID unik untuk identifikasi Handling Unit</div>
+                                <div class="form-text text-muted small">
+                                    <span id="hu_exid_status" class="text-muted">Masukkan 10 digit angka</span>
+                                </div>
                             </div>
 
                             <div class="col-md-6 col-lg-4 mb-3">
@@ -263,6 +268,40 @@
     outline: none;
     box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
 }
+
+.hu-exid-input {
+    border-color: #6c757d !important;
+}
+
+.hu-exid-input.valid {
+    border-color: #198754 !important;
+    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
+}
+
+.hu-exid-input.warning {
+    border-color: #ffc107 !important;
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+.hu-exid-input.invalid {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.status-valid {
+    color: #198754;
+    font-weight: 600;
+}
+
+.status-warning {
+    color: #ffc107;
+    font-weight: 600;
+}
+
+.status-invalid {
+    color: #dc3545;
+    font-weight: 600;
+}
 </style>
 @endpush
 
@@ -401,10 +440,47 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('hu_exid').addEventListener('focus', function() {
         if (!this.value) {
             const timestamp = new Date().getTime();
-            this.value = 'HU2_' + timestamp.toString().slice(-8);
+            this.value = timestamp.toString().slice(-10);
+            validateHuExid(this);
         }
     });
 });
+
+// Validasi HU External ID
+function validateHuExid(input) {
+    const value = input.value;
+    const statusElement = document.getElementById('hu_exid_status');
+
+    // Hanya menerima angka
+    const numericValue = value.replace(/[^0-9]/g, '');
+    if (value !== numericValue) {
+        input.value = numericValue;
+    }
+
+    const length = numericValue.length;
+
+    // Update styling berdasarkan panjang karakter
+    input.classList.remove('valid', 'warning', 'invalid');
+
+    if (length === 0) {
+        statusElement.textContent = 'Masukkan 10 digit angka';
+        statusElement.className = 'text-muted';
+    } else if (length < 10) {
+        input.classList.add('warning');
+        statusElement.textContent = `Kurang ${10 - length} digit`;
+        statusElement.className = 'status-warning';
+    } else if (length === 10) {
+        input.classList.add('valid');
+        statusElement.textContent = '✓ Format valid';
+        statusElement.className = 'status-valid';
+    } else {
+        input.classList.add('invalid');
+        statusElement.textContent = 'Maksimal 10 digit';
+        statusElement.className = 'status-invalid';
+        // Potong ke 10 digit
+        input.value = numericValue.slice(0, 10);
+    }
+}
 
 // Fungsi format material number
 function formatMaterialNumber(material) {
@@ -503,20 +579,34 @@ function addItemToForm(item, index) {
 }
 
 function validateForm() {
+    // Validasi HU External ID
+    const huExid = document.getElementById('hu_exid').value.trim();
+    if (!huExid) {
+        showMessage('HU External ID harus diisi', 'error');
+        document.getElementById('hu_exid').focus();
+        return false;
+    }
+
+    if (huExid.length !== 10) {
+        showMessage('HU External ID harus tepat 10 digit angka', 'error');
+        document.getElementById('hu_exid').focus();
+        return false;
+    }
+
+    if (!/^\d+$/.test(huExid)) {
+        showMessage('HU External ID hanya boleh berisi angka', 'error');
+        document.getElementById('hu_exid').focus();
+        return false;
+    }
+
     // Validasi: pastikan ada material
     if (itemCount === 0) {
         showMessage('Tidak ada material yang ditambahkan. Silakan pilih dari halaman utama.', 'error');
         return false;
     }
 
-    const huExid = document.getElementById('hu_exid').value.trim();
     const packMat = document.getElementById('pack_mat').value;
 
-    if (!huExid) {
-        showMessage('HU External ID harus diisi', 'error');
-        document.getElementById('hu_exid').focus();
-        return false;
-    }
     if (!packMat) {
         showMessage('Packaging Material harus dipilih', 'error');
         document.getElementById('pack_mat').focus();

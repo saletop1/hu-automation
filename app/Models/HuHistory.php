@@ -9,7 +9,7 @@ class HuHistory extends Model
 {
     use HasFactory;
 
-    protected $table = 'hu_history';
+    protected $table = 'hu_histories'; // Sesuaikan dengan nama tabel di database
 
     protected $fillable = [
         'hu_number',
@@ -18,24 +18,16 @@ class HuHistory extends Model
         'batch',
         'quantity',
         'unit',
+        'sales_document',
         'plant',
         'storage_location',
-        'sales_document',
         'scenario_type',
         'created_by'
-        // HAPUS 'created_at' dari fillable karena sudah otomatis dari timestamps
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
+        'quantity' => 'integer',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
-
-    // PASTIKAN TIMESTAMPS DIAKTIFKAN
-    public $timestamps = true;
-
-    // Jika Anda ingin menggunakan nama kolom yang berbeda, tambahkan:
-    // const CREATED_AT = 'created_at';
-    // const UPDATED_AT = 'updated_at';
 }
