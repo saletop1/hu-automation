@@ -76,6 +76,7 @@
             border-bottom: 2px solid #dee2e6;
         }
         .drop-zone {
+            position: relative;
             min-height: 100px;
             border: 2px dashed #ccc;
             border-radius: 8px;
@@ -103,17 +104,20 @@
         }
         .scenario-badge {
             position: absolute;
-            top: -6px;
-            right: -6px;
+            top: -8px;
+            right: -8px;
             background: #ef4444;
             color: white;
             border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            font-size: 0.65rem;
+            width: 20px;
+            height: 20px;
+            font-size: 0.7rem;
             display: flex;
             align-items: center;
             justify-content: center;
+            border: 2px solid white;
+            font-weight: bold;
+            z-index: 5;
         }
         .pagination-container.d-none {
             display: none !important;
@@ -181,25 +185,38 @@
         .material-item-compact {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 4px 6px;
+            align-items: flex-start;
+            padding: 4px;
             background: #f8f9fa;
-            border-radius: 3px;
+            border-radius: 4px;
             margin-bottom: 3px;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
+            min-height: 32px;
         }
+
         .material-code-compact {
             font-family: 'Courier New', monospace;
-            font-weight: bold;
-            color: #333;
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 0.6rem;
+            line-height: 1.2;
         }
+
         .material-qty-compact {
             font-weight: bold;
-            color: #10b981;
+            color: #001610ff; /* Hijau sangat gelap */
+            font-size: 0.6rem;
+            line-height: 1.2;
+            background-color: #d1fae5; /* Background hijau muda */
+            padding: 1px 4px;
+            border-radius: 3px;
+            border: 1px solid #000000ff;
+            min-width: 30px;
+            text-align: center;
         }
         /* Style untuk checkbox yang lebih jelas */
         .selection-controls {
-            background-color: #f8f9fa;
+            background-color: #faf8f8ff;
             border-radius: 5px;
             padding: 10px;
             margin-bottom: 10px;
@@ -218,8 +235,8 @@
         }
         /* Style untuk checkbox yang lebih jelas */
         .table-checkbox {
-            width: 18px;
-            height: 18px;
+            width: 14px;
+            height: 14px;
             cursor: pointer;
             accent-color: #3b82f6;
         }
@@ -566,9 +583,14 @@
         return salesDoc + itemNumber;
     }
     function getCustomerName(vendorName) {
-        if (!vendorName) return '-';
-        const words = vendorName.split(' ').slice(0, 2);
-        return words.join(' ');
+    if (!vendorName) return '-';
+    const words = vendorName.split(' ');
+    // Ambil maksimal 2 kata pertama
+    if (words.length <= 2) {
+        return vendorName;
+    } else {
+        return words.slice(0, 2).join(' ') + '*';
+    }
     }
 
     // Fungsi untuk menandai material yang sudah dipilih PER SKENARIO
@@ -914,74 +936,74 @@
         });
     }
 
-    function populateStockTable(data) {
-        const tbody = $('#stockTableBody');
-        tbody.empty();
-        const paginationContainer = $('.pagination-container');
-        const paginationInfo = $('#paginationInfo');
+            function populateStockTable(data) {
+            const tbody = $('#stockTableBody');
+            tbody.empty();
+            const paginationContainer = $('.pagination-container');
+            const paginationInfo = $('#paginationInfo');
 
-        // Filter data untuk hanya menampilkan yang belum dibuat HU
-        const availableData = data.filter(item => !item.hu_created);
+            // Filter data untuk hanya menampilkan yang belum dibuat HU
+            const availableData = data.filter(item => !item.hu_created);
 
-        if (availableData.length === 0) {
-            tbody.append(`
-                <tr>
-                    <td colspan="10" class="text-center py-4 text-muted">
-                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                        Tidak ada data stock tersedia
-                    </td>
-                </tr>
-            `);
-            paginationInfo.text('Showing 0 items');
-            paginationContainer.addClass('d-none');
-            return;
+            if (availableData.length === 0) {
+                tbody.append(`
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                            Tidak ada data stock tersedia
+                        </td>
+                    </tr>
+                `);
+                paginationInfo.text('Showing 0 items');
+                paginationContainer.addClass('d-none');
+                return;
+            }
+            paginationContainer.removeClass('d-none');
+            paginationInfo.text(`Showing ${availableData.length} items`);
+            availableData.forEach(function(item, index) {
+                const formattedMaterial = formatMaterialNumber(item.material);
+                const originalMaterial = item.material;
+                const showTooltip = formattedMaterial !== originalMaterial;
+                const convertedUnit = convertUnit(item.base_unit);
+                const combinedSalesDoc = combineSalesDocument(item.sales_document, item.item_number);
+                const customerName = getCustomerName(item.vendor_name); // Ini akan menggunakan function yang sudah diperbaiki
+                const row = `
+                    <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}">
+                        <td class="border-0">
+                            <input type="checkbox" class="table-checkbox row-select" data-index="${index}">
+                        </td>
+                        <td class="border-0">
+                            <span class="material-status" id="status-${item.material}-${item.batch}"></span>
+                        </td>
+                        <td class="border-0">
+                            <span class="material-number ${showTooltip ? 'has-tooltip' : ''}"
+                                ${showTooltip ? `title="Original: ${originalMaterial}"` : ''}>
+                                ${formattedMaterial}
+                            </span>
+                        </td>
+                        <td class="border-0 text-gray-600">${item.material_description || '-'}</td>
+                        <td class="border-0 text-gray-600">${item.batch || '-'}</td>
+                        <td class="border-0 text-end">
+                            <span class="badge bg-success bg-opacity-10 text-success fs-6">
+                                ${parseFloat(item.stock_quantity || 0).toLocaleString()}
+                            </span>
+                        </td>
+                        <td class="border-0 text-gray-600">${convertedUnit}</td>
+                        <td class="border-0">
+                            <span class="sales-document">${combinedSalesDoc}</span>
+                        </td>
+                        <td class="border-0 text-gray-600" title="${item.vendor_name || '-'}">${customerName}</td>
+                        <td class="border-0 text-gray-600">
+                            ${item.last_updated ? new Date(item.last_updated).toLocaleString() : '-'}
+                        </td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+            setupRowDragEvents();
+            updateMaterialStatus();
+            clearSelection();
         }
-        paginationContainer.removeClass('d-none');
-        paginationInfo.text(`Showing ${availableData.length} items`);
-        availableData.forEach(function(item, index) {
-            const formattedMaterial = formatMaterialNumber(item.material);
-            const originalMaterial = item.material;
-            const showTooltip = formattedMaterial !== originalMaterial;
-            const convertedUnit = convertUnit(item.base_unit);
-            const combinedSalesDoc = combineSalesDocument(item.sales_document, item.item_number);
-            const customerName = getCustomerName(item.vendor_name);
-            const row = `
-                <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}">
-                    <td class="border-0">
-                        <input type="checkbox" class="table-checkbox row-select" data-index="${index}">
-                    </td>
-                    <td class="border-0">
-                        <span class="material-status" id="status-${item.material}-${item.batch}"></span>
-                    </td>
-                    <td class="border-0">
-                        <span class="material-number ${showTooltip ? 'has-tooltip' : ''}"
-                              ${showTooltip ? `title="Original: ${originalMaterial}"` : ''}>
-                            ${formattedMaterial}
-                        </span>
-                    </td>
-                    <td class="border-0 text-gray-600">${item.material_description || '-'}</td>
-                    <td class="border-0 text-gray-600">${item.batch || '-'}</td>
-                    <td class="border-0 text-end">
-                        <span class="badge bg-success bg-opacity-10 text-success fs-6">
-                            ${parseFloat(item.stock_quantity || 0).toLocaleString()}
-                        </span>
-                    </td>
-                    <td class="border-0 text-gray-600">${convertedUnit}</td>
-                    <td class="border-0">
-                        <span class="sales-document">${combinedSalesDoc}</span>
-                    </td>
-                    <td class="border-0 text-gray-600">${customerName}</td>
-                    <td class="border-0 text-gray-600">
-                        ${item.last_updated ? new Date(item.last_updated).toLocaleString() : '-'}
-                    </td>
-                </tr>
-            `;
-            tbody.append(row);
-        });
-        setupRowDragEvents();
-        updateMaterialStatus(); // Update status setelah tabel di-render ulang
-        clearSelection(); // Reset seleksi setelah data dimuat ulang
-    }
 
     // ===== FUNGSI DRAG & DROP DAN SESSION =====
 
@@ -1024,54 +1046,72 @@
     }
 
     function updateScenarioDisplay(scenario) {
-        let containerId = '';
-        let dropZoneId = '';
+    let containerId = '';
+    let dropZoneId = '';
 
-        if (scenario === 'single') {
-            containerId = 'scenarioSingleItems';
-            dropZoneId = 'dropZoneSingle';
-        } else if (scenario === 'single-multi') {
-            containerId = 'scenarioSingleMultiItems';
-            dropZoneId = 'dropZoneSingleMulti';
-        } else if (scenario === 'multiple') {
-            containerId = 'scenarioMultipleItems';
-            dropZoneId = 'dropZoneMultiple';
-        } else {
-            return;
-        }
-
-        const container = $(`#${containerId}`);
-        const dropZone = $(`#${dropZoneId}`);
-
-        container.empty();
-
-        if (scenarioData[scenario].length > 0) {
-            dropZone.addClass('has-items');
-
-            scenarioData[scenario].forEach((item, index) => {
-                const formattedMaterial = formatMaterialNumber(item.material);
-                // Tampilan yang lebih rapi - hanya kode material dan qty
-                const itemElement = `
-                    <div class="material-item-compact position-relative">
-                        <button type="button" class="btn-close btn-close-sm position-absolute" style="top: 2px; right: 2px;" onclick="removeItemFromScenario('${scenario}', ${index})"></button>
-                        <div class="material-code-compact">${formattedMaterial}</div>
-                        <div class="material-qty-compact">${parseFloat(item.stock_quantity || 0).toLocaleString('id-ID')}</div>
-                    </div>
-                `;
-                container.append(itemElement);
-            });
-
-            let badge = dropZone.find('.scenario-badge');
-            if (badge.length === 0) {
-                dropZone.append(`<div class="scenario-badge">${scenarioData[scenario].length}</div>`);
-            } else {
-                badge.text(scenarioData[scenario].length);
-            }
-        } else {
-            dropZone.removeClass('has-items');
-            dropZone.find('.scenario-badge').remove();
-        }
+    if (scenario === 'single') {
+        containerId = 'scenarioSingleItems';
+        dropZoneId = 'dropZoneSingle';
+    } else if (scenario === 'single-multi') {
+        containerId = 'scenarioSingleMultiItems';
+        dropZoneId = 'dropZoneSingleMulti';
+    } else if (scenario === 'multiple') {
+        containerId = 'scenarioMultipleItems';
+        dropZoneId = 'dropZoneMultiple';
+    } else {
+        return;
     }
+
+    const container = $(`#${containerId}`);
+    const dropZone = $(`#${dropZoneId}`);
+
+    container.empty();
+
+    if (scenarioData[scenario].length > 0) {
+        dropZone.addClass('has-items');
+
+        scenarioData[scenario].forEach((item, index) => {
+            const formattedMaterial = formatMaterialNumber(item.material);
+            // Tampilan yang lebih rapi dengan layout yang tidak tumpang tindih
+            const itemElement = `
+                <div class="material-item-compact position-relative d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn-close btn-close-sm" style="font-size: 0.5rem; padding: 2px;" onclick="removeItemFromScenario('${scenario}', ${index})"></button>
+                    <div class="d-flex flex-column flex-grow-1 ms-1" style="min-width: 0;">
+                        <div class="material-code-compact text-truncate">${formattedMaterial}</div>
+                        <div class="material-qty-compact text-end">${parseFloat(item.stock_quantity || 0).toLocaleString('id-ID')}</div>
+                    </div>
+                </div>
+            `;
+            container.append(itemElement);
+        });
+
+        let badge = dropZone.find('.scenario-badge');
+        if (badge.length === 0) {
+            badge = $('<div class="scenario-badge"></div>');
+            dropZone.append(badge);
+        }
+        badge.text(scenarioData[scenario].length)
+             .css({
+                 'background': '#ef4444',
+                 'color': 'white',
+                 'border-radius': '50%',
+                 'width': '20px',
+                 'height': '20px',
+                 'font-size': '0.7rem',
+                 'display': 'flex',
+                 'align-items': 'center',
+                 'justify-content': 'center',
+                 'position': 'absolute',
+                 'top': '-8px',
+                 'right': '-8px',
+                 'border': '2px solid white',
+                 'font-weight': 'bold'
+             });
+    } else {
+        dropZone.removeClass('has-items');
+        dropZone.find('.scenario-badge').remove();
+    }
+}
 
     function removeItemFromScenario(scenario, index) {
         scenarioData[scenario].splice(index, 1);

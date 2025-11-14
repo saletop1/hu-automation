@@ -34,6 +34,41 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        .filter-container {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .date-filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .date-filter {
+            min-width: 140px;
+        }
+        .date-filter-label {
+            font-size: 0.75rem;
+            margin-bottom: 2px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        .reset-btn {
+            height: 31px;
+            margin-bottom: 1px;
+        }
+        @media (max-width: 768px) {
+            .filter-container {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .date-filter-group {
+                width: 100%;
+            }
+            .date-filter {
+                flex: 1;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -78,20 +113,44 @@
                         </button>
                     </div>
                 </div>
-                <div class="row g-2">
-                    <div class="col-md-8">
+
+                <!-- Filter Section - Compact Layout -->
+                <div class="filter-container mb-3">
+                    <!-- Search Input -->
+                    <div class="flex-grow-1">
+                        <label class="date-filter-label">Pencarian</label>
                         <input type="text" id="searchInput" class="form-control form-control-sm search-box"
-                               placeholder="Cari berdasarkan HU Number, material, deskripsi, sales order, atau plant...">
+                               placeholder="Cari HU Number, material, deskripsi, sales order, atau plant...">
                     </div>
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center">
-                            <input type="checkbox" id="selectAll" class="form-check-input select-all-checkbox">
-                            <label for="selectAll" class="form-check-label text-muted small">
-                                Pilih Semua
-                            </label>
-                            <span id="selectedCount" class="badge bg-primary ms-2">0 terpilih</span>
+
+                    <!-- Date Filters -->
+                    <div class="date-filter-group">
+                        <div class="date-filter">
+                            <label class="date-filter-label">Tanggal Mulai</label>
+                            <input type="date" id="startDate" class="form-control form-control-sm">
+                        </div>
+                        <div class="date-filter">
+                            <label class="date-filter-label">Tanggal Akhir</label>
+                            <input type="date" id="endDate" class="form-control form-control-sm">
                         </div>
                     </div>
+
+                    <!-- Reset Button -->
+                    <div class="reset-btn-container">
+                        <label class="date-filter-label opacity-0">Reset</label>
+                        <button id="resetFilterBtn" class="btn btn-outline-secondary btn-sm reset-btn" title="Reset Filter">
+                            <i class="fas fa-refresh"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Selection Controls -->
+                <div class="d-flex align-items-center">
+                    <input type="checkbox" id="selectAll" class="form-check-input select-all-checkbox">
+                    <label for="selectAll" class="form-check-label text-muted small">
+                        Pilih Semua
+                    </label>
+                    <span id="selectedCount" class="badge bg-primary ms-2">0 terpilih</span>
                 </div>
                 <small class="text-muted">Daftar material yang sudah dibuat Handling Unit</small>
             </div>
@@ -126,7 +185,9 @@
                         <tbody id="historyTableBody">
                             @if($historyData->count() > 0)
                                 @foreach($historyData as $item)
-                                    <tr class="hover:bg-gray-50" data-search="{{ strtolower(($item->hu_number ?? '') . ' ' . ($item->material ?? '') . ' ' . ($item->material_description ?? '') . ' ' . ($item->sales_document ?? '') . ' ' . ($item->plant ?? '') . ' ' . ($item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '')) }}">
+                                    <tr class="hover:bg-gray-50"
+                                        data-search="{{ strtolower(($item->hu_number ?? '') . ' ' . ($item->material ?? '') . ' ' . ($item->material_description ?? '') . ' ' . ($item->sales_document ?? '') . ' ' . ($item->plant ?? '') . ' ' . ($item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '')) }}"
+                                        data-date="{{ $item->created_at ? \Carbon\Carbon::parse($item->created_at)->format('Y-m-d') : '' }}">
                                         <td class="border-0">
                                             <input type="checkbox" class="form-check-input row-checkbox"
                                                    value="{{ $item->id ?? $item->hu_number }}" data-hu="{{ $item->hu_number }}">
@@ -199,18 +260,49 @@
         $(document).ready(function() {
             let selectedHUs = [];
 
-            // Live Search Functionality
-            $('#searchInput').on('input', function() {
-                const searchText = $(this).val().toLowerCase();
+            // Set default dates (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+
+            $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
+            $('#endDate').val(today.toISOString().split('T')[0]);
+
+            // Filter Functionality
+            function applyFilters() {
+                const searchText = $('#searchInput').val().toLowerCase();
+                const startDate = $('#startDate').val();
+                const endDate = $('#endDate').val();
+
                 $('#historyTableBody tr').each(function() {
                     const searchData = $(this).data('search') || '';
-                    if (searchData.includes(searchText)) {
+                    const rowDate = $(this).data('date') || '';
+
+                    const matchesSearch = searchData.includes(searchText);
+                    const matchesDate = (!startDate || rowDate >= startDate) &&
+                                       (!endDate || rowDate <= endDate);
+
+                    if (matchesSearch && matchesDate) {
                         $(this).show();
                     } else {
                         $(this).hide();
                     }
                 });
                 updateSelectionUI();
+            }
+
+            // Live Search Functionality
+            $('#searchInput').on('input', applyFilters);
+
+            // Date Filter Functionality
+            $('#startDate, #endDate').on('change', applyFilters);
+
+            // Reset Filter
+            $('#resetFilterBtn').on('click', function() {
+                $('#searchInput').val('');
+                $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
+                $('#endDate').val(today.toISOString().split('T')[0]);
+                applyFilters();
             });
 
             // Select All Checkbox
@@ -270,8 +362,9 @@
                 $('#exportForm').submit();
             });
 
-            // Initialize UI
+            // Initialize UI and apply initial filters
             updateSelectionUI();
+            applyFilters();
         });
     </script>
 </body>
