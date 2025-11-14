@@ -5,8 +5,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
 // Routes untuk HU Controller
-Route::prefix('hu')->group(function () {
     Route::get('/', [HUController::class, 'index'])->name('hu.index');
+    Route::prefix('hu')->group(function () {
     Route::get('/create-single', [HUController::class, 'createSingle'])->name('hu.create-single');
     Route::get('/create-single-multi', [HUController::class, 'createSingleMulti'])->name('hu.create-single-multi');
     Route::get('/create-multiple', [HUController::class, 'createMultiple'])->name('hu.create-multiple');
