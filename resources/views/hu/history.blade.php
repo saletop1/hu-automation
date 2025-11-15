@@ -221,7 +221,7 @@
                                             @elseif($item->scenario_type == 'single-multi')
                                                 <span class="badge bg-success text-white">Skenario 2</span>
                                             @elseif($item->scenario_type == 'multiple')
-                                                <span class="badge bg-purple text-white">Skenario 3</span>
+                                                <span class="badge bg-purple-600 text-white">Skenario 3</span>
                                             @else
                                                 <span class="badge bg-secondary text-white">{{ $item->scenario_type ?: '-' }}</span>
                                             @endif
