@@ -9,20 +9,19 @@ class Stock extends Model
 {
     use HasFactory;
 
-    // GUNAKAN stock_data sebagai tabel
     protected $table = 'stock_data';
 
     protected $fillable = [
         'material',
         'material_description',
         'batch',
+        'plant',
+        'storage_location',
         'stock_quantity',
         'base_unit',
         'sales_document',
         'item_number',
         'vendor_name',
-        'plant',
-        'storage_location',
         'last_updated',
         'hu_created',
         'hu_created_at',
@@ -30,9 +29,14 @@ class Stock extends Model
     ];
 
     protected $casts = [
-        'last_updated' => 'datetime',
-        'hu_created_at' => 'datetime',
-        'hu_created' => 'boolean',
         'stock_quantity' => 'decimal:2',
+        'hu_created' => 'boolean',
+        'last_updated' => 'datetime',
+        'hu_created_at' => 'datetime'
     ];
+
+    public function hu_histories()
+    {
+        return $this->hasMany(HuHistory::class, 'stock_id');
+    }
 }

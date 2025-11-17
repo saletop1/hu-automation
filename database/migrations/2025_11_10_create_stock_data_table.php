@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('plant', 10);
             $table->string('storage_location', 10);
             $table->string('batch', 50)->nullable();
-            $table->decimal('stock_quantity', 15, 3)->default(0);
+            $table->integer('stock_quantity')->default(0);
             $table->string('base_unit', 10)->nullable();
             $table->string('sales_document', 50)->nullable();
             $table->string('item_number', 50)->nullable();

@@ -10,11 +10,12 @@ return new class extends Migration
     {
         Schema::create('hu_histories', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('stock_id')->constrained('stock_data')->onDelete('cascade');
             $table->string('hu_number');
             $table->string('material');
             $table->string('material_description')->nullable();
             $table->string('batch')->nullable();
-            $table->decimal('quantity', 15, 3);
+            $table->integer('quantity');
             $table->string('unit')->default('PC');
             $table->string('sales_document')->nullable();
             $table->string('plant');

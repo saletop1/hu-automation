@@ -12,6 +12,7 @@ class HuHistory extends Model
     protected $table = 'hu_histories'; // Sesuaikan dengan nama tabel di database
 
     protected $fillable = [
+        'stock_id',
         'hu_number',
         'material',
         'material_description',
@@ -30,4 +31,9 @@ class HuHistory extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
+
+    public function stock()
+    {
+        return $this->belongsTo(Stock::class, 'stock_id');
+    }
 }

@@ -10,6 +10,7 @@ from datetime import datetime
 import atexit
 import time
 from functools import wraps
+import re
 
 app = Flask(__name__)
 
@@ -114,7 +115,19 @@ def init_database():
         if connection:
             connection.close()
 
-# ===== FUNGSI SAP CONNECTION =====
+# ===== FUNGSI UTILITAS =====
+def clean_sap_data(value):
+    """Membersihkan data dari SAP dari spasi dan karakter non-printable"""
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        # Hapus spasi di awal dan akhir, serta karakter non-printable
+        cleaned = value.strip()
+        # Hapus multiple spaces menjadi single space
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        return cleaned
+    return value
+
 def format_material(material_code):
     """Menerapkan logic SAP 'ALPHA Conversion'."""
     if material_code and material_code.isdigit():
@@ -122,6 +135,7 @@ def format_material(material_code):
     else:
         return material_code
 
+# ===== FUNGSI SAP CONNECTION =====
 def connect_sap(user, passwd):
     """Membuka koneksi ke SAP."""
     try:
@@ -148,7 +162,7 @@ def connect_sap(user, passwd):
 
 # ===== FUNGSI STOCK DATA =====
 def fetch_stock_from_sap(plant=None, storage_location=None):
-    """Mengambil data stock dari SAP RFC Z_FM_YMMR006NX"""
+    """Mengambil data stock dari SAP RFC Z_FM_YMMR006NX dengan penyesuaian berdasarkan HU history"""
     sap_user = os.getenv("SAP_USER")
     sap_password = os.getenv("SAP_PASSWORD")
 
@@ -186,17 +200,74 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
 
             try:
                 with mysql_conn.cursor() as cursor:
-                    # PERBAIKAN: Gunakan .strip() pada plant/sloc untuk delete
-                    delete_sql = "DELETE FROM stock_data WHERE plant = %s AND storage_location = %s"
-                    cursor.execute(delete_sql, (plant.strip(), storage_location.strip()))
-                    logger.info(f"Deleted old stock data for plant {plant}, storage location {storage_location}")
+                    cleaned_plant = clean_sap_data(plant)
+                    cleaned_storage_location = clean_sap_data(storage_location)
+
+                    # STEP 1: Ambil data HU histories untuk perhitungan
+                    cursor.execute("""
+                        SELECT stock_id, SUM(quantity) as total_hu_quantity
+                        FROM hu_histories
+                        WHERE plant = %s AND storage_location = %s
+                        GROUP BY stock_id
+                    """, (cleaned_plant, cleaned_storage_location))
+                    hu_quantities = {}
+                    for row in cursor.fetchall():
+                        # ✅ KONVERSI ke integer
+                        hu_quantities[row['stock_id']] = int(float(row['total_hu_quantity']))
+                    logger.info(f"Found {len(hu_quantities)} stock items with HU history")
+
+                    # STEP 2: Ambil data stock existing untuk perbandingan
+                    cursor.execute("""
+                        SELECT id, material, batch, plant, storage_location, stock_quantity
+                        FROM stock_data
+                        WHERE plant = %s AND storage_location = %s
+                    """, (cleaned_plant, cleaned_storage_location))
+                    existing_stocks = {}
+                    for row in cursor.fetchall():
+                        key = f"{row['material']}_{row['batch']}_{row['plant']}_{row['storage_location']}"
+                        existing_stocks[key] = row
+
+                    # STEP 3: Process data dari SAP
+                    inserted_count = 0
+                    updated_count = 0
 
                     for item in stock_data:
+                        # Bersihkan data dari SAP
+                        material = clean_sap_data(item.get('MATNR', ''))
+                        material_description = clean_sap_data(item.get('MAKTX', ''))
+                        plant_code = clean_sap_data(item.get('WERKS', ''))
+                        storage_loc = clean_sap_data(item.get('LGORT', ''))
+                        batch = clean_sap_data(item.get('CHARG', ''))
+                        base_unit = clean_sap_data(item.get('MEINS', ''))
+                        sales_document = clean_sap_data(item.get('VBELN', ''))
+                        item_number = clean_sap_data(item.get('POSNR', ''))
+
                         vendor_name = item.get('NAME1', '')
                         if vendor_name:
                             vendor_name = ' '.join(vendor_name.split()[:2])
+                        vendor_name = clean_sap_data(vendor_name)
 
-                        # Gunakan ON DUPLICATE KEY UPDATE untuk mengatasi error 1062
+                        # ✅ KONVERSI ke integer
+                        sap_stock_quantity = int(float(item.get('CLABS', 0)))
+
+                        # Skip jika data essential kosong
+                        if not material or not plant_code or not storage_loc:
+                            logger.warning(f"Skipping record with missing essential data: material='{material}', plant='{plant_code}', storage_location='{storage_loc}'")
+                            continue
+
+                        # Cari stock_id yang sesuai dari data existing
+                        stock_key = f"{material}_{batch}_{plant_code}_{storage_loc}"
+                        existing_stock = existing_stocks.get(stock_key)
+                        stock_id = existing_stock['id'] if existing_stock else None
+
+                        # Hitung adjusted stock quantity berdasarkan HU history
+                        adjusted_quantity = sap_stock_quantity
+                        if stock_id and stock_id in hu_quantities:
+                            hu_quantity = hu_quantities[stock_id]
+                            adjusted_quantity = max(0, sap_stock_quantity - hu_quantity)
+                            logger.info(f"Adjusting stock for material {material}: SAP={sap_stock_quantity}, HU={hu_quantity}, Adjusted={adjusted_quantity}")
+
+                        # Gunakan ON DUPLICATE KEY UPDATE
                         sql = """
                         INSERT INTO stock_data
                         (material, material_description, plant, storage_location, batch, stock_quantity,
@@ -213,27 +284,74 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
                         updated_at = NOW()
                         """
 
-                        # ===== PERBAIKAN DI SINI: Gunakan .strip() untuk membersihkan data =====
                         cursor.execute(sql, (
-                            item.get('MATNR', '').strip(),
-                            item.get('MAKTX', '').strip(),
-                            item.get('WERKS', '').strip(),  # Menggunakan WERKS sesuai konfirmasi Anda
-                            item.get('LGORT', '').strip(),
-                            item.get('CHARG', '').strip(),
-                            item.get('CLABS', 0),
-                            item.get('MEINS', '').strip(),
-                            item.get('VBELN', '').strip(),
-                            item.get('POSNR', '').strip(),
-                            vendor_name.strip(),
+                            material,
+                            material_description,
+                            plant_code,
+                            storage_loc,
+                            batch,
+                            adjusted_quantity,  # Gunakan adjusted quantity (sudah integer)
+                            base_unit,
+                            sales_document,
+                            item_number,
+                            vendor_name,
                             datetime.now()
                         ))
-                        # ==========================================================
+
+                        if cursor.rowcount == 1:
+                            inserted_count += 1
+                        else:
+                            updated_count += 1
+
+                    # STEP 4: Hapus data yang tidak ada di SAP tapi tidak memiliki HU history
+                    # Buat list material-batch dari data SAP
+                    material_batch_pairs = []
+                    for item in stock_data:
+                        material = clean_sap_data(item.get('MATNR', ''))
+                        batch = clean_sap_data(item.get('CHARG', ''))
+                        if material and batch:
+                            material_batch_pairs.append((material, batch))
+
+                    # Hapus data yang tidak relevan
+                    if material_batch_pairs:
+                        # Convert pairs menjadi format untuk SQL
+                        placeholders = ','.join(['(%s, %s)'] * len(material_batch_pairs))
+                        delete_sql = f"""
+                        DELETE FROM stock_data
+                        WHERE plant = %s AND storage_location = %s
+                        AND (material, batch) NOT IN ({placeholders})
+                        AND id NOT IN (
+                            SELECT DISTINCT stock_id FROM hu_histories
+                            WHERE stock_id IS NOT NULL
+                            AND plant = %s AND storage_location = %s
+                        )
+                        """
+                        delete_params = [cleaned_plant, cleaned_storage_location]
+                        for pair in material_batch_pairs:
+                            delete_params.extend(pair)
+                        delete_params.extend([cleaned_plant, cleaned_storage_location])
+                        cursor.execute(delete_sql, delete_params)
+                    else:
+                        delete_sql = """
+                        DELETE FROM stock_data
+                        WHERE plant = %s AND storage_location = %s
+                        AND id NOT IN (
+                            SELECT DISTINCT stock_id FROM hu_histories
+                            WHERE stock_id IS NOT NULL
+                            AND plant = %s AND storage_location = %s
+                        )
+                        """
+                        cursor.execute(delete_sql, (cleaned_plant, cleaned_storage_location, cleaned_plant, cleaned_storage_location))
+
+                    deleted_count = cursor.rowcount
 
                     mysql_conn.commit()
-                    logger.info(f"Stock data successfully saved to MySQL for plant {plant}, storage location {storage_location}")
+                    logger.info(f"Stock sync completed: {inserted_count} inserted, {updated_count} updated, {deleted_count} deleted for plant '{cleaned_plant}', storage location '{cleaned_storage_location}'")
 
             except Exception as e:
                 logger.error(f"Error saving stock data to MySQL: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                logger.error(f"Error details: {str(e)}")
                 mysql_conn.rollback()
                 return False
             finally:
@@ -246,14 +364,27 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
 
     except Exception as e:
         logger.error(f"Error fetching stock from SAP: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
         return False
     finally:
         if conn:
             conn.close()
 
 # ===== SCHEDULER UNTUK AUTO-SYNC =====
+def scheduled_sync():
+    """Wrapper function untuk scheduler dengan error handling"""
+    try:
+        logger.info("Auto-sync started by scheduler")
+        success = fetch_stock_from_sap()
+        if success:
+            logger.info("Auto-sync completed successfully")
+        else:
+            logger.error("Auto-sync failed")
+    except Exception as e:
+        logger.error(f"Error in auto-sync: {e}")
+
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=fetch_stock_from_sap, trigger="interval", minutes=30)
+scheduler.add_job(func=scheduled_sync, trigger="interval", minutes=30)  # ✅ Gunakan wrapper
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
@@ -288,7 +419,6 @@ def get_plants():
         if not connection:
             return jsonify({"success": False, "error": "Database connection failed"}), 500
         with connection.cursor() as cursor:
-            # Data sudah bersih, tidak perlu TRIM
             cursor.execute("SELECT DISTINCT plant FROM stock_data ORDER BY plant")
             plants = [row['plant'] for row in cursor.fetchall()]
         connection.close()
@@ -307,7 +437,6 @@ def get_storage_locations():
             return jsonify({"success": False, "error": "Database connection failed"}), 500
         with connection.cursor() as cursor:
             if plant:
-                # Data sudah bersih, tidak perlu TRIM
                 cursor.execute("SELECT DISTINCT storage_location FROM stock_data WHERE plant = %s ORDER BY storage_location", (plant,))
             else:
                 cursor.execute("SELECT DISTINCT storage_location FROM stock_data ORDER BY storage_location")
@@ -333,7 +462,6 @@ def get_stock():
             storage_location_filter = request.args.get('storage_location', '')
             offset = (page - 1) * per_page
 
-            # Data sudah bersih, tidak perlu TRIM
             query = "SELECT * FROM stock_data WHERE 1=1"
             count_query = "SELECT COUNT(*) as total FROM stock_data WHERE 1=1"
             params = []
@@ -413,7 +541,6 @@ def create_single_hu():
                 "PLANT": data.get('plant'),
                 "STGE_LOC": data.get('stge_loc'),
                 "PACK_QTY": str(data.get('pack_qty', 0)),
-                # PERBAIKAN: Ubah None/Null menjadi string kosong ""
                 "BASE_UNIT_QTY": data.get('base_unit_qty') or '',
                 "HU_ITEM_TYPE": "1",
                 "BATCH": data.get('batch', ''),
@@ -470,7 +597,6 @@ def create_single_hu_multi():
                 "PLANT": data.get('plant'),
                 "STGE_LOC": data.get('stge_loc'),
                 "PACK_QTY": str(item.get('pack_qty', 0)),
-                # PERBAIKAN: Ubah None/Null menjadi string kosong ""
                 "BASE_UNIT_QTY": item.get('base_unit_qty') or '',
                 "HU_ITEM_TYPE": "1",
                 "BATCH": item.get('batch', ''),
@@ -546,7 +672,6 @@ def create_multiple_hus():
                         "PLANT": hu_data.get('plant'),
                         "STGE_LOC": hu_data.get('stge_loc'),
                         "PACK_QTY": str(hu_data.get('pack_qty', 0)),
-                        # PERBAIKAN: Ubah None/Null menjadi string kosong ""
                         "BASE_UNIT_QTY": hu_data.get('base_unit_qty') or '',
                         "HU_ITEM_TYPE": "1",
                         "BATCH": hu_data.get('batch', ''),

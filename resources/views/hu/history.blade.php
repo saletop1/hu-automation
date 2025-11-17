@@ -28,11 +28,13 @@
         .table-hover tbody tr:hover {
             background-color: rgba(0, 0, 0, 0.075);
         }
+        /* STYLE BARU UNTUK DESKRIPSI - TAMPIL PENUH */
         .material-description {
-            max-width: 200px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            min-width: 250px;
+            max-width: 400px;
+            white-space: normal;
+            word-wrap: break-word;
+            line-height: 1.4;
         }
         .filter-container {
             display: flex;
@@ -67,6 +69,11 @@
             }
             .date-filter {
                 flex: 1;
+            }
+            /* RESPONSIVE UNTUK DESKRIPSI */
+            .material-description {
+                min-width: 200px;
+                max-width: 300px;
             }
         }
     </style>
@@ -120,7 +127,7 @@
                     <div class="flex-grow-1">
                         <label class="date-filter-label">Pencarian</label>
                         <input type="text" id="searchInput" class="form-control form-control-sm search-box"
-                               placeholder="Cari HU Number, material, deskripsi, sales order, atau plant...">
+                               placeholder="Cari HU Number, material, deskripsi, sales order...">
                     </div>
 
                     <!-- Date Filters -->
@@ -170,15 +177,13 @@
                                 </th>
                                 <th class="border-0">HU Number</th>
                                 <th class="border-0">Material</th>
-                                <th class="border-0">Deskripsi Material</th>
+                                <th class="border-0" width="300">Deskripsi Material</th>
                                 <th class="border-0">Batch</th>
                                 <th class="border-0 text-end">Qty</th>
                                 <th class="border-0">Unit</th>
                                 <th class="border-0">Dokumen Penjualan</th>
-                                <th class="border-0">Plant</th>
                                 <th class="border-0">Lokasi</th>
                                 <th class="border-0">Skenario</th>
-                                <th class="border-0">Dibuat Oleh</th>
                                 <th class="border-0">Tanggal Dibuat (WIB)</th>
                             </tr>
                         </thead>
@@ -186,7 +191,7 @@
                             @if($historyData->count() > 0)
                                 @foreach($historyData as $item)
                                     <tr class="hover:bg-gray-50"
-                                        data-search="{{ strtolower(($item->hu_number ?? '') . ' ' . ($item->material ?? '') . ' ' . ($item->material_description ?? '') . ' ' . ($item->sales_document ?? '') . ' ' . ($item->plant ?? '') . ' ' . ($item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '')) }}"
+                                        data-search="{{ strtolower(($item->hu_number ?? '') . ' ' . ($item->material ?? '') . ' ' . ($item->material_description ?? '') . ' ' . ($item->sales_document ?? '') . ' ' . ($item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '')) }}"
                                         data-date="{{ $item->created_at ? \Carbon\Carbon::parse($item->created_at)->format('Y-m-d') : '' }}">
                                         <td class="border-0">
                                             <input type="checkbox" class="form-check-input row-checkbox"
@@ -200,7 +205,7 @@
                                                 {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
                                             </span>
                                         </td>
-                                        <td class="border-0 text-gray-600 material-description" title="{{ $item->material_description ?: '-' }}">
+                                        <td class="border-0 text-gray-600 material-description">
                                             {{ $item->material_description ?: '-' }}
                                         </td>
                                         <td class="border-0 text-gray-600">{{ $item->batch ?: '-' }}</td>
@@ -213,7 +218,6 @@
                                         <td class="border-0">
                                             <span class="sales-document">{{ $item->sales_document ?: '-' }}</span>
                                         </td>
-                                        <td class="border-0 text-gray-600">{{ $item->plant ?: '-' }}</td>
                                         <td class="border-0 text-gray-600">{{ $item->storage_location ?: '-' }}</td>
                                         <td class="border-0">
                                             @if($item->scenario_type == 'single')
@@ -226,7 +230,6 @@
                                                 <span class="badge bg-secondary text-white">{{ $item->scenario_type ?: '-' }}</span>
                                             @endif
                                         </td>
-                                        <td class="border-0 text-gray-600">{{ $item->created_by ?: '-' }}</td>
                                         <td class="border-0 text-gray-600">
                                             @php
                                                 try {
@@ -241,7 +244,7 @@
                                 @endforeach
                             @else
                                 <tr>
-                                    <td colspan="13" class="text-center py-4 text-muted">
+                                    <td colspan="11" class="text-center py-4 text-muted">
                                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                                         Tidak ada data history HU
                                     </td>
