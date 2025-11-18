@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
     Route::get('/create-single-multi', [HUController::class, 'createSingleMulti'])->name('hu.create-single-multi');
     Route::get('/create-multiple', [HUController::class, 'createMultiple'])->name('hu.create-multiple');
     Route::get('/history', [HUController::class, 'history'])->name('hu.history');
+    Route::get('/hu/check-python-api', [HUController::class, 'checkPythonAPI'])->name('hu.check-python-api');
+    Route::get('/hu/python-status', [HUController::class, 'getPythonAPIStatus'])->name('hu.python-status');
 
     // POST routes untuk create HU
     Route::post('/store-single', [HUController::class, 'storeSingle'])->name('hu.store-single');
@@ -23,9 +25,9 @@ use Illuminate\Support\Facades\DB;
     // Stock sync routes - PERBAIKI INI
     Route::post('/sync-stock', [HUController::class, 'syncStock'])->name('hu.sync-stock'); // Route sudah ada, nama benar
     Route::get('/get-stock', [HUController::class, 'getStock'])->name('hu.get-stock'); // Route sudah ada, nama benar
+    Route::get('/hu/sync-stock-debug', [HUController::class, 'syncStockDebug'])->name('hu.sync-stock-debug');
 
     // TAMBAHKAN ROUTE YANG DIPANGGIL DI BLADE
-    Route::post('/stock-sync', [HUController::class, 'syncStock'])->name('hu.stock.sync');
     Route::get('/stock-data', [HUController::class, 'getStock'])->name('hu.stock.data');
 
     Route::get('/get-plants', [HUController::class, 'getPlants'])->name('hu.get-plants');

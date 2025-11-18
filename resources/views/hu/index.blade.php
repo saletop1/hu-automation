@@ -908,7 +908,7 @@
                     // Tunggu sebentar sebelum reload data untuk memastikan sync selesai
                     setTimeout(() => {
                         loadStockData();
-                    }, 1000);
+                    }, 1500);
                 } else {
                     showError(response.error || 'Gagal sync data stock');
                 }

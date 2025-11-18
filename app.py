@@ -3,6 +3,7 @@ from flask_cors import CORS
 from pyrfc import Connection
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 import pymysql
 import pymysql.cursors
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -11,13 +12,23 @@ import atexit
 import time
 from functools import wraps
 import re
+from decimal import Decimal
+import sys
+import io
+
+# Fix encoding untuk Windows - HARUS DI ATAS SEMUA
+if sys.platform.startswith('win'):
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 app = Flask(__name__)
 
 # Configure CORS properly
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://localhost:8000", "http://127.0.0.1:8000"], # Sesuaikan dengan URL Laravel Anda
+        "origins": ["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:5000", "http://127.0.0.1:5000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
     }
@@ -25,14 +36,21 @@ CORS(app, resources={
 
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8000') # Sesuaikan
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Setup logging TANPA EMOJI
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('sap_hu_automation.log', encoding='utf-8')
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # MySQL Configuration
@@ -42,7 +60,8 @@ MYSQL_CONFIG = {
     'password': os.getenv('MYSQL_PASSWORD', ''),
     'database': os.getenv('MYSQL_DATABASE', 'sap_hu_automation'),
     'charset': 'utf8mb4',
-    'cursorclass': pymysql.cursors.DictCursor
+    'cursorclass': pymysql.cursors.DictCursor,
+    'autocommit': False
 }
 
 # ===== FUNGSI KONEKSI DAN RETRY =====
@@ -51,16 +70,19 @@ def mysql_retry(max_retries=3, delay=2):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            last_exception = None
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
                 except pymysql.Error as e:
+                    last_exception = e
                     logger.warning(f"MySQL connection failed (attempt {attempt + 1}/{max_retries}): {e}")
                     if attempt < max_retries - 1:
-                        time.sleep(delay)
+                        time.sleep(delay * (attempt + 1))
                     else:
                         logger.error(f"All MySQL connection attempts failed")
-                        raise
+                        raise last_exception
+            return None
         return wrapper
     return decorator
 
@@ -84,8 +106,8 @@ def init_database():
 
     try:
         with connection.cursor() as cursor:
-            # Create table jika belum ada
-            create_table_sql = """
+            # Create stock_data table
+            create_stock_table_sql = """
             CREATE TABLE IF NOT EXISTS stock_data (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 material VARCHAR(50) NOT NULL,
@@ -101,15 +123,47 @@ def init_database():
                 last_updated TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                hu_created BOOLEAN DEFAULT FALSE,
+                hu_created_at TIMESTAMP NULL,
+                hu_number VARCHAR(50),
                 UNIQUE KEY unique_stock (material, plant, storage_location, batch)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
-            cursor.execute(create_table_sql)
+            cursor.execute(create_stock_table_sql)
+
+            # Create hu_histories table
+            create_hu_history_sql = """
+            CREATE TABLE IF NOT EXISTS hu_histories (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                stock_id INT,
+                hu_number VARCHAR(50) NOT NULL,
+                material VARCHAR(50) NOT NULL,
+                material_description VARCHAR(255),
+                batch VARCHAR(50),
+                quantity DECIMAL(15,3) DEFAULT 0,
+                unit VARCHAR(10) DEFAULT 'PC',
+                sales_document VARCHAR(50),
+                plant VARCHAR(10) NOT NULL,
+                storage_location VARCHAR(10) NOT NULL,
+                scenario_type VARCHAR(20),
+                created_by VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (stock_id) REFERENCES stock_data(id) ON DELETE SET NULL,
+                INDEX idx_hu_number (hu_number),
+                INDEX idx_material (material),
+                INDEX idx_stock_id (stock_id),
+                INDEX idx_plant_storage (plant, storage_location)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_hu_history_sql)
+
             connection.commit()
-            logger.info("Stock table initialized successfully")
+            logger.info("Database tables initialized successfully")
             return True
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
+        connection.rollback()
         return False
     finally:
         if connection:
@@ -121,12 +175,10 @@ def clean_sap_data(value):
     if value is None:
         return ''
     if isinstance(value, str):
-        # Hapus spasi di awal dan akhir, serta karakter non-printable
         cleaned = value.strip()
-        # Hapus multiple spaces menjadi single space
         cleaned = re.sub(r'\s+', ' ', cleaned)
         return cleaned
-    return value
+    return str(value)
 
 def format_material(material_code):
     """Menerapkan logic SAP 'ALPHA Conversion'."""
@@ -134,6 +186,25 @@ def format_material(material_code):
         return material_code.zfill(18)
     else:
         return material_code
+
+def safe_convert_to_decimal(value, default=0):
+    """Safely convert value to Decimal dengan presisi 3 digit"""
+    try:
+        if value is None:
+            return Decimal(default)
+        return Decimal(str(value)).quantize(Decimal('0.001'))
+    except (ValueError, TypeError):
+        logger.warning(f"Cannot convert value to Decimal: {value}, using default: {default}")
+        return Decimal(default)
+
+def normalize_material_key(material, batch, plant, storage_location):
+    """Normalize material key untuk konsistensi pencarian"""
+    material_clean = clean_sap_data(material)
+    batch_clean = clean_sap_data(batch) or ''
+    plant_clean = clean_sap_data(plant)
+    storage_clean = clean_sap_data(storage_location)
+
+    return f"{material_clean}_{batch_clean}_{plant_clean}_{storage_clean}"
 
 # ===== FUNGSI SAP CONNECTION =====
 def connect_sap(user, passwd):
@@ -160,9 +231,9 @@ def connect_sap(user, passwd):
         logger.error(f"Gagal saat membuka koneksi ke SAP: {e}")
         return None
 
-# ===== FUNGSI STOCK DATA =====
+# ===== FUNGSI STOCK DATA - LOGIKA YANG DIPERBAIKI =====
 def fetch_stock_from_sap(plant=None, storage_location=None):
-    """Mengambil data stock dari SAP RFC Z_FM_YMMR006NX dengan penyesuaian berdasarkan HU history"""
+    """Mengambil data stock dari SAP dan hitung stock available berdasarkan HU history"""
     sap_user = os.getenv("SAP_USER")
     sap_password = os.getenv("SAP_PASSWORD")
 
@@ -203,33 +274,47 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
                     cleaned_plant = clean_sap_data(plant)
                     cleaned_storage_location = clean_sap_data(storage_location)
 
-                    # STEP 1: Ambil data HU histories untuk perhitungan
+                    # STEP 1: Ambil TOTAL quantity dari HU histories untuk plant/storage_location ini
                     cursor.execute("""
-                        SELECT stock_id, SUM(quantity) as total_hu_quantity
+                        SELECT material, batch, SUM(quantity) as total_hu_quantity
                         FROM hu_histories
                         WHERE plant = %s AND storage_location = %s
-                        GROUP BY stock_id
+                        GROUP BY material, batch
                     """, (cleaned_plant, cleaned_storage_location))
-                    hu_quantities = {}
-                    for row in cursor.fetchall():
-                        # ✅ KONVERSI ke integer
-                        hu_quantities[row['stock_id']] = int(float(row['total_hu_quantity']))
-                    logger.info(f"Found {len(hu_quantities)} stock items with HU history")
 
-                    # STEP 2: Ambil data stock existing untuk perbandingan
+                    hu_totals = {}
+                    for row in cursor.fetchall():
+                        key = normalize_material_key(
+                            row['material'],
+                            row['batch'],
+                            cleaned_plant,
+                            cleaned_storage_location
+                        )
+                        hu_totals[key] = safe_convert_to_decimal(row['total_hu_quantity'])
+
+                    logger.info(f"Found {len(hu_totals)} material-batch combinations with HU history")
+
+                    # STEP 2: Ambil existing stock_data untuk mapping ID
                     cursor.execute("""
-                        SELECT id, material, batch, plant, storage_location, stock_quantity
+                        SELECT id, material, batch, plant, storage_location, stock_quantity, hu_created
                         FROM stock_data
                         WHERE plant = %s AND storage_location = %s
                     """, (cleaned_plant, cleaned_storage_location))
+
                     existing_stocks = {}
                     for row in cursor.fetchall():
-                        key = f"{row['material']}_{row['batch']}_{row['plant']}_{row['storage_location']}"
+                        key = normalize_material_key(
+                            row['material'],
+                            row['batch'],
+                            row['plant'],
+                            row['storage_location']
+                        )
                         existing_stocks[key] = row
 
-                    # STEP 3: Process data dari SAP
+                    # STEP 3: Process data dari SAP dengan LOGIKA YANG BENAR
                     inserted_count = 0
                     updated_count = 0
+                    processed_keys = set()
 
                     for item in stock_data:
                         # Bersihkan data dari SAP
@@ -247,25 +332,29 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
                             vendor_name = ' '.join(vendor_name.split()[:2])
                         vendor_name = clean_sap_data(vendor_name)
 
-                        # ✅ KONVERSI ke integer
-                        sap_stock_quantity = int(float(item.get('CLABS', 0)))
+                        # ✅ GUNAKAN DECIMAL, BUKAN INTEGER
+                        sap_stock_quantity = safe_convert_to_decimal(item.get('CLABS', 0))
 
                         # Skip jika data essential kosong
                         if not material or not plant_code or not storage_loc:
                             logger.warning(f"Skipping record with missing essential data: material='{material}', plant='{plant_code}', storage_location='{storage_loc}'")
                             continue
 
-                        # Cari stock_id yang sesuai dari data existing
-                        stock_key = f"{material}_{batch}_{plant_code}_{storage_loc}"
+                        # Buat key untuk material ini
+                        stock_key = normalize_material_key(material, batch, plant_code, storage_loc)
+                        processed_keys.add(stock_key)
+
+                        # Cari existing stock untuk dapatkan ID
                         existing_stock = existing_stocks.get(stock_key)
                         stock_id = existing_stock['id'] if existing_stock else None
 
-                        # Hitung adjusted stock quantity berdasarkan HU history
-                        adjusted_quantity = sap_stock_quantity
-                        if stock_id and stock_id in hu_quantities:
-                            hu_quantity = hu_quantities[stock_id]
-                            adjusted_quantity = max(0, sap_stock_quantity - hu_quantity)
-                            logger.info(f"Adjusting stock for material {material}: SAP={sap_stock_quantity}, HU={hu_quantity}, Adjusted={adjusted_quantity}")
+                        # ✅ LOGIKA PERHITUNGAN YANG BENAR:
+                        # Stock Available = Stock SAP - Total HU yang sudah dibuat
+                        hu_quantity = hu_totals.get(stock_key, Decimal('0'))
+                        available_quantity = max(Decimal('0'), sap_stock_quantity - hu_quantity)
+
+                        if hu_quantity > 0:
+                            logger.info(f"Stock calculation for {material}: SAP={sap_stock_quantity}, HU={hu_quantity}, Available={available_quantity}")
 
                         # Gunakan ON DUPLICATE KEY UPDATE
                         sql = """
@@ -275,7 +364,7 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                         ON DUPLICATE KEY UPDATE
                         material_description = VALUES(material_description),
-                        stock_quantity = VALUES(stock_quantity),
+                        stock_quantity = VALUES(stock_quantity),  -- Simpan available quantity
                         base_unit = VALUES(base_unit),
                         sales_document = VALUES(sales_document),
                         item_number = VALUES(item_number),
@@ -290,7 +379,7 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
                             plant_code,
                             storage_loc,
                             batch,
-                            adjusted_quantity,  # Gunakan adjusted quantity (sudah integer)
+                            available_quantity,  # ✅ SIMPAN AVAILABLE QUANTITY, BUKAN SAP QUANTITY
                             base_unit,
                             sales_document,
                             item_number,
@@ -303,49 +392,29 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
                         else:
                             updated_count += 1
 
-                    # STEP 4: Hapus data yang tidak ada di SAP tapi tidak memiliki HU history
-                    # Buat list material-batch dari data SAP
-                    material_batch_pairs = []
-                    for item in stock_data:
-                        material = clean_sap_data(item.get('MATNR', ''))
-                        batch = clean_sap_data(item.get('CHARG', ''))
-                        if material and batch:
-                            material_batch_pairs.append((material, batch))
-
-                    # Hapus data yang tidak relevan
-                    if material_batch_pairs:
-                        # Convert pairs menjadi format untuk SQL
-                        placeholders = ','.join(['(%s, %s)'] * len(material_batch_pairs))
+                    # STEP 4: Handle data yang tidak ada di SAP
+                    deleted_count = 0
+                    if processed_keys:
+                        # Hapus data yang tidak ada di SAP dan tidak ada HU history
+                        placeholders = ','.join(['%s'] * len(processed_keys))
                         delete_sql = f"""
                         DELETE FROM stock_data
                         WHERE plant = %s AND storage_location = %s
-                        AND (material, batch) NOT IN ({placeholders})
-                        AND id NOT IN (
-                            SELECT DISTINCT stock_id FROM hu_histories
-                            WHERE stock_id IS NOT NULL
-                            AND plant = %s AND storage_location = %s
+                        AND CONCAT(material, '_', COALESCE(batch, ''), '_', plant, '_', storage_location) NOT IN ({placeholders})
+                        AND NOT EXISTS (
+                            SELECT 1 FROM hu_histories
+                            WHERE hu_histories.material = stock_data.material
+                            AND COALESCE(hu_histories.batch, '') = COALESCE(stock_data.batch, '')
+                            AND hu_histories.plant = stock_data.plant
+                            AND hu_histories.storage_location = stock_data.storage_location
                         )
                         """
-                        delete_params = [cleaned_plant, cleaned_storage_location]
-                        for pair in material_batch_pairs:
-                            delete_params.extend(pair)
-                        delete_params.extend([cleaned_plant, cleaned_storage_location])
+                        delete_params = [cleaned_plant, cleaned_storage_location] + list(processed_keys)
                         cursor.execute(delete_sql, delete_params)
-                    else:
-                        delete_sql = """
-                        DELETE FROM stock_data
-                        WHERE plant = %s AND storage_location = %s
-                        AND id NOT IN (
-                            SELECT DISTINCT stock_id FROM hu_histories
-                            WHERE stock_id IS NOT NULL
-                            AND plant = %s AND storage_location = %s
-                        )
-                        """
-                        cursor.execute(delete_sql, (cleaned_plant, cleaned_storage_location, cleaned_plant, cleaned_storage_location))
-
-                    deleted_count = cursor.rowcount
+                        deleted_count = cursor.rowcount
 
                     mysql_conn.commit()
+                    # TANPA EMOJI - PERBAIKAN UTAMA
                     logger.info(f"Stock sync completed: {inserted_count} inserted, {updated_count} updated, {deleted_count} deleted for plant '{cleaned_plant}', storage location '{cleaned_storage_location}'")
 
             except Exception as e:
@@ -370,120 +439,90 @@ def fetch_stock_from_sap(plant=None, storage_location=None):
         if conn:
             conn.close()
 
-# ===== SCHEDULER UNTUK AUTO-SYNC =====
-def scheduled_sync():
-    """Wrapper function untuk scheduler dengan error handling"""
-    try:
-        logger.info("Auto-sync started by scheduler")
-        success = fetch_stock_from_sap()
-        if success:
-            logger.info("Auto-sync completed successfully")
-        else:
-            logger.error("Auto-sync failed")
-    except Exception as e:
-        logger.error(f"Error in auto-sync: {e}")
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=scheduled_sync, trigger="interval", minutes=30)  # ✅ Gunakan wrapper
-scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
-
-# ===== ROUTES UNTUK STOCK DATA =====
+# ===== ENDPOINT SYNC STOCK MANUAL =====
 @app.route('/stock/sync', methods=['POST', 'OPTIONS'])
 def sync_stock():
-    """Manual sync stock data dari SAP"""
+    """Endpoint untuk manual stock sync dari Laravel"""
     if request.method == 'OPTIONS':
         return '', 200
+
     try:
-        data = request.get_json() or {}
-        plant = data.get('plant', os.getenv('SAP_DEFAULT_PLANT', '3000'))
-        storage_location = data.get('storage_location', os.getenv('SAP_DEFAULT_STORAGE_LOCATION', '3D10'))
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
+        plant = data.get('plant', '3000')
+        storage_location = data.get('storage_location', '3D10')
+
         logger.info(f"Manual stock sync requested for plant: {plant}, storage_location: {storage_location}")
 
         success = fetch_stock_from_sap(plant, storage_location)
 
         if success:
-            return jsonify({"success": True, "message": f"Stock data synced successfully for plant {plant}, storage location {storage_location}"})
+            return jsonify({
+                "success": True,
+                "message": f"Stock data synced successfully for plant {plant}, location {storage_location}"
+            })
         else:
-            return jsonify({"success": False, "error": "Failed to sync stock data from SAP. Check logs."}), 500
+            return jsonify({
+                "success": False,
+                "error": "Failed to sync stock data from SAP"
+            }), 500
 
     except Exception as e:
-        logger.error(f"Error in manual stock sync: {e}")
-        return jsonify({"success": False, "error": f"Sync failed: {str(e)}"}), 500
+        logger.error(f"Error in stock sync endpoint: {e}")
+        return jsonify({
+            "success": False,
+            "error": f"Sync error: {str(e)}"
+        }), 500
 
-@app.route('/stock/plants', methods=['GET'])
-def get_plants():
-    """Get distinct plants from stock data"""
-    try:
-        connection = get_mysql_connection()
-        if not connection:
-            return jsonify({"success": False, "error": "Database connection failed"}), 500
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT DISTINCT plant FROM stock_data ORDER BY plant")
-            plants = [row['plant'] for row in cursor.fetchall()]
-        connection.close()
-        return jsonify({"success": True, "data": plants})
-    except Exception as e:
-        logger.error(f"Error getting plants: {e}")
-        return jsonify({"success": False, "error": f"Failed to get plants: {str(e)}"}), 500
-
-@app.route('/stock/storage-locations', methods=['GET'])
-def get_storage_locations():
-    """Get distinct storage locations from stock data"""
-    try:
-        plant = request.args.get('plant', '')
-        connection = get_mysql_connection()
-        if not connection:
-            return jsonify({"success": False, "error": "Database connection failed"}), 500
-        with connection.cursor() as cursor:
-            if plant:
-                cursor.execute("SELECT DISTINCT storage_location FROM stock_data WHERE plant = %s ORDER BY storage_location", (plant,))
-            else:
-                cursor.execute("SELECT DISTINCT storage_location FROM stock_data ORDER BY storage_location")
-            storage_locations = [row['storage_location'] for row in cursor.fetchall()]
-        connection.close()
-        return jsonify({"success": True, "data": storage_locations})
-    except Exception as e:
-        logger.error(f"Error getting storage locations: {e}")
-        return jsonify({"success": False, "error": f"Failed to get storage locations: {str(e)}"}), 500
-
+# ===== ENDPOINT GET_STOCK YANG DIPERBAIKI =====
 @app.route('/stock', methods=['GET'])
 def get_stock():
-    """Get stock data dari MySQL dengan filter"""
+    """Get stock data dengan perhitungan real-time available stock"""
     try:
         connection = get_mysql_connection()
         if not connection:
             return jsonify({"success": False, "error": "Database connection failed"}), 500
+
         with connection.cursor() as cursor:
             page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 1000, type=int) # Naikkan default
+            per_page = min(request.args.get('per_page', 100, type=int), 1000)
             material_filter = request.args.get('material', '')
             plant_filter = request.args.get('plant', '')
             storage_location_filter = request.args.get('storage_location', '')
             offset = (page - 1) * per_page
 
-            query = "SELECT * FROM stock_data WHERE 1=1"
-            count_query = "SELECT COUNT(*) as total FROM stock_data WHERE 1=1"
+            # Query dasar - stock_data sudah berisi available quantity
+            query = """
+            SELECT sd.*
+            FROM stock_data sd
+            WHERE 1=1
+            """
+
+            count_query = "SELECT COUNT(*) as total FROM stock_data sd WHERE 1=1"
             params = []
             count_params = []
 
             if material_filter:
-                query += " AND material LIKE %s"
-                count_query += " AND material LIKE %s"
+                query += " AND sd.material LIKE %s"
+                count_query += " AND sd.material LIKE %s"
                 params.append(f"%{material_filter}%")
                 count_params.append(f"%{material_filter}%")
+
             if plant_filter:
-                query += " AND plant = %s"
-                count_query += " AND plant = %s"
+                query += " AND sd.plant = %s"
+                count_query += " AND sd.plant = %s"
                 params.append(plant_filter)
                 count_params.append(plant_filter)
+
             if storage_location_filter:
-                query += " AND storage_location = %s"
-                count_query += " AND storage_location = %s"
+                query += " AND sd.storage_location = %s"
+                count_query += " AND sd.storage_location = %s"
                 params.append(storage_location_filter)
                 count_params.append(storage_location_filter)
 
-            query += " ORDER BY material, plant, storage_location, batch LIMIT %s OFFSET %s"
+            query += " ORDER BY sd.material, sd.plant, sd.storage_location, sd.batch LIMIT %s OFFSET %s"
             params.extend([per_page, offset])
 
             cursor.execute(query, params)
@@ -491,7 +530,6 @@ def get_stock():
 
             cursor.execute(count_query, count_params)
             total_count = cursor.fetchone()['total']
-        connection.close()
 
         return jsonify({
             "success": True,
@@ -506,20 +544,50 @@ def get_stock():
     except Exception as e:
         logger.error(f"Error getting stock data: {e}")
         return jsonify({"success": False, "error": f"Failed to get stock data: {str(e)}"}), 500
+    finally:
+        if connection:
+            connection.close()
 
-# ==========================================================
-# ===== ROUTES HU CREATION (DENGAN LOGIKA SAP ASLI) =====
-# ==========================================================
+# ===== SCHEDULER UNTUK AUTO-SYNC =====
+def scheduled_sync():
+    """Wrapper function untuk scheduler dengan error handling"""
+    try:
+        logger.info("Auto-sync started by scheduler")
+        success = fetch_stock_from_sap()
+        if success:
+            logger.info("Auto-sync completed successfully")
+        else:
+            logger.error("Auto-sync failed")
+    except Exception as e:
+        logger.error(f"Error in auto-sync: {e}")
+
+# Initialize scheduler
+try:
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=scheduled_sync, trigger="interval", minutes=5, id='auto_sync_job')
+    scheduler.start()
+    logger.info("Scheduler started successfully")
+except Exception as e:
+    logger.error(f"Failed to start scheduler: {e}")
+    scheduler = None
+
+atexit.register(lambda: scheduler.shutdown() if scheduler else None)
+
+# ===== ROUTES HU CREATION =====
 @app.route('/hu/create-single', methods=['POST', 'OPTIONS'])
 def create_single_hu():
     if request.method == 'OPTIONS':
         return '', 200
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
         logger.info(f"Creating single HU with data: { {k: v for k, v in data.items() if k != 'sap_password'} }")
 
         sap_user = data.get('sap_user') or os.getenv("SAP_USER")
         sap_password = data.get('sap_password') or os.getenv("SAP_PASSWORD")
+
         if not sap_user or not sap_password:
             return jsonify({"success": False, "error": "SAP credentials missing"}), 400
 
@@ -527,9 +595,15 @@ def create_single_hu():
         if not conn:
             return jsonify({"success": False, "error": "Cannot connect to SAP system"}), 500
 
+        # Validasi required fields
+        required_fields = ['hu_exid', 'material', 'plant', 'stge_loc', 'pack_qty']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+
         # Terapkan format material
         formatted_material = format_material(data.get('material'))
-        formatted_pack_mat = format_material(data.get('pack_mat'))
+        formatted_pack_mat = format_material(data.get('pack_mat', ''))
 
         params = {
             "I_HU_EXID": data.get('hu_exid'),
@@ -544,7 +618,7 @@ def create_single_hu():
                 "BASE_UNIT_QTY": data.get('base_unit_qty') or '',
                 "HU_ITEM_TYPE": "1",
                 "BATCH": data.get('batch', ''),
-                "SPEC_STOCK": "E", # Asumsi 'E'
+                "SPEC_STOCK": "E",
                 "SP_STCK_NO": data.get('sp_stck_no', ''),
                 "GR_DATE": data.get('gr_date', '')
             }]
@@ -573,15 +647,19 @@ def create_single_hu():
         return jsonify({"success": False, "error": f"SAP Error: {error_message}"}), 500
 
 @app.route('/hu/create-single-multi', methods=['POST', 'OPTIONS'])
-def create_single_hu_multi():
+def create_single_multi_hu():
     if request.method == 'OPTIONS':
         return '', 200
     try:
         data = request.get_json()
-        logger.info(f"Creating single HU multi with data: { {k: v for k, v in data.items() if k != 'sap_password'} }")
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
+        logger.info(f"Creating single HU with multiple materials")
 
         sap_user = data.get('sap_user') or os.getenv("SAP_USER")
         sap_password = data.get('sap_password') or os.getenv("SAP_PASSWORD")
+
         if not sap_user or not sap_password:
             return jsonify({"success": False, "error": "SAP credentials missing"}), 400
 
@@ -589,10 +667,17 @@ def create_single_hu_multi():
         if not conn:
             return jsonify({"success": False, "error": "Cannot connect to SAP system"}), 500
 
-        items = []
+        # Validasi required fields
+        required_fields = ['hu_exid', 'plant', 'stge_loc', 'items']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+
+        # Format items
+        formatted_items = []
         for item in data.get('items', []):
             formatted_material = format_material(item.get('material'))
-            items.append({
+            formatted_items.append({
                 "MATERIAL": formatted_material,
                 "PLANT": data.get('plant'),
                 "STGE_LOC": data.get('stge_loc'),
@@ -605,27 +690,25 @@ def create_single_hu_multi():
                 "GR_DATE": item.get('gr_date', '')
             })
 
-        formatted_pack_mat = format_material(data.get('pack_mat'))
-
         params = {
             "I_HU_EXID": data.get('hu_exid'),
-            "I_PACK_MAT": formatted_pack_mat,
+            "I_PACK_MAT": format_material(data.get('pack_mat', '')),
             "I_PLANT": data.get('plant'),
             "I_STGE_LOC": data.get('stge_loc'),
-            "T_ITEMS": items
+            "T_ITEMS": formatted_items
         }
 
-        logger.info(f"Calling ZRFC_CREATE_HU_EXT with params: {params}")
+        logger.info(f"Calling ZRFC_CREATE_HU_EXT with {len(formatted_items)} items")
         result = conn.call('ZRFC_CREATE_HU_EXT', **params)
         conn.close()
 
         # Cek jika SAP mengembalikan error
         if 'E_RETURN' in result and result['E_RETURN'] and result['E_RETURN']['TYPE'] in ['E', 'A']:
             error_message = result['E_RETURN']['MESSAGE']
-            logger.error(f"SAP Error creating single HU multi: {error_message} | Data: {result}")
+            logger.error(f"SAP Error creating single multi HU: {error_message}")
             return jsonify({"success": False, "error": f"SAP Error: {error_message}"}), 500
 
-        logger.info(f"Single HU multi created successfully: {result}")
+        logger.info(f"Single multi HU created successfully")
         return jsonify({
             "success": True,
             "data": result,
@@ -634,19 +717,23 @@ def create_single_hu_multi():
 
     except Exception as e:
         error_message = str(e)
-        logger.error(f"Error creating single HU multi: {error_message}")
+        logger.error(f"Error creating single multi HU: {error_message}")
         return jsonify({"success": False, "error": f"SAP Error: {error_message}"}), 500
 
 @app.route('/hu/create-multiple', methods=['POST', 'OPTIONS'])
-def create_multiple_hus():
+def create_multiple_hu():
     if request.method == 'OPTIONS':
         return '', 200
     try:
         data = request.get_json()
-        logger.info(f"Creating multiple HUs: { {k: v for k, v in data.items() if k != 'sap_password'} }")
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
+        logger.info(f"Creating multiple HUs")
 
         sap_user = data.get('sap_user') or os.getenv("SAP_USER")
         sap_password = data.get('sap_password') or os.getenv("SAP_PASSWORD")
+
         if not sap_user or not sap_password:
             return jsonify({"success": False, "error": "SAP credentials missing"}), 400
 
@@ -655,12 +742,18 @@ def create_multiple_hus():
             return jsonify({"success": False, "error": "Cannot connect to SAP system"}), 500
 
         results = []
-        errors = []
-
         for hu_data in data.get('hus', []):
             try:
+                # Validasi required fields untuk setiap HU
+                required_fields = ['hu_exid', 'material', 'plant', 'stge_loc', 'pack_qty']
+                for field in required_fields:
+                    if not hu_data.get(field):
+                        logger.error(f"Missing required field {field} for HU: {hu_data.get('hu_exid')}")
+                        continue
+
+                # Terapkan format material
                 formatted_material = format_material(hu_data.get('material'))
-                formatted_pack_mat = format_material(hu_data.get('pack_mat'))
+                formatted_pack_mat = format_material(hu_data.get('pack_mat', ''))
 
                 params = {
                     "I_HU_EXID": hu_data.get('hu_exid'),
@@ -681,66 +774,81 @@ def create_multiple_hus():
                     }]
                 }
 
-                logger.info(f"Processing HU: {hu_data.get('hu_exid')}")
+                logger.info(f"Calling ZRFC_CREATE_HU_EXT for HU: {hu_data.get('hu_exid')}")
                 result = conn.call('ZRFC_CREATE_HU_EXT', **params)
 
                 # Cek jika SAP mengembalikan error
                 if 'E_RETURN' in result and result['E_RETURN'] and result['E_RETURN']['TYPE'] in ['E', 'A']:
                     error_message = result['E_RETURN']['MESSAGE']
-                    logger.warning(f"Failed to create HU {hu_data.get('hu_exid')}: {error_message}")
-                    errors.append({"hu_exid": hu_data.get('hu_exid'), "error": error_message})
+                    logger.error(f"SAP Error creating HU {hu_data.get('hu_exid')}: {error_message}")
+                    results.append({
+                        "hu_exid": hu_data.get('hu_exid'),
+                        "success": False,
+                        "error": error_message
+                    })
                 else:
-                    results.append({"hu_exid": hu_data.get('hu_exid'), "result": result})
+                    results.append({
+                        "hu_exid": hu_data.get('hu_exid'),
+                        "success": True,
+                        "data": result
+                    })
+                    logger.info(f"HU {hu_data.get('hu_exid')} created successfully")
 
             except Exception as e:
                 error_message = str(e)
-                logger.warning(f"Failed to create HU {hu_data.get('hu_exid')}: {error_message}")
-                errors.append({"hu_exid": hu_data.get('hu_exid'), "error": error_message})
+                logger.error(f"Error creating HU {hu_data.get('hu_exid')}: {error_message}")
+                results.append({
+                    "hu_exid": hu_data.get('hu_exid'),
+                    "success": False,
+                    "error": error_message
+                })
 
         conn.close()
 
-        if errors:
+        # Check if all failed
+        success_count = sum(1 for r in results if r.get('success'))
+        if success_count == 0:
             return jsonify({
                 "success": False,
-                "error": "Some HUs failed to create. See details.",
-                "successful_hus": results,
-                "failed_hus": errors
+                "error": "All HU creations failed",
+                "details": results
             }), 500
 
-        logger.info(f"All {len(results)} HUs created successfully")
         return jsonify({
             "success": True,
             "data": results,
-            "message": f"All {len(results)} HUs created successfully"
+            "message": f"Successfully created {success_count} out of {len(results)} HUs"
         })
 
     except Exception as e:
         error_message = str(e)
-        logger.error(f"Error creating multiple HUs (connection/setup failed): {error_message}")
-        return jsonify({"success": False, "error": f"Failed to create HUs: {error_message}"}), 500
+        logger.error(f"Error creating multiple HUs: {error_message}")
+        return jsonify({"success": False, "error": f"SAP Error: {error_message}"}), 500
 
+# Health check endpoint
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
-    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+    return jsonify({"status": "healthy", "service": "SAP HU Automation API"})
 
 @app.route('/', methods=['GET'])
 def home():
-    """Home endpoint"""
-    return jsonify({
-        "message": "SAP HU Automation Python API",
-        "endpoints": {
-            "stock": "/stock",
-            "stock_sync": "/stock/sync",
-            "hu_create_single": "/hu/create-single",
-            "health": "/health"
-        }
-    })
+    return jsonify({"message": "SAP HU Automation API is running"})
 
 if __name__ == '__main__':
+    # TANPA EMOJI - PERBAIKAN UTAMA
+    logger.info("Starting SAP HU Automation API...")
     logger.info("Initializing database...")
-    if init_database():
-        logger.info("Starting initial stock data sync...")
-        fetch_stock_from_sap()
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    if init_database():
+        logger.info("Database initialized successfully")
+        logger.info("Starting initial stock data sync...")
+        try:
+            fetch_stock_from_sap()
+            logger.info("Initial stock sync completed")
+        except Exception as e:
+            logger.error(f"Initial stock sync failed: {e}")
+    else:
+        logger.error("Database initialization failed")
+
+    logger.info("Starting Flask application...")
+    app.run(host='0.0.0.0', port=5000, debug=False)

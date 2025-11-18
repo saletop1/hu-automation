@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Models\HuHistory;
-use App\Models\Stock; // Pastikan model Stock di-import
+use App\Models\Stock;
 use App\Exports\HuHistoryExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
@@ -22,7 +22,6 @@ class HUController extends Controller
         $this->pythonBaseUrl = env('PYTHON_API_URL', 'http://localhost:5000');
     }
 
-    // Method index harus ada
     public function index()
     {
         try {
@@ -196,16 +195,24 @@ class HUController extends Controller
         ]);
 
         try {
+            Log::info('Starting manual stock sync', [
+                'plant' => $request->plant,
+                'storage_location' => $request->storage_location,
+                'python_url' => $this->pythonBaseUrl
+            ]);
+
             $response = Http::timeout(120)->post($this->pythonBaseUrl . '/stock/sync', [
                 'plant' => $request->plant,
                 'storage_location' => $request->storage_location
             ]);
 
+            Log::info('Python API sync response', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
             if ($response->successful()) {
                 $result = $response->json();
-
-                // Setelah sync berhasil, pastikan untuk memuat ulang data dengan filter hu_created = false
-                Log::info('Stock sync successful, reloading stock data with hu_created filter');
 
                 return response()->json([
                     'success' => true,
@@ -213,6 +220,7 @@ class HUController extends Controller
                 ]);
             } else {
                 $error = $response->json()['error'] ?? 'Failed to sync stock data';
+                Log::error('Stock sync failed', ['error' => $error]);
                 return response()->json([
                     'success' => false,
                     'error' => $error
@@ -228,49 +236,49 @@ class HUController extends Controller
     }
 
     public function getStock(Request $request)
-{
-    try {
-        // Gunakan DB query builder untuk konsistensi
-        $query = DB::table('stock_data')->where('hu_created', false);
+    {
+        try {
+            // Gunakan DB query builder untuk konsistensi
+            $query = DB::table('stock_data')->where('hu_created', false);
 
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = $request->search;
-            $query->where(function($q) use ($searchTerm) {
-                $q->where('material', 'LIKE', '%' . $searchTerm . '%')
-                  ->orWhere('material_description', 'LIKE', '%' . $searchTerm . '%')
-                  ->orWhere('sales_document', 'LIKE', '%' . $searchTerm . '%')
-                  ->orWhere('batch', 'LIKE', '%' . $searchTerm . '%');
-            });
+            if ($request->has('search') && !empty($request->search)) {
+                $searchTerm = $request->search;
+                $query->where(function($q) use ($searchTerm) {
+                    $q->where('material', 'LIKE', '%' . $searchTerm . '%')
+                      ->orWhere('material_description', 'LIKE', '%' . $searchTerm . '%')
+                      ->orWhere('sales_document', 'LIKE', '%' . $searchTerm . '%')
+                      ->orWhere('batch', 'LIKE', '%' . $searchTerm . '%');
+                });
+            }
+
+            if ($request->has('plant') && !empty($request->plant)) {
+                $query->where('plant', $request->plant);
+            }
+
+            if ($request->has('storage_location') && !empty($request->storage_location)) {
+                $query->where('storage_location', $request->storage_location);
+            }
+
+            $stockData = $query->orderBy('material', 'asc')->get();
+
+            Log::info('Stock data fetched: ' . $stockData->count() . ' items (hu_created = false)');
+
+            return response()->json([
+                'success' => true,
+                'data' => $stockData,
+                'pagination' => [
+                    'total' => $stockData->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get stock error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch stock data: ' . $e->getMessage()
+            ], 500);
         }
-
-        if ($request->has('plant') && !empty($request->plant)) {
-            $query->where('plant', $request->plant);
-        }
-
-        if ($request->has('storage_location') && !empty($request->storage_location)) {
-            $query->where('storage_location', $request->storage_location);
-        }
-
-        $stockData = $query->orderBy('material', 'asc')->get();
-
-        Log::info('Stock data fetched: ' . $stockData->count() . ' items (hu_created = false)');
-
-        return response()->json([
-            'success' => true,
-            'data' => $stockData,
-            'pagination' => [
-                'total' => $stockData->count()
-            ]
-        ]);
-
-    } catch (\Exception $e) {
-        Log::error('Get stock error: ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'error' => 'Failed to fetch stock data: ' . $e->getMessage()
-        ], 500);
     }
-}
 
     public function getPlants(Request $request)
     {
