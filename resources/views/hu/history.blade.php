@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Tambahkan library QRCode -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         .table-responsive {
             max-height: 70vh;
@@ -28,7 +30,6 @@
         .table-hover tbody tr:hover {
             background-color: rgba(0, 0, 0, 0.075);
         }
-        /* STYLE BARU UNTUK DESKRIPSI - TAMPIL PENUH */
         .material-description {
             min-width: 250px;
             max-width: 400px;
@@ -59,6 +60,91 @@
             height: 31px;
             margin-bottom: 1px;
         }
+
+        /* Sembunyikan tampilan print secara default */
+        #printView {
+            display: none;
+        }
+
+        /* STYLE UNTUK PRINT */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printView, #printView * {
+                visibility: visible;
+            }
+            #printView {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white;
+                display: block !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+            }
+            .print-table th {
+                background-color: #f8f9fa !important;
+                border: 1px solid #000;
+                padding: 8px;
+                text-align: left;
+                font-weight: bold;
+            }
+            .print-table td {
+                border: 1px solid #000;
+                padding: 8px;
+                vertical-align: top;
+            }
+            .qrcode-cell {
+                text-align: center;
+                width: 80px;
+            }
+            .qrcode-container {
+                display: inline-block;
+                text-align: center;
+            }
+            .qrcode-text {
+                font-size: 10px;
+                margin-top: 2px;
+                font-weight: bold;
+            }
+
+            /* STYLE KHUSUS UNTUK PRINT DENGAN QR CODE */
+            .print-header {
+                text-align: center;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #000;
+                padding-bottom: 10px;
+            }
+            .print-title {
+                font-size: 18px;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            .print-subtitle {
+                font-size: 14px;
+            }
+            .print-footer {
+                margin-top: 20px;
+                text-align: right;
+                font-size: 11px;
+                color: #666;
+            }
+            .material-info {
+                font-weight: bold;
+            }
+            .quantity-cell {
+                text-align: right;
+            }
+        }
+
         @media (max-width: 768px) {
             .filter-container {
                 flex-direction: column;
@@ -70,7 +156,6 @@
             .date-filter {
                 flex: 1;
             }
-            /* RESPONSIVE UNTUK DESKRIPSI */
             .material-description {
                 min-width: 200px;
                 max-width: 300px;
@@ -79,7 +164,7 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg no-print">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
                 <i class="fas fa-cubes me-2"></i>SAP HU Automation
@@ -94,20 +179,21 @@
 
     <div class="container-fluid mt-4">
         @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4 no-print" role="alert">
             <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         @endif
 
         @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4 no-print" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         @endif
 
-        <div class="card border-0 shadow-sm">
+        <!-- TAMPILAN NORMAL -->
+        <div class="card border-0 shadow-sm no-print">
             <div class="card-header bg-white py-3">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="card-title mb-0 fw-bold text-gray-800">
@@ -115,22 +201,22 @@
                         History Handling Units (HU)
                     </h5>
                     <div>
+                        <button id="printBtn" class="btn btn-info btn-sm me-2">
+                            <i class="fas fa-print me-1"></i> Print
+                        </button>
                         <button id="exportBtn" class="btn btn-success btn-sm" disabled>
                             <i class="fas fa-file-excel me-1"></i> Export Excel
                         </button>
                     </div>
                 </div>
 
-                <!-- Filter Section - Compact Layout -->
+                <!-- Filter Section -->
                 <div class="filter-container mb-3">
-                    <!-- Search Input -->
                     <div class="flex-grow-1">
                         <label class="date-filter-label">Pencarian</label>
                         <input type="text" id="searchInput" class="form-control form-control-sm search-box"
                                placeholder="Cari HU Number, material, deskripsi, sales order...">
                     </div>
-
-                    <!-- Date Filters -->
                     <div class="date-filter-group">
                         <div class="date-filter">
                             <label class="date-filter-label">Tanggal Mulai</label>
@@ -141,8 +227,6 @@
                             <input type="date" id="endDate" class="form-control form-control-sm">
                         </div>
                     </div>
-
-                    <!-- Reset Button -->
                     <div class="reset-btn-container">
                         <label class="date-filter-label opacity-0">Reset</label>
                         <button id="resetFilterBtn" class="btn btn-outline-secondary btn-sm reset-btn" title="Reset Filter">
@@ -151,7 +235,6 @@
                     </div>
                 </div>
 
-                <!-- Selection Controls -->
                 <div class="d-flex align-items-center">
                     <input type="checkbox" id="selectAll" class="form-check-input select-all-checkbox">
                     <label for="selectAll" class="form-check-label text-muted small">
@@ -162,7 +245,6 @@
                 <small class="text-muted">Daftar material yang sudah dibuat Handling Unit</small>
             </div>
             <div class="card-body p-0">
-                <!-- Form untuk export -->
                 <form id="exportForm" action="{{ route('hu.export') }}" method="POST">
                     @csrf
                     <input type="hidden" name="selected_data" id="selectedData">
@@ -255,6 +337,85 @@
                 </div>
             </div>
         </div>
+
+        <!-- TAMPILAN PRINT DENGAN QR CODE -->
+        <div id="printView">
+            <div class="print-header">
+                <div class="print-title">HANDLING UNIT (HU) HISTORY REPORT</div>
+                <div class="print-subtitle">SAP HU Automation System</div>
+            </div>
+
+            <table class="print-table">
+                <thead>
+                    <tr>
+                        <th width="80">QR Code</th>
+                        <th>HU Number</th>
+                        <th>Material</th>
+                        <th width="200">Deskripsi Material</th>
+                        <th>Batch</th>
+                        <th width="60">Qty</th>
+                        <th width="60">Unit</th>
+                        <th>Dokumen Penjualan</th>
+                        <th>Lokasi</th>
+                        <th width="80">Skenario</th>
+                        <th width="120">Tanggal Dibuat</th>
+                    </tr>
+                </thead>
+                <tbody id="printTableBody">
+                    @if($historyData->count() > 0)
+                        @foreach($historyData as $item)
+                            <tr>
+                                <td class="qrcode-cell">
+                                    <div class="qrcode-container">
+                                        <div id="qrcode-{{ $item->hu_number }}" class="qrcode"></div>
+                                        <div class="qrcode-text">{{ substr($item->hu_number, 0, 8) }}</div>
+                                    </div>
+                                </td>
+                                <td class="material-info">{{ $item->hu_number }}</td>
+                                <td>
+                                    {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
+                                </td>
+                                <td>{{ $item->material_description ?: '-' }}</td>
+                                <td>{{ $item->batch ?: '-' }}</td>
+                                <td class="quantity-cell">{{ number_format((float)($item->quantity ?? 0), 0, ',', '.') }}</td>
+                                <td>{{ $item->unit == 'ST' ? 'PC' : ($item->unit ?: '-') }}</td>
+                                <td>{{ $item->sales_document ?: '-' }}</td>
+                                <td>{{ $item->storage_location ?: '-' }}</td>
+                                <td>
+                                    @if($item->scenario_type == 'single')
+                                        Skenario 1
+                                    @elseif($item->scenario_type == 'single-multi')
+                                        Skenario 2
+                                    @elseif($item->scenario_type == 'multiple')
+                                        Skenario 3
+                                    @else
+                                        {{ $item->scenario_type ?: '-' }}
+                                    @endif
+                                </td>
+                                <td>
+                                    @php
+                                        try {
+                                            $createdAt = $item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') : '-';
+                                        } catch (Exception $e) {
+                                            $createdAt = '-';
+                                        }
+                                    @endphp
+                                    {{ $createdAt }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    @else
+                        <tr>
+                            <td colspan="11" class="text-center py-4">Tidak ada data history HU</td>
+                        </tr>
+                    @endif
+                </tbody>
+            </table>
+
+            <div class="print-footer">
+                Dicetak pada: {{ \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') }} WIB
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -270,6 +431,57 @@
 
             $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
             $('#endDate').val(today.toISOString().split('T')[0]);
+
+            // Generate QR Codes untuk semua HU number
+            function generateQRCodes() {
+                @foreach($historyData as $item)
+                    try {
+                        // Buat canvas untuk QR code
+                        const canvas = document.createElement('canvas');
+                        QRCode.toCanvas(canvas, '{{ $item->hu_number }}', {
+                            width: 60,
+                            height: 60,
+                            margin: 1,
+                            color: {
+                                dark: '#000000',
+                                light: '#FFFFFF'
+                            }
+                        }, function(error) {
+                            if (error) {
+                                console.error('QR Code error:', error);
+                                // Fallback: tampilkan text jika QR code gagal
+                                $('#qrcode-{{ $item->hu_number }}').html('<div style="width:60px;height:60px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;">{{ $item->hu_number }}</div>');
+                            } else {
+                                // Convert canvas to image
+                                const dataURL = canvas.toDataURL('image/png');
+                                $('#qrcode-{{ $item->hu_number }}').html('<img src="' + dataURL + '" width="60" height="60" alt="QR Code">');
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Error generating QR code:', error);
+                        $('#qrcode-{{ $item->hu_number }}').html('<div style="width:60px;height:60px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;">{{ $item->hu_number }}</div>');
+                    }
+                @endforeach
+            }
+
+            // Print Functionality - VERSI DIPERBAIKI
+            $('#printBtn').on('click', function() {
+                console.log('Print button clicked');
+
+                // Generate QR codes
+                generateQRCodes();
+
+                // Tunggu sebentar untuk memastikan QR code tergenerate
+                setTimeout(function() {
+                    console.log('Opening print dialog...');
+                    window.print();
+                }, 500);
+            });
+
+            // Handle after print event
+            window.addEventListener('afterprint', function() {
+                console.log('Print completed or cancelled');
+            });
 
             // Filter Functionality
             function applyFilters() {
@@ -337,16 +549,17 @@
 
                 $('#selectedCount').text(checkedCount + ' terpilih');
 
-                // Update select all checkbox state
                 if (checkedCount === 0) {
-                    $('#selectAll, #selectAllHeader').prop('checked', false).prop('indeterminate', false);
+                    $('#selectAll').prop('checked', false).prop('indeterminate', false);
+                    $('#selectAllHeader').prop('checked', false).prop('indeterminate', false);
                 } else if (checkedCount === visibleCount && visibleCount > 0) {
-                    $('#selectAll, #selectAllHeader').prop('checked', true).prop('indeterminate', false);
+                    $('#selectAll').prop('checked', true).prop('indeterminate', false);
+                    $('#selectAllHeader').prop('checked', true).prop('indeterminate', false);
                 } else {
-                    $('#selectAll, #selectAllHeader').prop('checked', false).prop('indeterminate', true);
+                    $('#selectAll').prop('checked', false).prop('indeterminate', true);
+                    $('#selectAllHeader').prop('checked', false).prop('indeterminate', true);
                 }
 
-                // Enable/disable export button
                 if (selectedHUs.length > 0) {
                     $('#exportBtn').prop('disabled', false);
                 } else {
@@ -368,6 +581,9 @@
             // Initialize UI and apply initial filters
             updateSelectionUI();
             applyFilters();
+
+            // Generate QR codes saat halaman pertama kali load
+            generateQRCodes();
         });
     </script>
 </body>
