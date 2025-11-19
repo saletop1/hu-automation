@@ -320,6 +320,25 @@
             align-items: center;
             gap: 10px;
         }
+        /* Style untuk dropdown plant dan location */
+        .plant-option small, .storage-option small {
+            font-size: 0.7rem;
+            opacity: 0.7;
+        }
+
+        .dropdown-menu {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Highlight untuk plant 2000 */
+        .plant-option[data-plant="2000"] {
+            border-left: 3px solid #ff6b35;
+        }
+
+        .plant-option[data-plant="3000"] {
+            border-left: 3px solid #3b82f6;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -374,43 +393,57 @@
                                     <span class="selected-count" id="selectedCount">0 item terpilih</span>
                                 </div>
                             </div>
-                            <div class="card-header-right">
-                                <button class="btn btn-outline-danger btn-sm clear-selection-btn" id="clearSelection" title="Hapus pilihan">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                                <div class="dropdown">
-                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="plantDropdown" data-bs-toggle="dropdown">
-                                        <i class="fas fa-industry me-1"></i>
-                                        <span id="selectedPlant">Plant: 3000</span>
+                            <!-- Di bagian card header - Update dropdown plants -->
+                                <div class="card-header-right">
+                                    <button class="btn btn-outline-danger btn-sm clear-selection-btn" id="clearSelection" title="Hapus pilihan">
+                                        <i class="fas fa-trash"></i>
                                     </button>
-                                    <ul class="dropdown-menu" id="plantList">
-                                        @foreach($plantsData as $plant => $locations)
-                                            <li><a class="dropdown-item" href="#" data-plant="{{ $plant }}">{{ $plant }}</a></li>
-                                        @endforeach
-                                    </ul>
-                                </div>
-                                <div class="dropdown">
-                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="storageLocationDropdown" data-bs-toggle="dropdown">
-                                        <i class="fas fa-map-marker-alt me-1"></i>
-                                        <span id="selectedStorageLocation">Lokasi: 3D10</span>
+
+                                    <!-- Dropdown Plant -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="plantDropdown" data-bs-toggle="dropdown">
+                                            <i class="fas fa-industry me-1"></i>
+                                            <span id="selectedPlant">Plant: 3000</span>
+                                        </button>
+                                        <ul class="dropdown-menu" id="plantList">
+                                            @foreach($plantsData as $plant => $locations)
+                                                <li><a class="dropdown-item plant-option" href="#" data-plant="{{ $plant }}">
+                                                    Plant {{ $plant }}
+                                                    @if($plant == '2000')
+                                                        <small class="text-muted d-block">Lokasi: 21HU, 21LK, 21NH</small>
+                                                    @elseif($plant == '3000')
+                                                        <small class="text-muted d-block">Lokasi: 3D10, 3DH1, 3DH2</small>
+                                                    @endif
+                                                </a></li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+
+                                    <!-- Dropdown Storage Location -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="storageLocationDropdown" data-bs-toggle="dropdown">
+                                            <i class="fas fa-map-marker-alt me-1"></i>
+                                            <span id="selectedStorageLocation">Lokasi: 3D10</span>
+                                        </button>
+                                        <ul class="dropdown-menu" id="storageLocationList">
+                                            <li><a class="dropdown-item storage-option" href="#" data-location="">Semua Lokasi</a></li>
+                                            <!-- Lokasi akan diisi secara dinamis oleh JavaScript -->
+                                        </ul>
+                                    </div>
+
+                                    <div class="input-group input-group-sm" style="width: 300px;">
+                                        <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, atau sales order...">
+                                        <button class="btn btn-outline-secondary" type="button" id="searchBtn">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                    <button id="refreshStock" class="btn btn-outline-primary btn-sm refresh-btn">
+                                        <i class="fas fa-sync-alt me-1"></i> Sync Sekarang
                                     </button>
-                                    <ul class="dropdown-menu" id="storageLocationList">
-                                        <li><a class="dropdown-item" href="#" data-location="">Semua Lokasi</a></li>
-                                    </ul>
+                                    <div class="loading-spinner spinner-border spinner-border-sm text-primary me-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
                                 </div>
-                                <div class="input-group input-group-sm" style="width: 300px;">
-                                    <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, atau sales order...">
-                                    <button class="btn btn-outline-secondary" type="button" id="searchBtn">
-                                        <i class="fas fa-search"></i>
-                                    </button>
-                                </div>
-                                <button id="refreshStock" class="btn btn-outline-primary btn-sm refresh-btn">
-                                    <i class="fas fa-sync-alt me-1"></i> Sync Sekarang
-                                </button>
-                                <div class="loading-spinner spinner-border spinner-border-sm text-primary me-2" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </div>
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -604,8 +637,6 @@
 
     <script>
     // Global variables
-    let selectedPlant = '3000';
-    let selectedStorageLocation = '3D10';
     let allStockData = @json($stockData['success'] ? $stockData['data'] : []);
     const plantsData = @json($plantsData ?? []);
     const scenarioData = {
@@ -1461,6 +1492,149 @@ function onMaterialSelected(material) {
             $('.alert').alert('close');
         }, 5000);
     }
+
+    const manualPlantLocations = {
+    '2000': ['21HU', '21LK', '21NH'],
+    '3000': ['3D10', '3DH1', '3DH2']
+};
+let selectedPlant = '3000';
+let selectedStorageLocation = '3D10';
+// Fungsi untuk update storage locations berdasarkan plant
+function updateStorageLocations(plant) {
+    const locationList = $('#storageLocationList');
+    locationList.empty();
+    locationList.append('<li><a class="dropdown-item storage-option" href="#" data-location="">Semua Lokasi</a></li>');
+
+    // Ambil lokasi dari data manual atau dari plantsData
+    let locations = [];
+
+    if (manualPlantLocations[plant]) {
+        // Gunakan data manual untuk plant 2000 dan 3000
+        locations = manualPlantLocations[plant];
+    } else if (plantsData[plant]) {
+        // Gunakan data dari database untuk plant lain
+        locations = plantsData[plant];
+    }
+
+    // Tambahkan lokasi ke dropdown
+    locations.forEach(location => {
+        locationList.append(`
+            <li>
+                <a class="dropdown-item storage-option" href="#" data-location="${location}">
+                    ${location}
+                    ${plant === '2000' ? '<small class="text-muted d-block">Plant 2000</small>' : ''}
+                </a>
+            </li>
+        `);
+    });
+
+    console.log('Updated locations for plant', plant, ':', locations);
+}
+
+// Event handler untuk plant selection
+$(document).on('click', '#plantList .plant-option', function(e) {
+    e.preventDefault();
+    selectedPlant = $(this).data('plant');
+    $('#selectedPlant').text(`Plant: ${selectedPlant}`);
+
+    // Update storage locations
+    updateStorageLocations(selectedPlant);
+
+    // Reset storage location selection
+    selectedStorageLocation = '';
+    $('#selectedStorageLocation').text('Pilih Lokasi');
+
+    // Load data dengan plant baru
+    loadStockData();
+});
+
+// Event handler untuk storage location selection
+$(document).on('click', '#storageLocationList .storage-option', function(e) {
+    e.preventDefault();
+    selectedStorageLocation = $(this).data('location');
+
+    if (selectedStorageLocation === '') {
+        $('#selectedStorageLocation').text('Semua Lokasi');
+    } else {
+        $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
+    }
+
+    loadStockData();
+});
+
+// Fungsi sync stock data - PERBAIKI UNTUK PLANT 2000
+function syncStockData() {
+    if (!selectedPlant) {
+        showError('Pilih plant sebelum sync');
+        return;
+    }
+
+    // Untuk plant 2000, pastikan storage location dipilih
+    if (selectedPlant === '2000' && !selectedStorageLocation) {
+        showError('Untuk Plant 2000, pilih storage location terlebih dahulu');
+        return;
+    }
+
+    showLoading(true);
+
+    console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
+
+    $.ajax({
+        url: "{{ route('hu.sync-stock') }}",
+        type: 'POST',
+        data: {
+            _token: "{{ csrf_token() }}",
+            plant: selectedPlant,
+            storage_location: selectedStorageLocation || (selectedPlant === '3000' ? '3D10' : '')
+        },
+        success: function(response) {
+            console.log('Sync response:', response);
+            if (response.success) {
+                showMessage(response.message, 'success');
+                // Tunggu sebentar sebelum reload data untuk memastikan sync selesai
+                setTimeout(() => {
+                    loadStockData();
+                }, 1500);
+            } else {
+                showError(response.error || 'Gagal sync data stock');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Sync error:', error);
+            let errorMessage = 'Error sync data stock';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMessage = xhr.responseJSON.error;
+            }
+            showError(errorMessage);
+        },
+        complete: function() {
+            showLoading(false);
+        }
+    });
+}
+
+// Inisialisasi saat document ready
+$(document).ready(function() {
+    $('#selectedPlant').text(`Plant: ${selectedPlant}`);
+    $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
+
+    // Inisialisasi storage locations untuk plant default
+    updateStorageLocations(selectedPlant);
+
+    // Load data awal
+    loadScenariosFromSession();
+    setupRowDragEvents();
+
+    // Setup event handlers untuk search
+    $('#refreshStock').click(function() { syncStockData(); });
+    $('#searchBtn').click(function() { loadStockData(); });
+    setupLiveSearch();
+
+    setupDragAndDrop();
+    updateMaterialStatus();
+
+    // ... kode existing lainnya ...
+});
 
     function showError(message) {
         showMessage(message, 'error');

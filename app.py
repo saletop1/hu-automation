@@ -646,6 +646,14 @@ def api_sync_stock():
     plant = data.get('plant', '3000')
     storage_location = data.get('storage_location', '3D10')
 
+    # ✅ VALIDASI UNTUK PLANT 2000
+    if plant == '2000' and not storage_location:
+        return jsonify({"success": False, "error": "Storage location wajib untuk Plant 2000"}), 400
+
+    # Validasi storage location untuk plant 2000
+    if plant == '2000' and storage_location not in ['21HU', '21LK', '21NH']:
+        return jsonify({"success": False, "error": f"Storage location {storage_location} tidak valid untuk Plant 2000"}), 400
+
     # Set status running SEBELUM proses
     last_sync_status['is_running'] = True
     last_sync_status['last_attempt_time'] = datetime.now()
@@ -657,7 +665,7 @@ def api_sync_stock():
 
         if success:
             last_sync_status['last_success_time'] = datetime.now()
-            last_sync_status['is_running'] = False  # ✅ RESET STATUS
+            last_sync_status['is_running'] = False
             logger.info("Manual sync selesai dengan sukses")
             return jsonify({
                 "success": True,
@@ -666,14 +674,13 @@ def api_sync_stock():
             })
         else:
             last_sync_status['last_error'] = "Sync manual gagal"
-            last_sync_status['is_running'] = False  # ✅ RESET STATUS MESKI GAGAL
+            last_sync_status['is_running'] = False
             logger.error("Manual sync gagal")
             return jsonify({"success": False, "error": "Sync gagal"}), 500
 
     except Exception as e:
         error_msg = f"Error dalam sync manual: {e}"
         logger.error(error_msg)
-        # ✅ PASTIKAN STATUS DI-RESET MESKIPUN ERROR
         last_sync_status['last_error'] = error_msg
         last_sync_status['is_running'] = False
         return jsonify({"success": False, "error": error_msg}), 500
