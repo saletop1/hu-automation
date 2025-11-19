@@ -48,6 +48,44 @@
             border-radius: 3px;
             border: 1px solid #e9ecef;
         }
+        .material-results-container {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            width: 100%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .material-result-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .material-result-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .material-result-item.no-result {
+            color: #999;
+            cursor: default;
+        }
+
+        .material-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .material-result-item strong {
+            color: #333;
+        }
+
+        .material-result-item small {
+            color: #666;
+        }
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -654,6 +692,24 @@
         }
     }
 
+    document.getElementById('goToScenario1').addEventListener('click', function(e) {
+    if (scenarioData.single.length === 0) {
+        e.preventDefault();
+        showMessage('Silakan pilih material terlebih dahulu dengan menyeret ke area Skenario 1', 'warning');
+        return;
+    }
+
+    // Simpan data ke sessionStorage sebelum navigasi
+    try {
+        sessionStorage.setItem('scenario1_data', JSON.stringify(scenarioData.single[0])); // Hanya ambil item pertama
+        console.log('Data saved to sessionStorage for scenario 1');
+    } catch (error) {
+        console.error('Error saving to sessionStorage:', error);
+        showMessage('Error menyimpan data material', 'error');
+        e.preventDefault();
+    }
+});
+
     // Fungsi untuk mengelola seleksi baris
     function updateSelectionCount() {
         const count = selectedRows.size;
@@ -927,6 +983,205 @@
         });
     }
 
+    // Function untuk load material data
+async function loadMaterialData(search = '') {
+    try {
+        showLoading('Memuat data material...');
+
+        const params = new URLSearchParams();
+        if (search) {
+            params.append('search', search);
+        }
+
+        const response = await fetch(`/hu/materials?${params}`);
+        const result = await response.json();
+
+        hideLoading();
+
+        if (result.success) {
+            return result.data;
+        } else {
+            showError('Gagal memuat data material: ' + (result.error || 'Unknown error'));
+            return [];
+        }
+    } catch (error) {
+        hideLoading();
+        showError('Error memuat data material: ' + error.message);
+        return [];
+    }
+}
+
+// Function untuk load material by code
+async function loadMaterialByCode(materialCode) {
+    try {
+        showLoading('Mencari material...');
+
+        const response = await fetch(`/hu/material-by-code?material=${encodeURIComponent(materialCode)}`);
+        const result = await response.json();
+
+        hideLoading();
+
+        if (result.success) {
+            return result.data;
+        } else {
+            showError('Material tidak ditemukan: ' + (result.error || 'Unknown error'));
+            return null;
+        }
+    } catch (error) {
+        hideLoading();
+        showError('Error mencari material: ' + error.message);
+        return null;
+    }
+}
+
+// Function untuk populate material dropdown
+function populateMaterialDropdown(materials, selectElement) {
+    if (!selectElement) return;
+
+    // Clear existing options except the first one
+    while (selectElement.options.length > 1) {
+        selectElement.remove(1);
+    }
+
+    if (materials.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Tidak ada material tersedia';
+        selectElement.appendChild(option);
+        return;
+    }
+
+    materials.forEach(material => {
+        const option = document.createElement('option');
+        option.value = material.material_display || material.material;
+        option.textContent = `${material.material_display} - ${material.material_description} (Stock: ${material.stock_quantity})`;
+        option.setAttribute('data-material-data', JSON.stringify(material));
+        selectElement.appendChild(option);
+    });
+}
+
+// Function untuk handle material selection
+function handleMaterialSelection(selectedValue, selectElement) {
+    if (!selectedValue) return null;
+
+    const selectedOption = selectElement.querySelector(`option[value="${selectedValue}"]`);
+    if (selectedOption && selectedOption.getAttribute('data-material-data')) {
+        return JSON.parse(selectedOption.getAttribute('data-material-data'));
+    }
+
+    return null;
+}
+
+// Utility functions untuk UI
+function showLoading(message = 'Loading...') {
+    // Implement your loading indicator
+    console.log('Loading:', message);
+}
+
+function hideLoading() {
+    // Implement hide loading indicator
+    console.log('Hide loading');
+}
+
+function showError(message) {
+    // Implement error display
+    console.error('Error:', message);
+    alert(message); // atau gunakan notifikasi library
+}
+
+function showSuccess(message) {
+    // Implement success display
+    console.log('Success:', message);
+    alert(message); // atau gunakan notifikasi library
+}
+
+// Example usage untuk auto-complete
+function setupMaterialAutocomplete(inputElement, resultsContainer) {
+    let timeoutId;
+
+    inputElement.addEventListener('input', function(e) {
+        clearTimeout(timeoutId);
+        const searchTerm = e.target.value.trim();
+
+        if (searchTerm.length < 2) {
+            resultsContainer.innerHTML = '';
+            return;
+        }
+
+        timeoutId = setTimeout(async () => {
+            const materials = await loadMaterialData(searchTerm);
+            displayMaterialResults(materials, resultsContainer, inputElement);
+        }, 300);
+    });
+
+    // Hide results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!resultsContainer.contains(e.target) && e.target !== inputElement) {
+            resultsContainer.innerHTML = '';
+        }
+    });
+}
+
+function displayMaterialResults(materials, container, inputElement) {
+    container.innerHTML = '';
+
+    if (materials.length === 0) {
+        const noResult = document.createElement('div');
+        noResult.className = 'material-result-item no-result';
+        noResult.textContent = 'Tidak ada material ditemukan';
+        container.appendChild(noResult);
+        return;
+    }
+
+    materials.forEach(material => {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'material-result-item';
+        resultItem.innerHTML = `
+            <strong>${material.material_display}</strong> - ${material.material_description}
+            <br>
+            <small>Plant: ${material.plant} | Storage: ${material.storage_location} | Stock: ${material.stock_quantity}</small>
+        `;
+
+        resultItem.addEventListener('click', function() {
+            inputElement.value = material.material_display;
+            container.innerHTML = '';
+
+            // Trigger material selection
+            onMaterialSelected(material);
+        });
+
+        container.appendChild(resultItem);
+    });
+}
+
+function onMaterialSelected(material) {
+    // Update form fields based on selected material
+    if (material.plant) {
+        const plantField = document.querySelector('[name="plant"]');
+        if (plantField) plantField.value = material.plant;
+    }
+
+    if (material.storage_location) {
+        const storageField = document.querySelector('[name="stge_loc"]');
+        if (storageField) storageField.value = material.storage_location;
+    }
+
+    if (material.batch) {
+        const batchField = document.querySelector('[name="batch"]');
+        if (batchField) batchField.value = material.batch;
+    }
+
+    // Auto-suggest packaging material
+    if (material.suggested_pack_mat) {
+        const packMatField = document.querySelector('[name="pack_mat"]');
+        if (packMatField && !packMatField.value) {
+            packMatField.value = material.suggested_pack_mat;
+        }
+    }
+
+    console.log('Material selected:', material);
+}
+
     function populateStockTable(data) {
         const tbody = $('#stockTableBody');
         tbody.empty();
@@ -1020,30 +1275,35 @@
     }
 
     function addItemToScenario(scenario, item) {
-        item.combined_sales_doc = combineSalesDocument(item.sales_document, item.item_number);
-        const existingIndex = scenarioData[scenario].findIndex(i =>
-            i.material === item.material &&
-            i.batch === item.batch &&
-            i.plant === item.plant &&
-            i.storage_location === item.storage_location
-        );
+    item.combined_sales_doc = combineSalesDocument(item.sales_document, item.item_number);
 
-        if (existingIndex !== -1) {
-            showMessage('Material sudah ada di skenario ini', 'warning');
-            return;
-        }
+    // ✅ PASTIKAN magry IKUT DISIMPAN
+    item.magry = item.magry || '';
+    item.suggested_pack_mat = item.suggested_pack_mat || '';
 
-        if (scenario === 'single' && scenarioData[scenario].length > 0) {
-            showMessage('Skenario 1 hanya boleh berisi 1 material. Hapus item lama terlebih dahulu.', 'warning');
-            return;
-        }
+    const existingIndex = scenarioData[scenario].findIndex(i =>
+        i.material === item.material &&
+        i.batch === item.batch &&
+        i.plant === item.plant &&
+        i.storage_location === item.storage_location
+    );
 
-        scenarioData[scenario].push(item);
-        updateScenarioDisplay(scenario);
-        saveScenarioDataToSession(scenario);
-        updateMaterialStatus();
-        showMessage(`Material ${formatMaterialNumber(item.material)} ditambahkan ke ${getScenarioName(scenario)}`, 'success');
+    if (existingIndex !== -1) {
+        showMessage('Material sudah ada di skenario ini', 'warning');
+        return;
     }
+
+    if (scenario === 'single' && scenarioData[scenario].length > 0) {
+        showMessage('Skenario 1 hanya boleh berisi 1 material. Hapus item lama terlebih dahulu.', 'warning');
+        return;
+    }
+
+    scenarioData[scenario].push(item);
+    updateScenarioDisplay(scenario);
+    saveScenarioDataToSession(scenario);
+    updateMaterialStatus();
+    showMessage(`Material ${formatMaterialNumber(item.material)} ditambahkan ke ${getScenarioName(scenario)}`, 'success');
+}
 
     function updateScenarioDisplay(scenario) {
         let containerId = '';

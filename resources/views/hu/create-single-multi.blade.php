@@ -98,17 +98,19 @@
                             </div>
 
                             <div class="col-md-6 col-lg-4 mb-3">
-                                <label for="pack_mat" class="form-label fw-semibold text-gray-700">
-                                    Packaging Material <span class="text-danger">*</span>
-                                </label>
-                                <select class="form-select" id="pack_mat" name="pack_mat" required>
-                                    <option value="">Pilih Packaging Material</option>
-                                    <option value="VSTDPLTBW01" {{ old('pack_mat') == 'VSTDPLTBW01' ? 'selected' : '' }}>VSTDPLTBW01</option>
-                                    <option value="VSTDPLBW002" {{ old('pack_mat') == 'VSTDPLBW002' ? 'selected' : '' }}>VSTDPLBW002</option>
-                                    <option value="50016873" {{ old('pack_mat') == '50016873' ? 'selected' : '' }}>50016873</option>
-                                </select>
-                                <div class="form-text text-muted small">Pilih packaging material</div>
-                            </div>
+    <label for="pack_mat" class="form-label fw-semibold text-gray-700">
+        Packaging Material <span class="text-danger">*</span>
+    </label>
+    <select class="form-select" id="pack_mat" name="pack_mat">
+    <option value="">Pilih Packaging Material</option>
+    <option value="VSTDPLTBW01">VSTDPLTBW01</option>
+    <option value="VSTDPLTBW02">VSTDPLTBW02</option> <!-- ✅ TAMBAHAN UNTUK ZMG2 -->
+    <option value="50016873">50016873</option>
+</select>
+<div class="form-text text-muted small" id="pack_mat_suggestion">
+    Pilih packaging material
+</div>
+</div>
 
                             <div class="col-md-6 col-lg-4 mb-3">
                                 <label for="plant" class="form-label fw-semibold text-gray-700">
@@ -654,6 +656,54 @@ function resetForm() {
         window.location.href = "{{ route('hu.index') }}";
     }
 }
+
+// Di bagian JavaScript create-single-multi.blade.php - TAMBAHKAN FUNGSI INI
+function autoSetPackagingMaterial() {
+    const scenarioDataRaw = sessionStorage.getItem('scenario2_data');
+    if (!scenarioDataRaw) return;
+
+    try {
+        const materials = JSON.parse(scenarioDataRaw);
+        if (materials.length === 0) return;
+
+        // Ambil magry dari item pertama (asumsi semua item punya magry yang sama)
+        const firstItem = materials[0];
+        const magry = firstItem.magry || '';
+
+        const packMatSelect = document.getElementById('pack_mat');
+        const suggestionElement = document.getElementById('pack_mat_suggestion');
+
+        if (!packMatSelect) return;
+
+        // Reset ke default
+        packMatSelect.value = '';
+        suggestionElement.innerHTML = '<span class="text-muted">Pilih packaging material</span>';
+
+        if (magry === 'ZMG1') {
+            packMatSelect.value = '50016873';
+            suggestionElement.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Auto-set: 50016873 (ZMG1)</span>`;
+        } else if (magry === 'ZMG2') {
+            // Untuk ZMG2, set default pertama
+            packMatSelect.value = 'VSTDPLTBW01';
+            suggestionElement.innerHTML = `
+                <span class="text-success"><i class="fas fa-check-circle me-1"></i>Auto-set: VSTDPLTBW01 (ZMG2)</span>
+                <br><small class="text-muted">Alternatif: VSTDPLTBW02</small>
+            `;
+        }
+
+        console.log('Auto-set packaging material for magry:', magry);
+    } catch (error) {
+        console.error('Error in autoSetPackagingMaterial:', error);
+    }
+}
+
+// Panggil fungsi ini ketika data dimuat
+document.addEventListener('DOMContentLoaded', function() {
+    // ... kode existing ...
+
+    // Auto-set packaging material setelah data dimuat
+    setTimeout(autoSetPackagingMaterial, 500);
+});
 
 function showMessage(message, type) {
     // Hapus alert existing (kecuali yang dari Laravel session)

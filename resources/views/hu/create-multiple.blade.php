@@ -887,6 +887,60 @@ function resetForm() {
     }
 }
 
+// Di bagian JavaScript create-multiple.blade.php - TAMBAHKAN FUNGSI INI
+function autoSetPackagingMaterialForAllHUs() {
+    const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
+    if (!scenarioDataRaw) return;
+
+    try {
+        const materials = JSON.parse(scenarioDataRaw);
+        if (materials.length === 0) return;
+
+        // Ambil magry dari item pertama (asumsi semua item punya magry yang sama)
+        const firstItem = materials[0];
+        const magry = firstItem.magry || '';
+
+        const globalPackMatSelect = document.getElementById('globalPackMat');
+        if (!globalPackMatSelect) return;
+
+        // Reset ke default
+        globalPackMatSelect.value = '';
+        lastPackMat = '';
+
+        if (magry === 'ZMG1') {
+            globalPackMatSelect.value = '50016873';
+            lastPackMat = '50016873';
+            applyPackMatToAll();
+            showMessage(`Packaging Material otomatis di-set ke "50016873" untuk semua HU (ZMG1)`, 'success');
+        } else if (magry === 'ZMG2') {
+            // Untuk ZMG2, set default pertama
+            globalPackMatSelect.value = 'VSTDPLTBW01';
+            lastPackMat = 'VSTDPLTBW01';
+            applyPackMatToAll();
+            showMessage(`Packaging Material otomatis di-set ke "VSTDPLTBW01" untuk semua HU (ZMG2)`, 'success');
+        }
+
+        console.log('Auto-set global packaging material for magry:', magry);
+    } catch (error) {
+        console.error('Error in autoSetPackagingMaterialForAllHUs:', error);
+    }
+}
+
+// Panggil fungsi ini ketika data dimuat
+document.addEventListener('DOMContentLoaded', function() {
+    // ... kode existing ...
+
+    // Auto-set packaging material setelah data dimuat
+    setTimeout(autoSetPackagingMaterialForAllHUs, 500);
+});
+
+// Panggil fungsi ini ketika data dimuat
+document.addEventListener('DOMContentLoaded', function() {
+    loadMaterialData();
+    // Auto-set packaging material setelah data dimuat
+    setTimeout(autoSetPackagingMaterialForAllHUs, 500);
+});
+
 function showMessage(message, type) {
     // Hapus alert existing (kecuali yang dari Laravel session)
     const existingAlerts = document.querySelectorAll('.alert.alert-dismissible:not(.alert-success):not(.alert-danger)');
