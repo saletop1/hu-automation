@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Semua style CSS tetap sama */
         .card-hover {
             transition: all 0.3s ease;
             border: 1px solid #e2e8f0;
@@ -646,6 +647,7 @@
     };
     let selectedRows = new Set();
     let searchTimeout;
+    let isSyncing = false; // Flag untuk mencegah multiple sync
 
     // ===== SEMUA FUNGSI UTILITAS =====
     function formatMaterialNumber(material) {
@@ -829,9 +831,17 @@
         loadScenariosFromSession();
         setupRowDragEvents();
 
-        // Setup event handlers untuk search
-        $('#refreshStock').click(function() { syncStockData(); });
-        $('#searchBtn').click(function() { loadStockData(); });
+        // ===== PERBAIKAN: EVENT HANDLER HANYA SATU KALI =====
+        $('#refreshStock').off('click').on('click', function() {
+            if (!isSyncing) {
+                syncStockData();
+            }
+        });
+
+        $('#searchBtn').off('click').on('click', function() {
+            loadStockData();
+        });
+
         setupLiveSearch();
 
         $(document).on('click', '#plantList .dropdown-item', function(e) {
@@ -887,7 +897,7 @@
             }
         });
 
-        // Modifikasi drop event untuk menerima multiple items
+        // Modifikasi drop event untuk menerima multiple items - TIDAK DIUBAH
         $('.drop-zone').each(function() {
             const dropZone = $(this)[0];
             const $dropZone = $(this);
@@ -971,11 +981,24 @@
         });
     }
 
+    // ===== PERBAIKAN: FUNGSI SYNC DENGAN FLAG =====
     function syncStockData() {
+        // Cegah multiple sync
+        if (isSyncing) {
+            console.log('Sync already in progress, skipping...');
+            return;
+        }
+
         if (!selectedPlant) {
             showError('Pilih plant sebelum sync');
             return;
         }
+
+        // Set flag sync sedang berjalan
+        isSyncing = true;
+
+        // Non-aktifkan tombol sementara
+        $('#refreshStock').prop('disabled', true).addClass('disabled');
         showLoading(true);
 
         console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
@@ -1009,7 +1032,12 @@
                 showError(errorMessage);
             },
             complete: function() {
+                // Reset flag dan enable tombol
+                isSyncing = false;
                 showLoading(false);
+                setTimeout(() => {
+                    $('#refreshStock').prop('disabled', false).removeClass('disabled');
+                }, 1000);
             }
         });
     }
@@ -1285,7 +1313,7 @@ function onMaterialSelected(material) {
         clearSelection();
     }
 
-    // ===== FUNGSI DRAG & DROP DAN SESSION =====
+    // ===== FUNGSI DRAG & DROP DAN SESSION - TIDAK DIUBAH =====
 
     function setupDragAndDrop() {
         // Event handlers sudah ditambahkan di $(document).ready()
@@ -1476,21 +1504,21 @@ function onMaterialSelected(material) {
     }
 
     function showMessage(message, type) {
-        const alertClass = type === 'success' ? 'alert-success' :
-                          type === 'warning' ? 'alert-warning' : 'alert-danger';
-        const icon = type === 'success' ? 'fa-check-circle' :
-                    type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-triangle';
-        const alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show shadow-sm" role="alert">
-                <i class="fas ${icon} me-2"></i>${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-        $('.container-fluid .alert').remove();
-        $('.container-fluid').prepend(alertHtml);
-        setTimeout(() => {
-            $('.alert').alert('close');
-        }, 5000);
+    // HAPUS SEMUA ALERT (baik session maupun JS) sebelum membuat yang baru
+    $('.container-fluid .alert').remove();
+
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="fas ${icon} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    $('.container-fluid').prepend(alertHtml);
+    setTimeout(() => {
+        $('.alert').alert('close');
+    }, 5000);
     }
 
     const manualPlantLocations = {
@@ -1562,57 +1590,6 @@ $(document).on('click', '#storageLocationList .storage-option', function(e) {
     loadStockData();
 });
 
-// Fungsi sync stock data - PERBAIKI UNTUK PLANT 2000
-function syncStockData() {
-    if (!selectedPlant) {
-        showError('Pilih plant sebelum sync');
-        return;
-    }
-
-    // Untuk plant 2000, pastikan storage location dipilih
-    if (selectedPlant === '2000' && !selectedStorageLocation) {
-        showError('Untuk Plant 2000, pilih storage location terlebih dahulu');
-        return;
-    }
-
-    showLoading(true);
-
-    console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
-
-    $.ajax({
-        url: "{{ route('hu.sync-stock') }}",
-        type: 'POST',
-        data: {
-            _token: "{{ csrf_token() }}",
-            plant: selectedPlant,
-            storage_location: selectedStorageLocation || (selectedPlant === '3000' ? '3D10' : '')
-        },
-        success: function(response) {
-            console.log('Sync response:', response);
-            if (response.success) {
-                showMessage(response.message, 'success');
-                // Tunggu sebentar sebelum reload data untuk memastikan sync selesai
-                setTimeout(() => {
-                    loadStockData();
-                }, 1500);
-            } else {
-                showError(response.error || 'Gagal sync data stock');
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('Sync error:', error);
-            let errorMessage = 'Error sync data stock';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMessage = xhr.responseJSON.error;
-            }
-            showError(errorMessage);
-        },
-        complete: function() {
-            showLoading(false);
-        }
-    });
-}
-
 // Inisialisasi saat document ready
 $(document).ready(function() {
     $('#selectedPlant').text(`Plant: ${selectedPlant}`);
@@ -1626,8 +1603,14 @@ $(document).ready(function() {
     setupRowDragEvents();
 
     // Setup event handlers untuk search
-    $('#refreshStock').click(function() { syncStockData(); });
-    $('#searchBtn').click(function() { loadStockData(); });
+    $('#refreshStock').off('click').on('click', function() {
+        if (!isSyncing) {
+            syncStockData();
+        }
+    });
+    $('#searchBtn').off('click').on('click', function() {
+        loadStockData();
+    });
     setupLiveSearch();
 
     setupDragAndDrop();
@@ -1642,3 +1625,4 @@ $(document).ready(function() {
     </script>
 </body>
 </html>
+[file content end]

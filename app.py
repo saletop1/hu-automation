@@ -22,10 +22,10 @@ if sys.platform.startswith('win'):
 app = Flask(__name__)
 CORS(app)
 
-# Setup logging - lebih minimalis
+# Setup logging - lebih detail untuk debugging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     handlers=[logging.StreamHandler(), logging.FileHandler('sap_hu.log', encoding='utf-8')]
 )
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ DB_CONFIG = {
     'charset': 'utf8mb4'
 }
 
-# Environment variables SAP
+# Environment variables SAP (fallback saja)
 os.environ['SAP_USER'] = os.getenv('SAP_USER', 'auto_email')
 os.environ['SAP_PASSWORD'] = os.getenv('SAP_PASSWORD', '11223344')
 os.environ['SAP_ASHOST'] = os.getenv('SAP_ASHOST', '192.168.254.154')
@@ -58,9 +58,9 @@ last_sync_status = {
 }
 
 def update_sync_status(success=True, error=None):
-    """Update status sync terakhir - VERSION FIXED"""
+    """Update status sync terakhir"""
     last_sync_status['last_attempt_time'] = datetime.now()
-    last_sync_status['is_running'] = False  # ✅ SELALU RESET KE FALSE
+    last_sync_status['is_running'] = False
 
     if success:
         last_sync_status['last_success_time'] = datetime.now()
@@ -69,12 +69,11 @@ def update_sync_status(success=True, error=None):
         last_sync_status['last_error'] = error
 
 def auto_sync_job():
-    """Job untuk auto sync setiap 30 menit - VERSION FIXED"""
+    """Job untuk auto sync setiap 30 menit"""
     if last_sync_status['is_running']:
         logger.info("Auto sync ditunda karena proses sync sedang berjalan")
         return
 
-    # SET STATUS RUNNING
     last_sync_status['is_running'] = True
     last_sync_status['last_attempt_time'] = datetime.now()
 
@@ -86,17 +85,17 @@ def auto_sync_job():
         if success:
             logger.info("Auto sync selesai")
             last_sync_status['last_success_time'] = datetime.now()
-            last_sync_status['is_running'] = False  # ✅ RESET
+            last_sync_status['is_running'] = False
         else:
             logger.error("Auto sync gagal")
             last_sync_status['last_error'] = "Auto sync gagal"
-            last_sync_status['is_running'] = False  # ✅ RESET
+            last_sync_status['is_running'] = False
 
     except Exception as e:
         error_msg = f"Error dalam auto sync: {e}"
         logger.error(error_msg)
         last_sync_status['last_error'] = error_msg
-        last_sync_status['is_running'] = False  # ✅ RESET
+        last_sync_status['is_running'] = False
 
 def start_scheduler():
     """Mulai scheduler untuk auto sync"""
@@ -121,9 +120,49 @@ def stop_scheduler():
 
 atexit.register(stop_scheduler)
 
-# Fungsi dasar
+# ==================== FUNGSI KONEKSI SAP DENGAN CREDENTIALS ====================
+
+def connect_sap_with_credentials(sap_user, sap_password):
+    """Buka koneksi ke SAP HANYA dengan credentials spesifik dari request"""
+    try:
+        # VALIDASI KETAT - tolak credentials yang sama dengan environment/default
+        default_user = os.getenv("SAP_USER", "auto_email")
+        if not sap_user or sap_user == default_user:
+            logger.error(f"❌ SAP User dari request tidak valid atau masih default: {sap_user}")
+            return None, "SAP User tidak valid atau masih menggunakan default user"
+
+        if not sap_password:
+            logger.error("❌ SAP Password dari request kosong")
+            return None, "SAP Password tidak boleh kosong"
+
+        sap_ashost = os.getenv("SAP_ASHOST", "192.168.254.154")
+        sap_sysnr = os.getenv("SAP_SYSNR", "01")
+        sap_client = os.getenv("SAP_CLIENT", "300")
+
+        logger.info(f"🔐 Mencoba koneksi SAP dengan user: {sap_user}")
+        logger.info(f"🔐 Host: {sap_ashost}, System: {sap_sysnr}, Client: {sap_client}")
+
+        conn = Connection(
+            user=sap_user,
+            passwd=sap_password,
+            ashost=sap_ashost,
+            sysnr=sap_sysnr,
+            client=sap_client,
+            lang="EN",
+        )
+
+        # Test koneksi dengan ping
+        conn.ping()
+        logger.info(f"✅ Koneksi SAP berhasil dengan user: {sap_user}")
+        return conn, None
+
+    except Exception as e:
+        error_msg = f"Gagal koneksi SAP: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return None, error_msg
+
 def connect_sap():
-    """Buka koneksi ke SAP dengan logging lebih detail"""
+    """Buka koneksi ke SAP dengan environment credentials (untuk sync saja)"""
     try:
         sap_user = os.getenv("SAP_USER", "auto_email")
         sap_password = os.getenv("SAP_PASSWORD", "11223344")
@@ -140,13 +179,12 @@ def connect_sap():
             lang="EN",
         )
 
-        # Test koneksi dengan ping
         conn.ping()
-        logger.info("Koneksi SAP berhasil")
+        logger.info("✅ Koneksi SAP berhasil (environment credentials)")
         return conn
 
     except Exception as e:
-        logger.error(f"Gagal koneksi SAP: {str(e)}")
+        logger.error(f"❌ Gagal koneksi SAP: {str(e)}")
         return None
 
 def connect_mysql():
@@ -213,7 +251,6 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
             logger.error("Tidak dapat melanjutkan sync karena koneksi SAP gagal")
             return False
 
-        # Ambil data dari SAP
         result = sap_conn.call('Z_FM_YMMR006NX',
                              P_WERKS=plant,
                              P_MTART='FERT',
@@ -282,7 +319,6 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
 
             mysql_conn.commit()
             logger.info(f"Sync selesai: {inserted} baru, {updated} update")
-            logger.info(f"Data sales document tersimpan: {sales_data_count} records")
             return True
 
     except Exception as e:
@@ -291,18 +327,16 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
             mysql_conn.rollback()
         return False
     finally:
-        # PASTIKAN KONEKSI SELALU DITUTUP
         if sap_conn:
             sap_conn.close()
         if mysql_conn:
             mysql_conn.close()
 
-# FUNGSI UTILITY YANG DIPERBAIKI UNTUK HU CREATION
+# FUNGSI UTILITY UNTUK HU CREATION
 def clean_hu_parameters(hu_data):
     """Bersihkan semua parameter HU dari nilai None dan konversi ke string"""
     cleaned = hu_data.copy()
 
-    # Field yang wajib
     required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'material', 'pack_qty']
     for field in required_fields:
         if field not in cleaned:
@@ -312,19 +346,16 @@ def clean_hu_parameters(hu_data):
 
         cleaned[field] = str(cleaned[field]).strip()
 
-        # Format leading zero untuk material dan pack_mat
         if field in ['material', 'pack_mat']:
             if cleaned[field].isdigit():
                 cleaned[field] = cleaned[field].zfill(18)
 
-        # Validasi pack_qty
         if field == 'pack_qty':
             try:
                 float(cleaned[field])
             except ValueError:
                 raise ValueError(f"pack_qty harus berupa angka: {cleaned[field]}")
 
-    # Field optional
     optional_fields = ['batch', 'sp_stck_no', 'base_unit_qty']
     for field in optional_fields:
         value = cleaned.get(field)
@@ -333,7 +364,6 @@ def clean_hu_parameters(hu_data):
         else:
             cleaned[field] = str(value).strip() if value else ''
 
-    # Validasi HU External ID
     if not cleaned['hu_exid'].isdigit() or len(cleaned['hu_exid']) != 10:
         raise ValueError(f"HU External ID harus 10 digit angka: {cleaned['hu_exid']}")
 
@@ -367,11 +397,11 @@ def prepare_hu_items(cleaned_data):
     return [item]
 
 def validate_sap_response(result):
-    """Validasi response dari SAP RFC call"""
+    """Validasi response dari SAP RFC call - gunakan E_HUKEY"""
     if not result:
-        return False, "Empty response from SAP"
+        return False, "Tidak ada response dari SAP RFC call"
 
-    # Cek error message dari SAP
+    # Cek jika ada error message dari SAP
     if 'E_RETURN' in result and result['E_RETURN']:
         error_type = result['E_RETURN'].get('TYPE', '')
         error_message = result['E_RETURN'].get('MESSAGE', 'Unknown SAP error')
@@ -380,28 +410,94 @@ def validate_sap_response(result):
             return False, error_message
         elif error_type == 'W':
             return True, error_message
+        elif error_type == 'S':
+            # Success message, lanjut cek HU number
+            pass
 
-    # Cek apakah HU number berhasil dibuat
-    if result.get('E_HU_EXID'):
-        return True, f"HU created successfully: {result['E_HU_EXID']}"
+    # ✅ PERBAIKAN: Gunakan E_HUKEY sebagai nomor HU
+    if result.get('E_HUKEY'):
+        hu_number = result['E_HUKEY']
+        logger.info(f"✅ HU berhasil dibuat: {hu_number}")
+        return True, f"HU berhasil dibuat: {hu_number}"
     else:
-        return False, "No HU number returned from SAP"
+        # Jika tidak ada E_HUKEY, coba field lain atau return error
+        logger.warning(f"⚠️ Tidak ada E_HUKEY dalam response. Fields yang ada: {list(result.keys())}")
+        return False, "Gagal membuat HU - sistem SAP tidak mengembalikan nomor HU"
 
-# Create HU functions - VERSI YANG DIPERBAIKI
+# ==================== CREATE HU FUNCTIONS DENGAN CREDENTIALS DARI REQUEST ====================
+
+def validate_sap_response(result):
+    """Validasi response dari SAP RFC call - gunakan E_HUKEY"""
+    if not result:
+        return False, "Tidak ada response dari SAP RFC call"
+
+    # Cek jika ada error message dari SAP
+    if 'E_RETURN' in result and result['E_RETURN']:
+        error_type = result['E_RETURN'].get('TYPE', '')
+        error_message = result['E_RETURN'].get('MESSAGE', 'Unknown SAP error')
+
+        if error_type in ['E', 'A']:
+            return False, error_message
+        elif error_type == 'W':
+            return True, error_message
+        elif error_type == 'S':
+            # Success message, lanjut cek HU number
+            pass
+
+    # ✅ PERBAIKAN: Gunakan E_HUKEY sebagai nomor HU
+    if result.get('E_HUKEY'):
+        hu_number = result['E_HUKEY']
+        # ✅ HAPUS LEADING ZERO
+        hu_number_clean = hu_number.lstrip('0') or '0'  # Jika semua angka nol, tetap tampilkan 0
+        logger.info(f"✅ HU berhasil dibuat: {hu_number} -> {hu_number_clean}")
+        return True, f"HU berhasil dibuat: {hu_number_clean}"
+    else:
+        # Jika tidak ada E_HUKEY, coba field lain atau return error
+        logger.warning(f"⚠️ Tidak ada E_HUKEY dalam response. Fields yang ada: {list(result.keys())}")
+        return False, "Gagal membuat HU - sistem SAP tidak mengembalikan nomor HU"
+
 def create_single_hu(data):
     """Skenario 1: 1 HU dengan 1 Material"""
-    # Validasi data wajib
-    required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'material', 'pack_qty']
-    for field in required_fields:
-        if field not in data:
-            return {"success": False, "error": f"Field wajib {field} tidak ditemukan"}
+    logger.info("🟢 MEMULAI CREATE SINGLE HU")
+    logger.info(f"📦 Data yang diterima: {list(data.keys())}")
 
-    sap_conn = connect_sap()
+    # ✅ DEBUG: Log semua data yang diterima (kecuali password)
+    for key, value in data.items():
+        if key != 'sap_password':
+            logger.info(f"   {key}: {value}")
+        else:
+            logger.info(f"   {key}: {'*' * len(value) if value else 'EMPTY'}")
+
+    # ✅ VALIDASI KETAT CREDENTIALS
+    required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'material', 'pack_qty', 'sap_user', 'sap_password']
+    for field in required_fields:
+        if field not in data or not data[field]:
+            error_msg = f"Field wajib {field} tidak ditemukan atau kosong"
+            logger.error(f"❌ {error_msg}")
+            return {"success": False, "error": error_msg}, 400
+
+    sap_user = data.get('sap_user')
+    sap_password = data.get('sap_password')
+
+    # ✅ TOLAK CREDENTIALS DEFAULT
+    default_user = os.getenv("SAP_USER", "auto_email")
+    if sap_user == default_user:
+        error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
+
+    logger.info(f"🔐 Menggunakan SAP User dari request: {sap_user}")
+
+    # ✅ PERBAIKAN: Tangani error koneksi SAP dengan status code yang tepat
+    sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
     if not sap_conn:
-        return {"success": False, "error": "Gagal konek SAP"}
+        error_msg = f"Gagal koneksi SAP: {conn_error}"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 401  # 401 Unauthorized
 
     try:
         cleaned_data = clean_hu_parameters(data)
+        logger.info(f"✅ Data berhasil dibersihkan")
 
         params = {
             "I_HU_EXID": cleaned_data['hu_exid'],
@@ -411,51 +507,82 @@ def create_single_hu(data):
             "T_ITEMS": prepare_hu_items(cleaned_data)
         }
 
+        logger.info(f"📤 Memanggil RFC ZRFC_CREATE_HU_EXT dengan HU External: {cleaned_data['hu_exid']}")
         result = sap_conn.call('ZRFC_CREATE_HU_EXT', **params)
 
-        # Validasi response
+        # ✅ DEBUG: Log semua field yang di-return oleh SAP
+        logger.info(f"🔍 Response fields dari SAP: {list(result.keys())}")
+        for key, value in result.items():
+            if key != 'T_ITEMS':  # Skip table yang besar
+                logger.info(f"🔍 {key}: {value}")
+
         success, message = validate_sap_response(result)
 
         if success:
-            hu_number = result.get('E_HU_EXID', cleaned_data['hu_exid'])
+            # ✅ PERBAIKAN: Gunakan E_HUKEY dan HAPUS LEADING ZERO
+            hu_number = result.get('E_HUKEY')
+            hu_number_clean = hu_number.lstrip('0') or '0'  # Hapus leading zero
+            logger.info(f"✅ HU berhasil dibuat - HU Key: {hu_number} -> {hu_number_clean}")
             return {
                 "success": True,
                 "message": message,
                 "data": result,
-                "created_hu": hu_number
-            }
+                "created_hu": hu_number_clean  # ✅ Kirim tanpa leading zero
+            }, 200
         else:
-            return {"success": False, "error": message}
+            return {"success": False, "error": message}, 400
 
     except ValueError as e:
         error_msg = f"Data tidak valid: {str(e)}"
-        return {"success": False, "error": error_msg}
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
     except Exception as e:
         error_msg = f"Error buat HU: {str(e)}"
-        return {"success": False, "error": error_msg}
+        logger.error(f"❌ {error_msg}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": error_msg}, 500
     finally:
         if sap_conn:
             sap_conn.close()
+            logger.info("🔒 Koneksi SAP ditutup")
 
 def create_single_multi_hu(data):
     """Skenario 2: 1 HU dengan Multiple Material"""
-    # Validasi data wajib
-    required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'items']
+    logger.info("🟢 MEMULAI CREATE SINGLE MULTI HU")
+    logger.info(f"📦 Data yang diterima: {list(data.keys())}")
+    logger.info(f"📦 Jumlah items: {len(data.get('items', []))}")
+
+    # ✅ VALIDASI KETAT CREDENTIALS
+    required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'items', 'sap_user', 'sap_password']
     for field in required_fields:
         if not data.get(field):
-            return {"success": False, "error": f"Field {field} tidak boleh kosong"}
+            error_msg = f"Field {field} tidak boleh kosong"
+            logger.error(f"❌ {error_msg}")
+            return {"success": False, "error": error_msg}, 400
 
     if not isinstance(data['items'], list) or len(data['items']) == 0:
-        return {"success": False, "error": "Items harus berupa array tidak kosong"}
+        error_msg = "Items harus berupa array tidak kosong"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
 
-    # Format manual pack_mat sebelum diproses
-    original_pack_mat = data['pack_mat']
-    if original_pack_mat.isdigit() and len(original_pack_mat) < 18:
-        data['pack_mat'] = original_pack_mat.zfill(18)
+    sap_user = data.get('sap_user')
+    sap_password = data.get('sap_password')
 
-    sap_conn = connect_sap()
+    # ✅ TOLAK CREDENTIALS DEFAULT
+    default_user = os.getenv("SAP_USER", "auto_email")
+    if sap_user == default_user:
+        error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
+
+    logger.info(f"🔐 Menggunakan SAP User dari request: {sap_user}")
+
+    # ✅ PERBAIKAN: Tangani error koneksi SAP dengan status code yang tepat
+    sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
     if not sap_conn:
-        return {"success": False, "error": "Gagal konek SAP"}
+        error_msg = f"Gagal koneksi SAP: {conn_error}"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 401  # 401 Unauthorized
 
     try:
         main_data = clean_hu_parameters({
@@ -473,12 +600,9 @@ def create_single_multi_hu(data):
         for i, item in enumerate(data['items']):
             try:
                 if 'material' not in item or 'pack_qty' not in item:
-                    return {"success": False, "error": f"Item {i+1}: material dan pack_qty wajib diisi"}
-
-                # Format manual material item sebelum diproses
-                original_material = item.get('material')
-                if original_material and original_material.isdigit() and len(original_material) < 18:
-                    item['material'] = original_material.zfill(18)
+                    error_msg = f"Item {i+1}: material dan pack_qty wajib diisi"
+                    logger.error(f"❌ {error_msg}")
+                    return {"success": False, "error": error_msg}, 400
 
                 cleaned_item = clean_hu_parameters({
                     'hu_exid': main_data['hu_exid'],
@@ -503,7 +627,9 @@ def create_single_multi_hu(data):
                 })
 
             except ValueError as e:
-                return {"success": False, "error": f"Item {i+1}: {str(e)}"}
+                error_msg = f"Item {i+1}: {str(e)}"
+                logger.error(f"❌ {error_msg}")
+                return {"success": False, "error": error_msg}, 400
 
         params = {
             "I_HU_EXID": main_data['hu_exid'],
@@ -513,40 +639,74 @@ def create_single_multi_hu(data):
             "T_ITEMS": items
         }
 
+        logger.info(f"📤 Memanggil RFC ZRFC_CREATE_HU_EXT dengan HU: {main_data['hu_exid']}")
         result = sap_conn.call('ZRFC_CREATE_HU_EXT', **params)
 
-        # Validasi response
         success, message = validate_sap_response(result)
 
         if success:
-            hu_number = result.get('E_HU_EXID', main_data['hu_exid'])
+            # ✅ PERBAIKAN: Gunakan E_HUKEY dan HAPUS LEADING ZERO
+            hu_number = result.get('E_HUKEY')
+            hu_number_clean = hu_number.lstrip('0') or '0'
+            logger.info(f"✅ HU Multi berhasil dibuat - HU Key: {hu_number} -> {hu_number_clean}")
             return {
                 "success": True,
                 "message": message,
                 "data": result,
-                "created_hu": hu_number
-            }
+                "created_hu": hu_number_clean  # ✅ Tanpa leading zero
+            }, 200
         else:
-            return {"success": False, "error": message}
+            return {"success": False, "error": message}, 400
 
     except Exception as e:
         error_msg = f"Error buat HU multi: {str(e)}"
-        return {"success": False, "error": error_msg}
+        logger.error(f"❌ {error_msg}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": error_msg}, 500
     finally:
         if sap_conn:
             sap_conn.close()
 
 def create_multiple_hus(data):
     """Skenario 3: Multiple HU (Setiap HU 1 Material)"""
+    logger.info("🟢 MEMULAI CREATE MULTIPLE HU")
+    logger.info(f"📦 Data yang diterima: {list(data.keys())}")
+    logger.info(f"📦 Jumlah HUs: {len(data.get('hus', []))}")
+
     if 'hus' not in data or not isinstance(data['hus'], list):
-        return {"success": False, "error": "Data 'hus' harus berupa array"}
+        error_msg = "Data 'hus' harus berupa array"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
 
     if len(data['hus']) == 0:
-        return {"success": False, "error": "Data 'hus' tidak boleh kosong"}
+        error_msg = "Data 'hus' tidak boleh kosong"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
 
-    sap_conn = connect_sap()
+    # ✅ VALIDASI KETAT CREDENTIALS
+    if 'sap_user' not in data or 'sap_password' not in data:
+        error_msg = "SAP credentials (sap_user, sap_password) wajib diisi"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
+
+    sap_user = data.get('sap_user')
+    sap_password = data.get('sap_password')
+
+    # ✅ TOLAK CREDENTIALS DEFAULT
+    default_user = os.getenv("SAP_USER", "auto_email")
+    if sap_user == default_user:
+        error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 400
+
+    logger.info(f"🔐 Menggunakan SAP User dari request: {sap_user}")
+
+    # ✅ PERBAIKAN: Tangani error koneksi SAP dengan status code yang tepat
+    sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
     if not sap_conn:
-        return {"success": False, "error": "Gagal konek SAP"}
+        error_msg = f"Gagal koneksi SAP: {conn_error}"
+        logger.error(f"❌ {error_msg}")
+        return {"success": False, "error": error_msg}, 401  # 401 Unauthorized
 
     try:
         results = []
@@ -554,16 +714,17 @@ def create_multiple_hus(data):
 
         for i, hu_data in enumerate(data['hus']):
             try:
-                logger.info(f"Memproses HU {i+1}/{len(data['hus'])}: {hu_data.get('hu_exid', 'UNKNOWN')}")
+                logger.info(f"🔄 Memproses HU {i+1}/{len(data['hus'])}: {hu_data.get('hu_exid', 'UNKNOWN')}")
 
-                # Validasi data wajib untuk setiap HU
                 required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'material', 'pack_qty']
                 for field in required_fields:
                     if field not in hu_data:
+                        error_msg = f"Field {field} tidak ditemukan di HU {i+1}"
+                        logger.error(f"❌ {error_msg}")
                         results.append({
                             "hu_exid": hu_data.get('hu_exid', f"HU_{i+1}"),
                             "success": False,
-                            "error": f"Field {field} tidak ditemukan"
+                            "error": error_msg
                         })
                         continue
 
@@ -577,20 +738,21 @@ def create_multiple_hus(data):
                     "T_ITEMS": prepare_hu_items(cleaned_data)
                 }
 
-                # Panggil RFC SAP
                 result = sap_conn.call('ZRFC_CREATE_HU_EXT', **params)
 
-                # Validasi response
                 success, message = validate_sap_response(result)
 
                 if success:
-                    hu_number = result.get('E_HU_EXID', cleaned_data['hu_exid'])
+                    # ✅ PERBAIKAN: Gunakan E_HUKEY dan HAPUS LEADING ZERO
+                    hu_number = result.get('E_HUKEY')
+                    hu_number_clean = hu_number.lstrip('0') or '0'
+                    logger.info(f"✅ HU {i+1} berhasil - HU Key: {hu_number} -> {hu_number_clean}")
                     results.append({
                         "hu_exid": cleaned_data['hu_exid'],
                         "success": True,
                         "message": message,
                         "data": result,
-                        "created_hu": hu_number
+                        "created_hu": hu_number_clean  # ✅ Tanpa leading zero
                     })
                     success_count += 1
                 else:
@@ -602,6 +764,7 @@ def create_multiple_hus(data):
 
             except ValueError as e:
                 error_msg = f"Data tidak valid: {str(e)}"
+                logger.error(f"❌ HU {i+1} error: {error_msg}")
                 results.append({
                     "hu_exid": hu_data.get('hu_exid', f'HU_{i+1}'),
                     "success": False,
@@ -609,230 +772,205 @@ def create_multiple_hus(data):
                 })
             except Exception as e:
                 error_msg = f"Error processing HU: {str(e)}"
+                logger.error(f"❌ HU {i+1} error: {error_msg}")
                 results.append({
                     "hu_exid": hu_data.get('hu_exid', f'HU_{i+1}'),
                     "success": False,
                     "error": error_msg
                 })
 
-        logger.info(f"Total HU: {len(results)}, Berhasil: {success_count}")
-        return {
-            "success": success_count > 0,
-            "message": f"Processed {len(results)} HUs, {success_count} successful, {len(results)-success_count} failed",
-            "data": results,
-            "summary": {
-                "total": len(results),
-                "success": success_count,
-                "failed": len(results) - success_count
-            }
-        }
+        logger.info(f"📊 Total HU: {len(results)}, Berhasil: {success_count}, Gagal: {len(results)-success_count}")
+
+        # ✅ PERBAIKAN: Return status code berdasarkan hasil
+        if success_count == 0:
+            # Semua gagal
+            return {
+                "success": False,
+                "message": f"Semua {len(results)} HU gagal dibuat",
+                "data": results,
+                "summary": {
+                    "total": len(results),
+                    "success": success_count,
+                    "failed": len(results) - success_count
+                }
+            }, 400
+        elif success_count == len(results):
+            # Semua berhasil
+            return {
+                "success": True,
+                "message": f"Semua {len(results)} HU berhasil dibuat",
+                "data": results,
+                "summary": {
+                    "total": len(results),
+                    "success": success_count,
+                    "failed": len(results) - success_count
+                }
+            }, 200
+        else:
+            # Sebagian berhasil, sebagian gagal
+            return {
+                "success": True,  # Masih dianggap success karena ada yang berhasil
+                "message": f"Processed {len(results)} HUs, {success_count} successful, {len(results)-success_count} failed",
+                "data": results,
+                "summary": {
+                    "total": len(results),
+                    "success": success_count,
+                    "failed": len(results) - success_count
+                }
+            }, 207  # 207 Multi-Status
 
     except Exception as e:
         error_msg = f"Error buat multiple HU: {str(e)}"
-        return {"success": False, "error": error_msg}
+        logger.error(f"❌ {error_msg}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": error_msg}, 500
     finally:
         if sap_conn:
             sap_conn.close()
 
-# Routes API
-@app.route('/stock/sync', methods=['POST'])
-def api_sync_stock():
-    """Sync stock manual dari Laravel"""
-    if last_sync_status['is_running']:
-        logger.warning("Sync ditolak - status masih running")
-        return jsonify({"success": False, "error": "Sync sedang berjalan, coba lagi nanti"}), 429
-
-    data = request.get_json() or {}
-    plant = data.get('plant', '3000')
-    storage_location = data.get('storage_location', '3D10')
-
-    # ✅ VALIDASI UNTUK PLANT 2000
-    if plant == '2000' and not storage_location:
-        return jsonify({"success": False, "error": "Storage location wajib untuk Plant 2000"}), 400
-
-    # Validasi storage location untuk plant 2000
-    if plant == '2000' and storage_location not in ['21HU', '21LK', '21NH']:
-        return jsonify({"success": False, "error": f"Storage location {storage_location} tidak valid untuk Plant 2000"}), 400
-
-    # Set status running SEBELUM proses
-    last_sync_status['is_running'] = True
-    last_sync_status['last_attempt_time'] = datetime.now()
-    last_sync_status['last_error'] = None
-
-    try:
-        logger.info(f"Manual sync dimulai - Plant: {plant}, Lokasi: {storage_location}")
-        success = sync_stock_data(plant, storage_location)
-
-        if success:
-            last_sync_status['last_success_time'] = datetime.now()
-            last_sync_status['is_running'] = False
-            logger.info("Manual sync selesai dengan sukses")
-            return jsonify({
-                "success": True,
-                "message": "Sync berhasil",
-                "last_sync": datetime.now().isoformat()
-            })
-        else:
-            last_sync_status['last_error'] = "Sync manual gagal"
-            last_sync_status['is_running'] = False
-            logger.error("Manual sync gagal")
-            return jsonify({"success": False, "error": "Sync gagal"}), 500
-
-    except Exception as e:
-        error_msg = f"Error dalam sync manual: {e}"
-        logger.error(error_msg)
-        last_sync_status['last_error'] = error_msg
-        last_sync_status['is_running'] = False
-        return jsonify({"success": False, "error": error_msg}), 500
-
-@app.route('/stock/last-sync', methods=['GET'])
-def api_get_last_sync():
-    """Dapatkan informasi sync terakhir"""
-    return jsonify({
-        "success": True,
-        "data": {
-            "last_success_time": last_sync_status['last_success_time'].isoformat() if last_sync_status['last_success_time'] else None,
-            "last_attempt_time": last_sync_status['last_attempt_time'].isoformat() if last_sync_status['last_attempt_time'] else None,
-            "last_error": last_sync_status['last_error'],
-            "is_running": last_sync_status['is_running']
-        }
-    })
-
-@app.route('/stock/data', methods=['GET'])
-def api_get_stock_data():
-    """Dapatkan data stock dari database"""
-    mysql_conn = connect_mysql()
-    if not mysql_conn:
-        return jsonify({"success": False, "error": "Database tidak tersedia"}), 500
-    try:
-        with mysql_conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute("""
-                SELECT material, material_description, plant, storage_location,
-                       batch, stock_quantity, base_unit, magry, last_updated
-                FROM stock_data
-                ORDER BY material_description, material
-            """)
-            data = cursor.fetchall()
-            for item in data:
-                if item['last_updated']:
-                    item['last_updated'] = item['last_updated'].isoformat()
-            return jsonify({
-                "success": True,
-                "data": data,
-                "count": len(data)
-            })
-    except Exception as e:
-        logger.error(f"Error mengambil data stock: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        mysql_conn.close()
-
-@app.route('/stock/reset-status', methods=['POST'])
-def api_reset_sync_status():
-    """Reset status sync (untuk emergency)"""
-    last_sync_status.update({
-        'is_running': False,
-        'last_error': None
-    })
-    return jsonify({
-        "success": True,
-        "message": "Status sync berhasil di-reset"
-    })
+# ==================== ROUTES API ====================
 
 @app.route('/hu/create-single', methods=['POST'])
 def api_create_single():
     """Buat HU Skenario 1"""
     data = request.get_json()
     if not data:
+        logger.error("❌ Data kosong diterima di /hu/create-single")
         return jsonify({"success": False, "error": "Data kosong"}), 400
 
-    result = create_single_hu(data)
-    return jsonify(result)
+    logger.info("📍 /hu/create-single dipanggil")
+    result, status_code = create_single_hu(data)  # ✅ PERBAIKAN: Terima status code
+    return jsonify(result), status_code  # ✅ PERBAIKAN: Return status code yang tepat
 
 @app.route('/hu/create-single-multi', methods=['POST'])
 def api_create_single_multi():
     """Buat HU Skenario 2"""
     data = request.get_json()
     if not data:
+        logger.error("❌ Data kosong diterima di /hu/create-single-multi")
         return jsonify({"success": False, "error": "Data kosong"}), 400
 
-    result = create_single_multi_hu(data)
-    return jsonify(result)
+    logger.info("📍 /hu/create-single-multi dipanggil")
+    result, status_code = create_single_multi_hu(data)  # ✅ PERBAIKAN: Terima status code
+    return jsonify(result), status_code  # ✅ PERBAIKAN: Return status code yang tepat
 
 @app.route('/hu/create-multiple', methods=['POST'])
 def api_create_multiple():
     """Buat HU Skenario 3"""
     data = request.get_json()
     if not data:
+        logger.error("❌ Data kosong diterima di /hu/create-multiple")
         return jsonify({"success": False, "error": "Data kosong"}), 400
 
-    logger.info(f"Received multiple HU creation request for {len(data.get('hus', []))} HUs")
+    logger.info("📍 /hu/create-multiple dipanggil")
 
-    # Validasi struktur data
     if 'hus' not in data or not isinstance(data['hus'], list):
         return jsonify({"success": False, "error": "Data 'hus' harus berupa array"}), 400
 
     if len(data['hus']) == 0:
         return jsonify({"success": False, "error": "Data 'hus' tidak boleh kosong"}), 400
 
-    result = create_multiple_hus(data)
-    return jsonify(result)
+    if 'sap_user' not in data or 'sap_password' not in data:
+        return jsonify({"success": False, "error": "SAP credentials (sap_user, sap_password) wajib diisi"}), 400
+
+    result, status_code = create_multiple_hus(data)  # ✅ PERBAIKAN: Terima status code
+    return jsonify(result), status_code  # ✅ PERBAIKAN: Return status code yang tepat
+
+# ✅ TAMBAHKAN ENDPOINT UNTUK STOCK SYNC
+@app.route('/stock/sync', methods=['POST'])
+def api_stock_sync():
+    """Manual trigger sync stock data"""
+    logger.info("📍 /stock/sync dipanggil")
+
+    try:
+        data = request.get_json() or {}
+        plant = data.get('plant', '3000')
+        storage_location = data.get('storage_location', '3D10')
+
+        logger.info(f"🔄 Memulai sync stock data: Plant {plant}, Storage Location {storage_location}")
+
+        success = sync_stock_data(plant, storage_location)
+
+        if success:
+            logger.info("✅ Sync stock data berhasil")
+            return jsonify({
+                "success": True,
+                "message": "Sync stock data completed successfully"
+            }), 200
+        else:
+            logger.error("❌ Sync stock data gagal")
+            return jsonify({
+                "success": False,
+                "error": "Sync stock data failed"
+            }), 500
+
+    except Exception as e:
+        error_msg = f"Error dalam sync stock data: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return jsonify({
+            "success": False,
+            "error": error_msg
+        }), 500
+
+@app.route('/sync/status', methods=['GET'])
+def api_sync_status():
+    """Get status sync terakhir"""
+    return jsonify({
+        "success": True,
+        "data": last_sync_status
+    }), 200
+
+@app.route('/sync/now', methods=['POST'])
+def api_sync_now():
+    """Manual trigger sync"""
+    try:
+        success = sync_stock_data('3000', '3D10')
+        if success:
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({"success": False, "error": "Sync failed"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/health', methods=['GET'])
-def health_check():
-    return jsonify({"status": "healthy", "service": "SAP HU API"})
+def api_health():
+    """Health check API"""
+    db_ok = connect_mysql() is not None
+    sap_ok = connect_sap() is not None
 
-@app.route('/test-sap', methods=['GET'])
-def test_sap():
-    """Endpoint untuk test koneksi SAP"""
-    sap_conn = connect_sap()
-    if sap_conn:
-        sap_conn.close()
-        return jsonify({"success": True, "message": "Koneksi SAP berhasil"})
-    else:
-        return jsonify({"success": False, "error": "Koneksi SAP gagal"}), 500
+    return jsonify({
+        "success": True,
+        "data": {
+            "database": "connected" if db_ok else "disconnected",
+            "sap": "connected" if sap_ok else "disconnected",
+            "timestamp": datetime.now().isoformat()
+        }
+    }), 200
 
-# Jalankan aplikasi
 if __name__ == '__main__':
-    logger.info("Starting SAP HU Automation API")
+    logger.info("🚀 Starting SAP HU Automation API")
 
-    # Pastikan kolom magry ada
     ensure_magry_column_exists()
 
-    # Test koneksi database
     if connect_mysql():
-        logger.info("Database siap")
+        logger.info("✅ Database siap")
     else:
-        logger.error("Database error - aplikasi tetap berjalan tapi sync akan gagal")
+        logger.error("❌ Database error")
 
-    # Test koneksi SAP
-    logger.info("Testing koneksi SAP...")
+    logger.info("🔧 Testing koneksi SAP...")
     sap_conn = connect_sap()
     if sap_conn:
-        logger.info("SAP siap")
+        logger.info("✅ SAP siap")
         sap_conn.close()
-
-        # Jalankan sync pertama
-        logger.info("Jalankan sync pertama...")
-        try:
-            last_sync_status['is_running'] = True
-            sync_stock_data()
-            update_sync_status(success=True)
-        except Exception as e:
-            error_msg = f"Sync pertama gagal: {e}"
-            logger.error(error_msg)
-            update_sync_status(success=False, error=error_msg)
     else:
-        logger.warning("SAP tidak tersedia - fitur sync dan create HU akan gagal sampai koneksi pulih")
+        logger.warning("⚠️ SAP tidak tersedia")
 
-    # Start scheduler
     start_scheduler()
 
-    # Jalankan Flask server
-    logger.info("Starting Flask server di port 5000...")
+    logger.info("🌐 Starting Flask server di port 5000...")
     try:
         app.run(host='0.0.0.0', port=5000, debug=False)
     except Exception as e:
-        logger.error(f"Gagal start Flask server: {e}")
+        logger.error(f"❌ Gagal start Flask server: {e}")
     finally:
         stop_scheduler()

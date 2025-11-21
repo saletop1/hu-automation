@@ -92,6 +92,10 @@
                         @csrf
                         <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
 
+                        <!-- ✅ PERBAIKAN: Hidden fields untuk SAP credentials -->
+                        <input type="hidden" id="sap_user" name="sap_user" value="">
+                        <input type="hidden" id="sap_password" name="sap_password" value="">
+
                         <!-- Material Information (Auto-filled from session) -->
                         <div class="row mb-4">
                             <div class="col-12 mb-3">
@@ -372,25 +376,6 @@ function loadMaterialData() {
     }
 }
 
-function loadMaterialDataFromURL() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const material = urlParams.get('material');
-
-    if (material) {
-        const materialData = {
-            material: material,
-            plant: urlParams.get('plant'),
-            storage_location: urlParams.get('stge_loc'),
-            batch: urlParams.get('batch'),
-            material_description: urlParams.get('description') || 'Deskripsi tidak tersedia',
-            stock_quantity: urlParams.get('qty') || '0'
-        };
-        fillFormWithData(materialData);
-    } else {
-        loadMaterialData(); // Fallback ke sessionStorage
-    }
-}
-
 function fillFormWithData(materialData) {
     console.log('Filling form with data:', materialData);
 
@@ -533,6 +518,7 @@ function checkFormValidity() {
     document.getElementById('createHuButton').disabled = !isValid;
 }
 
+// ✅ PERBAIKAN: Fungsi confirmSapCredentials yang benar
 function confirmSapCredentials() {
     const sapUser = document.getElementById('sap_user_modal').value.trim();
     const sapPassword = document.getElementById('sap_password_modal').value;
@@ -549,26 +535,27 @@ function confirmSapCredentials() {
         return;
     }
 
-    // Add SAP credentials to form sebagai hidden fields
-    const sapUserInput = document.createElement('input');
-    sapUserInput.type = 'hidden';
-    sapUserInput.name = 'sap_user';
-    sapUserInput.value = sapUser;
+    console.log('SAP Credentials confirmed:', { sapUser, sapPassword: '***' });
 
-    const sapPasswordInput = document.createElement('input');
-    sapPasswordInput.type = 'hidden';
-    sapPasswordInput.name = 'sap_password';
-    sapPasswordInput.value = sapPassword;
+    // ✅ PERBAIKAN: Set nilai ke hidden fields di form utama
+    document.getElementById('sap_user').value = sapUser;
+    document.getElementById('sap_password').value = sapPassword;
 
-    document.getElementById('huForm').appendChild(sapUserInput);
-    document.getElementById('huForm').appendChild(sapPasswordInput);
+    // Tampilkan loading state
+    const confirmBtn = document.getElementById('confirmSapCredentials');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating HU...';
+    confirmBtn.disabled = true;
 
-    // Submit form
-    document.getElementById('huForm').submit();
+    // Tutup modal
+    const sapModal = bootstrap.Modal.getInstance(document.getElementById('sapCredentialsModal'));
+    sapModal.hide();
 
-    // Show loading state
-    document.getElementById('confirmSapCredentials').disabled = true;
-    document.getElementById('confirmSapCredentials').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating HU...';
+    // ✅ PERBAIKAN: Submit form setelah modal tertutup
+    setTimeout(() => {
+        console.log('Submitting form with SAP credentials...');
+        document.getElementById('huForm').submit();
+    }, 500);
 }
 
 function validateForm() {

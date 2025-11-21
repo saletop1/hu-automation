@@ -24,55 +24,55 @@ class HUController extends Controller
     }
 
     public function index()
-{
-    try {
-        // Ambil data stock yang BELUM dibuat HU dengan filter yang benar
-        $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10', '');
+    {
+        try {
+            // Ambil data stock yang BELUM dibuat HU dengan filter yang benar
+            $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10', '');
 
-        // Data plants untuk dropdown - hanya yang belum dibuat HU
-        $plantsData = Stock::select('plant', 'storage_location')
-            ->where('hu_created', false)
-            ->distinct()
-            ->get()
-            ->groupBy('plant')
-            ->map(function ($item) {
-                return $item->pluck('storage_location')->unique()->values();
-            });
+            // Data plants untuk dropdown - hanya yang belum dibuat HU
+            $plantsData = Stock::select('plant', 'storage_location')
+                ->where('hu_created', false)
+                ->distinct()
+                ->get()
+                ->groupBy('plant')
+                ->map(function ($item) {
+                    return $item->pluck('storage_location')->unique()->values();
+                });
 
-        // ✅ TAMBAHKAN PLANT 2000 DENGAN LOKASI MANUAL JIKA KOSONG
-        if ($plantsData->isEmpty()) {
-            $plantsData = [
-                '2000' => ['21HU', '21LK', '21NH'],
-                '3000' => ['3D10', '3DH1', '3DH2']
-            ];
-        } else {
-            // ✅ TAMBAHKAN PLANT 2000 JIKA BELUM ADA
-            if (!isset($plantsData['2000'])) {
-                $plantsData['2000'] = ['21HU', '21LK', '21NH'];
+            // ✅ TAMBAHKAN PLANT 2000 DENGAN LOKASI MANUAL JIKA KOSONG
+            if ($plantsData->isEmpty()) {
+                $plantsData = [
+                    '2000' => ['21HU', '21LK', '21NH'],
+                    '3000' => ['3D10', '3DH1', '3DH2']
+                ];
+            } else {
+                // ✅ TAMBAHKAN PLANT 2000 JIKA BELUM ADA
+                if (!isset($plantsData['2000'])) {
+                    $plantsData['2000'] = ['21HU', '21LK', '21NH'];
+                }
+
+                // ✅ TAMBAHKAN LOKASI DEFAULT UNTUK PLANT 3000 JIKA BELUM ADA
+                if (!isset($plantsData['3000'])) {
+                    $plantsData['3000'] = ['3D10', '3DH1', '3DH2'];
+                }
             }
 
-            // ✅ TAMBAHKAN LOKASI DEFAULT UNTUK PLANT 3000 JIKA BELUM ADA
-            if (!isset($plantsData['3000'])) {
-                $plantsData['3000'] = ['3D10', '3DH1', '3DH2'];
-            }
+            // ✅ URUTKAN PLANT
+            $plantsData = $plantsData->sortKeys();
+
+            return view('hu.index', compact('stockData', 'plantsData'));
+
+        } catch (\Exception $e) {
+            Log::error('Index page error: ' . $e->getMessage());
+            return view('hu.index', [
+                'stockData' => ['success' => false, 'data' => [], 'pagination' => []],
+                'plantsData' => [
+                    '2000' => ['21HU', '21LK', '21NH'],
+                    '3000' => ['3D10', '3DH1', '3DH2']
+                ]
+            ])->with('error', 'Failed to load page: ' . $e->getMessage());
         }
-
-        // ✅ URUTKAN PLANT
-        $plantsData = $plantsData->sortKeys();
-
-        return view('hu.index', compact('stockData', 'plantsData'));
-
-    } catch (\Exception $e) {
-        Log::error('Index page error: ' . $e->getMessage());
-        return view('hu.index', [
-            'stockData' => ['success' => false, 'data' => [], 'pagination' => []],
-            'plantsData' => [
-                '2000' => ['21HU', '21LK', '21NH'],
-                '3000' => ['3D10', '3DH1', '3DH2']
-            ]
-        ])->with('error', 'Failed to load page: ' . $e->getMessage());
     }
-}
 
     public function createSingle()
     {
@@ -243,62 +243,62 @@ class HUController extends Controller
     }
 
     public function getStock(Request $request)
-{
-    try {
-        $query = DB::table('stock_data')->where('hu_created', false);
+    {
+        try {
+            $query = DB::table('stock_data')->where('hu_created', false);
 
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = $request->search;
-            $query->where(function($q) use ($searchTerm) {
-                $q->where('material', 'LIKE', '%' . $searchTerm . '%')
-                  ->orWhere('material_description', 'LIKE', '%' . $searchTerm . '%')
-                  ->orWhere('sales_document', 'LIKE', '%' . $searchTerm . '%')
-                  ->orWhere('batch', 'LIKE', '%' . $searchTerm . '%');
+            if ($request->has('search') && !empty($request->search)) {
+                $searchTerm = $request->search;
+                $query->where(function($q) use ($searchTerm) {
+                    $q->where('material', 'LIKE', '%' . $searchTerm . '%')
+                      ->orWhere('material_description', 'LIKE', '%' . $searchTerm . '%')
+                      ->orWhere('sales_document', 'LIKE', '%' . $searchTerm . '%')
+                      ->orWhere('batch', 'LIKE', '%' . $searchTerm . '%');
+                });
+            }
+
+            if ($request->has('plant') && !empty($request->plant)) {
+                $query->where('plant', $request->plant);
+            }
+
+            if ($request->has('storage_location') && !empty($request->storage_location)) {
+                $query->where('storage_location', $request->storage_location);
+            }
+
+            $stockData = $query->orderBy('material', 'asc')->get();
+
+            // Pastikan semua field required ada termasuk magry
+            $stockData->each(function ($item) {
+                $item->suggested_pack_mat = $this->getPackagingMaterialByMagry($item->magry ?? '');
+                $item->magry_type = $item->magry ?? '';
+
+                // Pastikan field required ada
+                $item->material = $item->material ?? '';
+                $item->material_description = $item->material_description ?? '';
+                $item->plant = $item->plant ?? '';
+                $item->storage_location = $item->storage_location ?? '';
+                $item->batch = $item->batch ?? '';
+                $item->sales_document = $item->sales_document ?? '';
+                $item->magry = $item->magry ?? ''; // ✅ PASTIKAN magry ADA
             });
+
+            return response()->json([
+                'success' => true,
+                'data' => $stockData,
+                'pagination' => [
+                    'total' => $stockData->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get stock error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch stock data: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
         }
-
-        if ($request->has('plant') && !empty($request->plant)) {
-            $query->where('plant', $request->plant);
-        }
-
-        if ($request->has('storage_location') && !empty($request->storage_location)) {
-            $query->where('storage_location', $request->storage_location);
-        }
-
-        $stockData = $query->orderBy('material', 'asc')->get();
-
-        // Pastikan semua field required ada termasuk magry
-        $stockData->each(function ($item) {
-            $item->suggested_pack_mat = $this->getPackagingMaterialByMagry($item->magry ?? '');
-            $item->magry_type = $item->magry ?? '';
-
-            // Pastikan field required ada
-            $item->material = $item->material ?? '';
-            $item->material_description = $item->material_description ?? '';
-            $item->plant = $item->plant ?? '';
-            $item->storage_location = $item->storage_location ?? '';
-            $item->batch = $item->batch ?? '';
-            $item->sales_document = $item->sales_document ?? '';
-            $item->magry = $item->magry ?? ''; // ✅ PASTIKAN magry ADA
-        });
-
-        return response()->json([
-            'success' => true,
-            'data' => $stockData,
-            'pagination' => [
-                'total' => $stockData->count()
-            ]
-        ]);
-
-    } catch (\Exception $e) {
-        Log::error('Get stock error: ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'error' => 'Failed to fetch stock data: ' . $e->getMessage(),
-            'data' => []
-        ], 500);
     }
-}
 
     public function getPlants(Request $request)
     {
@@ -385,9 +385,14 @@ class HUController extends Controller
             // Clean data sebelum dikirim ke Python API
             $data = $this->cleanHuData($request->all());
 
+            // ✅ PERBAIKAN: Pastikan SAP credentials termasuk dalam data yang dikirim
+            $data['sap_user'] = $request->sap_user;
+            $data['sap_password'] = $request->sap_password;
+
             Log::info('Sending HU creation request to Python API', [
                 'endpoint' => $this->pythonBaseUrl . '/hu/create-single',
-                'data' => array_merge($data, ['sap_password' => '***'])
+                'sap_user' => $data['sap_user'], // Log user saja (jangan password)
+                'data_keys' => array_keys($data)
             ]);
 
             $response = Http::timeout(120)->post($this->pythonBaseUrl . '/hu/create-single', $data);
@@ -449,6 +454,10 @@ class HUController extends Controller
             // Clean data sebelum dikirim ke Python API
             $data = $this->cleanHuData($request->all());
 
+            // ✅ PERBAIKAN: Pastikan SAP credentials termasuk dalam data yang dikirim
+            $data['sap_user'] = $request->sap_user;
+            $data['sap_password'] = $request->sap_password;
+
             $baseUnit = $request->input('base_unit_qty', '');
             foreach ($data['items'] as &$item) {
                 $item['base_unit_qty'] = $baseUnit;
@@ -456,7 +465,8 @@ class HUController extends Controller
 
             Log::info('Sending HU creation (multi) request to Python API', [
                 'endpoint' => $this->pythonBaseUrl . '/hu/create-single-multi',
-                'data' => array_merge($data, ['sap_password' => '***'])
+                'sap_user' => $data['sap_user'], // Log user saja (jangan password)
+                'items_count' => count($data['items'])
             ]);
 
             $response = Http::timeout(120)->post($this->pythonBaseUrl . '/hu/create-single-multi', $data);
@@ -518,6 +528,10 @@ class HUController extends Controller
             // Clean data sebelum dikirim ke Python API
             $data = $this->cleanHuData($request->all());
 
+            // ✅ PERBAIKAN: Pastikan SAP credentials termasuk dalam data yang dikirim
+            $data['sap_user'] = $request->sap_user;
+            $data['sap_password'] = $request->sap_password;
+
             $baseUnit = $request->input('base_unit_qty', '');
             foreach ($data['hus'] as &$hu) {
                 $hu['base_unit_qty'] = $baseUnit;
@@ -525,7 +539,8 @@ class HUController extends Controller
 
             Log::info('Sending multiple HU creation request to Python API', [
                 'endpoint' => $this->pythonBaseUrl . '/hu/create-multiple',
-                'data' => array_merge($data, ['sap_password' => '***'])
+                'sap_user' => $data['sap_user'], // Log user saja (jangan password)
+                'hus_count' => count($data['hus'])
             ]);
 
             $response = Http::timeout(120)->post($this->pythonBaseUrl . '/hu/create-multiple', $data);
@@ -617,7 +632,7 @@ class HUController extends Controller
             }
         }
 
-        Log::info('Data cleaned for Python API', ['cleaned_data' => $cleaned]);
+        Log::info('Data cleaned for Python API', ['cleaned_data_keys' => array_keys($cleaned)]);
 
         return $cleaned;
     }
@@ -863,44 +878,44 @@ class HUController extends Controller
     }
 
     private function getPackagingMaterialByMagry($magry, $currentPackMat = '')
-{
-    // Jika sudah ada pilihan dari user, prioritaskan pilihan user
-    if (!empty($currentPackMat)) {
-        return $currentPackMat;
-    }
-
-    // Otomatis pilih berdasarkan magry
-    switch ($magry) {
-        case 'ZMG1':
-            return '50016873';
-        case 'ZMG2':
-            return 'VSTDPLTBW01'; // Default pertama untuk ZMG2
-        default:
+    {
+        // Jika sudah ada pilihan dari user, prioritaskan pilihan user
+        if (!empty($currentPackMat)) {
             return $currentPackMat;
-    }
-}
+        }
 
-// Function baru untuk mendapatkan semua opsi packaging material berdasarkan magry
-private function getPackagingMaterialOptions($magry)
-{
-    switch ($magry) {
-        case 'ZMG1':
-            return [
-                'default' => '50016873',
-                'options' => ['50016873']
-            ];
-        case 'ZMG2':
-            return [
-                'default' => 'VSTDPLTBW01',
-                'options' => ['VSTDPLTBW01', 'VSTDPLTBW02'] // ✅ 2 OPSI UNTUK ZMG2
-            ];
-        default:
-            return [
-                'default' => '',
-                'options' => []
-            ];
+        // Otomatis pilih berdasarkan magry
+        switch ($magry) {
+            case 'ZMG1':
+                return '50016873';
+            case 'ZMG2':
+                return 'VSTDPLTBW01'; // Default pertama untuk ZMG2
+            default:
+                return $currentPackMat;
+        }
     }
-}
+
+    // Function baru untuk mendapatkan semua opsi packaging material berdasarkan magry
+    private function getPackagingMaterialOptions($magry)
+    {
+        switch ($magry) {
+            case 'ZMG1':
+                return [
+                    'default' => '50016873',
+                    'options' => ['50016873']
+                ];
+            case 'ZMG2':
+                return [
+                    'default' => 'VSTDPLTBW01',
+                    'options' => ['VSTDPLTBW01', 'VSTDPLTBW02'] // ✅ 2 OPSI UNTUK ZMG2
+                ];
+            default:
+                return [
+                    'default' => '',
+                    'options' => []
+                ];
+        }
+    }
 
     private function updateStockAndHistoryMulti($request, $result, $scenarioType)
     {
