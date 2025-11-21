@@ -1013,15 +1013,8 @@
             },
             success: function(response) {
                 console.log('Sync response:', response);
-                if (response.success) {
-                    showMessage(response.message, 'success');
-                    // Tunggu sebentar sebelum reload data untuk memastikan sync selesai
-                    setTimeout(() => {
-                        loadStockData();
-                    }, 1500);
-                } else {
-                    showError(response.error || 'Gagal sync data stock');
-                }
+                showMessage(response.message, 'success');
+                window.location.reload();
             },
             error: function(xhr, status, error) {
                 console.error('Sync error:', error);
