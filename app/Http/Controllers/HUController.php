@@ -24,55 +24,55 @@ class HUController extends Controller
     }
 
     public function index()
-    {
-        try {
-            // Ambil data stock yang BELUM dibuat HU dengan filter yang benar
-            $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10', '');
+        {
+            try {
+                // Ambil data stock yang BELUM dibuat HU dengan filter yang benar
+                $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10', '');
 
-            // Data plants untuk dropdown - hanya yang belum dibuat HU
-            $plantsData = Stock::select('plant', 'storage_location')
-                ->where('hu_created', false)
-                ->distinct()
-                ->get()
-                ->groupBy('plant')
-                ->map(function ($item) {
-                    return $item->pluck('storage_location')->unique()->values();
-                });
+                // Data plants untuk dropdown - hanya yang belum dibuat HU
+                $plantsData = Stock::select('plant', 'storage_location')
+                    ->where('hu_created', false)
+                    ->distinct()
+                    ->get()
+                    ->groupBy('plant')
+                    ->map(function ($item) {
+                        return $item->pluck('storage_location')->unique()->values();
+                    });
 
-            // ✅ TAMBAHKAN PLANT 2000 DENGAN LOKASI MANUAL JIKA KOSONG
-            if ($plantsData->isEmpty()) {
-                $plantsData = [
-                    '2000' => ['21HU', '21LK', '21NH'],
-                    '3000' => ['3D10', '3DH1', '3DH2']
-                ];
-            } else {
-                // ✅ TAMBAHKAN PLANT 2000 JIKA BELUM ADA
-                if (!isset($plantsData['2000'])) {
-                    $plantsData['2000'] = ['21HU', '21LK', '21NH'];
+                // ✅ TAMBAHKAN PLANT 2000 DENGAN LOKASI MANUAL JIKA KOSONG
+                if ($plantsData->isEmpty()) {
+                    $plantsData = collect([
+                        '2000' => ['21HU', '21LK', '21NH'],
+                        '3000' => ['3D10', '3DH1', '3DH2']
+                    ]);
+                } else {
+                    // ✅ TAMBAHKAN PLANT 2000 JIKA BELUM ADA
+                    if (!$plantsData->has('2000')) {
+                        $plantsData['2000'] = ['21HU', '21LK', '21NH'];
+                    }
+
+                    // ✅ TAMBAHKAN LOKASI DEFAULT UNTUK PLANT 3000 JIKA BELUM ADA
+                    if (!$plantsData->has('3000')) {
+                        $plantsData['3000'] = ['3D10', '3DH1', '3DH2'];
+                    }
                 }
 
-                // ✅ TAMBAHKAN LOKASI DEFAULT UNTUK PLANT 3000 JIKA BELUM ADA
-                if (!isset($plantsData['3000'])) {
-                    $plantsData['3000'] = ['3D10', '3DH1', '3DH2'];
-                }
+                // ✅ PERBAIKAN: URUTKAN plantsData, BUKAN $data
+                $plantsData = $plantsData->sortKeys();
+
+                return view('hu.index', compact('stockData', 'plantsData'));
+
+            } catch (\Exception $e) {
+                Log::error('Index page error: ' . $e->getMessage());
+                return view('hu.index', [
+                    'stockData' => ['success' => false, 'data' => [], 'pagination' => []],
+                    'plantsData' => collect([
+                        '2000' => ['21HU', '21LK', '21NH'],
+                        '3000' => ['3D10', '3DH1', '3DH2']
+                    ])->sortKeys()
+                ])->with('error', 'Failed to load page: ' . $e->getMessage());
             }
-
-            // ✅ URUTKAN PLANT
-            $plantsData = $plantsData->sortKeys();
-
-            return view('hu.index', compact('stockData', 'plantsData'));
-
-        } catch (\Exception $e) {
-            Log::error('Index page error: ' . $e->getMessage());
-            return view('hu.index', [
-                'stockData' => ['success' => false, 'data' => [], 'pagination' => []],
-                'plantsData' => [
-                    '2000' => ['21HU', '21LK', '21NH'],
-                    '3000' => ['3D10', '3DH1', '3DH2']
-                ]
-            ])->with('error', 'Failed to load page: ' . $e->getMessage());
         }
-    }
 
     public function createSingle()
     {

@@ -2,37 +2,107 @@
 
 use App\Http\Controllers\HUController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash; // TAMBAHKAN INI
 
-// Routes untuk HU Controller
-Route::get('/', [HUController::class, 'index'])->name('hu.index');
+// Public routes
+Route::get('/', function () {
+    return view('welcome');
+})->name('welcome');
 
-Route::prefix('hu')->group(function () {
-    // GET routes
-    Route::get('/create-single', [HUController::class, 'createSingle'])->name('hu.create-single');
-    Route::get('/create-single-multi', [HUController::class, 'createSingleMulti'])->name('hu.create-single-multi');
-    Route::get('/create-multiple', [HUController::class, 'createMultiple'])->name('hu.create-multiple');
-    Route::get('/history', [HUController::class, 'history'])->name('hu.history');
-    Route::get('/check-python-api', [HUController::class, 'checkPythonAPI'])->name('hu.check-python-api');
-    Route::get('/python-status', [HUController::class, 'getPythonAPIStatus'])->name('hu.python-status');
-    Route::get('/sync-stock-debug', [HUController::class, 'syncStockDebug'])->name('hu.sync-stock-debug');
+// Auth routes untuk guest (user yang belum login)
+Route::middleware('guest')->group(function () {
+    // GET Routes
+    Route::get('/login', function () {
+        return view('auth.login');
+    })->name('login');
+
+    Route::get('/register', function () {
+        return view('auth.register');
+    })->name('register');
+
+    // POST Routes
+    Route::post('/login', function (\Illuminate\Http\Request $request) {
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+        ]);
+
+        if (Auth::attempt($credentials)) {
+            $request->session()->regenerate();
+            return redirect()->intended('/hu');
+        }
+
+        return back()->withErrors([
+            'email' => 'The provided credentials do not match our records.',
+        ])->withInput($request->only('email'));
+    });
+
+    Route::post('/register', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']), // SEKARANG SUDAH TERDEFINISI
+        ]);
+
+        Auth::login($user);
+
+        return redirect('/hu');
+    });
+});
+
+// Logout route - harus di luar guest middleware
+Route::post('/logout', function (\Illuminate\Http\Request $request) {
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+    return redirect('/');
+})->name('logout');
+
+// Protected HU Automation routes - hanya untuk user yang sudah login
+Route::middleware(['auth'])->prefix('hu')->name('hu.')->group(function () {
+    // Main page
+    Route::get('/', [HUController::class, 'index'])->name('index');
+
+    // GET routes - Create HU
+    Route::get('/create-single', [HUController::class, 'createSingle'])->name('create-single');
+    Route::get('/create-single-multi', [HUController::class, 'createSingleMulti'])->name('create-single-multi');
+    Route::get('/create-multiple', [HUController::class, 'createMultiple'])->name('create-multiple');
+
+    // GET routes - History & Status
+    Route::get('/history', [HUController::class, 'history'])->name('history');
+    Route::get('/check-python-api', [HUController::class, 'checkPythonAPI'])->name('check-python-api');
+    Route::get('/python-status', [HUController::class, 'getPythonAPIStatus'])->name('python-status');
+    Route::get('/sync-stock-debug', [HUController::class, 'syncStockDebug'])->name('sync-stock-debug');
 
     // Stock sync routes
-    Route::get('/get-stock', [HUController::class, 'getStock'])->name('hu.get-stock');
-    Route::get('/stock-data', [HUController::class, 'getStock'])->name('hu.stock.data');
-    Route::post('/sync-stock', [HUController::class, 'syncStock'])->name('hu.sync-stock');
+    Route::get('/get-stock', [HUController::class, 'getStock'])->name('get-stock');
+    Route::get('/stock-data', [HUController::class, 'getStock'])->name('stock.data');
+    Route::post('/sync-stock', [HUController::class, 'syncStock'])->name('sync-stock');
 
     // Data routes
-    Route::get('/get-plants', [HUController::class, 'getPlants'])->name('hu.get-plants');
-    Route::get('/get-storage-locations', [HUController::class, 'getStorageLocations'])->name('hu.get-storage-locations');
-    Route::get('/materials', [HUController::class, 'getMaterialData'])->name('hu.materials');
-    Route::get('/material-by-code', [HUController::class, 'getMaterialByCode'])->name('hu.material-by-code');
+    Route::get('/get-plants', [HUController::class, 'getPlants'])->name('get-plants');
+    Route::get('/get-storage-locations', [HUController::class, 'getStorageLocations'])->name('get-storage-locations');
+    Route::get('/materials', [HUController::class, 'getMaterialData'])->name('materials');
+    Route::get('/material-by-code', [HUController::class, 'getMaterialByCode'])->name('material-by-code');
 
     // POST routes untuk create HU
-    Route::post('/store-single', [HUController::class, 'storeSingle'])->name('hu.store-single');
-    Route::post('/store-single-multi', [HUController::class, 'storeSingleMulti'])->name('hu.store-single-multi');
-    Route::post('/store-multiple', [HUController::class, 'storeMultiple'])->name('hu.store-multiple');
+    Route::post('/store-single', [HUController::class, 'storeSingle'])->name('store-single');
+    Route::post('/store-single-multi', [HUController::class, 'storeSingleMulti'])->name('store-single-multi');
+    Route::post('/store-multiple', [HUController::class, 'storeMultiple'])->name('store-multiple');
 
     // Export route
-    Route::post('/export', [HUController::class, 'export'])->name('hu.export');
+    Route::post('/export', [HUController::class, 'export'])->name('export');
+});
+
+// Fallback route
+Route::fallback(function () {
+    return redirect('/login');
 });

@@ -343,26 +343,41 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
-                <i class="fas fa-cubes me-2"></i>SAP HU Automation
-            </a>
-            <div class="d-flex">
-                <a href="{{ route('hu.history') }}" class="btn btn-outline-light btn-sm">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-green-700 to-yellow-800 shadow-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
+            <i class="fas fa-cubes me-2"></i>SAP HU Automation
+        </a>
+        <div class="d-flex align-items-center">
+            <span class="navbar-text text-light me-3">
+                <i class="fas fa-user me-1"></i>{{ Auth::user()->name }}
+            </span>
+
+            <div class="d-flex gap-2">
+                <!-- Tombol History HU -->
+                <a href="{{ route('hu.history') }}" class="btn btn-outline-light btn-sm d-flex align-items-center">
                     <i class="fas fa-history me-1"></i> History HU
                 </a>
+
+                <!-- Tombol Logout -->
+                <form method="POST" action="{{ route('logout') }}" class="d-inline m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-light btn-sm d-flex align-items-center">
+                        <i class="fas fa-sign-out-alt me-1"></i> Logout
+                    </button>
+                </form>
             </div>
         </div>
-    </nav>
+    </div>
+</nav>
 
-    <div class="container-fluid mt-4">
-        @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+            <div class="container-fluid mt-4">
+            @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+                <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
 
     @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
