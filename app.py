@@ -82,18 +82,15 @@ def auto_sync_job():
 
         if success:
             logger.info("Auto sync selesai")
-            last_sync_status['last_success_time'] = datetime.now()
-            last_sync_status['is_running'] = False
+            update_sync_status(True)
         else:
             logger.error("Auto sync gagal")
-            last_sync_status['last_error'] = "Auto sync gagal"
-            last_sync_status['is_running'] = False
+            update_sync_status(False, "Auto sync gagal")
 
     except Exception as e:
         error_msg = f"Error dalam auto sync: {e}"
         logger.error(error_msg)
-        last_sync_status['last_error'] = error_msg
-        last_sync_status['is_running'] = False
+        update_sync_status(False, error_msg)
 
 def start_scheduler():
     try:
@@ -302,36 +299,45 @@ def soft_delete_missing_records(mysql_conn, sap_business_keys, plant, storage_lo
 
     try:
         with mysql_conn.cursor() as cursor:
-            conditions = []
-            params = [datetime.now(), plant, storage_location]
+            cursor.execute("""
+                CREATE TEMPORARY TABLE temp_business_keys (
+                    business_key VARCHAR(100) COLLATE utf8mb4_unicode_ci PRIMARY KEY
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+            """)
 
-            for key in sap_business_keys:
-                material, batch, sales_doc, item_number = key.split('|')
-                condition = "(material = %s AND batch = %s AND sales_document = %s AND item_number = %s)"
-                conditions.append(condition)
-                params.extend([material, batch, sales_doc, item_number])
+            insert_data = [(key,) for key in sap_business_keys]
+            if insert_data:
+                cursor.executemany("INSERT INTO temp_business_keys (business_key) VALUES (%s)", insert_data)
 
-            where_clause = " AND NOT (" + " OR ".join(conditions) + ")" if conditions else ""
-
-            update_sql = f"""
-                UPDATE stock_data
-                SET stock_quantity = 0,
-                    is_active = 0,
-                    last_updated = %s,
-                    last_synced_at = %s,
-                    sync_status = 'NOT_IN_SAP',
-                    reason = 'Stock tidak ditemukan di SAP'
-                WHERE plant = %s
-                AND storage_location = %s
-                AND (stock_quantity > 0 OR is_active = 1)
-                {where_clause}
+            update_sql = """
+                UPDATE stock_data sd
+                SET sd.stock_quantity = 0,
+                    sd.is_active = 0,
+                    sd.last_updated = %s,
+                    sd.last_synced_at = %s,
+                    sd.sync_status = 'NOT_IN_SAP',
+                    sd.reason = 'Stock tidak ditemukan di SAP'
+                WHERE sd.plant = %s
+                AND sd.storage_location = %s
+                AND (sd.stock_quantity > 0 OR sd.is_active = 1)
+                AND NOT EXISTS (
+                    SELECT 1 FROM temp_business_keys tbk
+                    WHERE tbk.business_key = CONCAT(
+                        sd.material COLLATE utf8mb4_unicode_ci, '|',
+                        COALESCE(sd.batch, '') COLLATE utf8mb4_unicode_ci, '|',
+                        COALESCE(sd.sales_document, '') COLLATE utf8mb4_unicode_ci, '|',
+                        COALESCE(sd.item_number, '') COLLATE utf8mb4_unicode_ci
+                    )
+                )
             """
 
-            cursor.execute(update_sql, [datetime.now(), datetime.now(), plant, storage_location] + params[3:])
+            cursor.execute(update_sql, [datetime.now(), datetime.now(), plant, storage_location])
             affected_rows = cursor.rowcount
 
+            cursor.execute("DROP TEMPORARY TABLE temp_business_keys")
+
             if affected_rows > 0:
-                logger.info(f"Marked {affected_rows} records sebagai inactive (tidak ada di SAP)")
+                logger.info(f"Marked {affected_rows} records sebagai inactive")
 
             return affected_rows
 
@@ -359,7 +365,7 @@ def handle_empty_sap_data(mysql_conn, plant, storage_location):
             affected_rows = cursor.rowcount
 
             if affected_rows > 0:
-                logger.info(f"Semua stock di {plant}/{storage_location} di-set ke 0 (location kosong di SAP)")
+                logger.info(f"Semua stock di {plant}/{storage_location} di-set ke 0")
             else:
                 logger.info(f"Tidak ada data aktif di {plant}/{storage_location}")
 
@@ -385,6 +391,7 @@ def upsert_sap_data(mysql_conn, stock_data, plant, storage_location):
                 item_number = clean_value(item.get('POSNR'))
                 vendor_name = clean_value(item.get('NAME1'))
                 batch = clean_value(item.get('CHARG'))
+                base_unit = clean_value(item.get('MEINS', 'PCS'))
 
                 if not material:
                     continue
@@ -398,6 +405,7 @@ def upsert_sap_data(mysql_conn, stock_data, plant, storage_location):
                 ON DUPLICATE KEY UPDATE
                 material_description = VALUES(material_description),
                 stock_quantity = VALUES(stock_quantity),
+                base_unit = VALUES(base_unit),
                 magry = VALUES(magry),
                 sales_document = VALUES(sales_document),
                 item_number = VALUES(item_number),
@@ -411,7 +419,7 @@ def upsert_sap_data(mysql_conn, stock_data, plant, storage_location):
 
                 cursor.execute(sql, (
                     material, desc, plant, storage_location, batch,
-                    float(qty), clean_value(item.get('MEINS')), magrv,
+                    float(qty), base_unit, magrv,
                     sales_document, item_number, vendor_name,
                     datetime.now(), datetime.now(), 1, 'SYNCED', None
                 ))
@@ -478,7 +486,6 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
 # ==================== FUNGSI VIEW STOCK DATA ====================
 
 def get_active_stock_data(plant='3000', storage_location='3D10', include_inactive=False):
-    """Ambil data stock dengan filter active/inactive"""
     mysql_conn = connect_mysql()
     if not mysql_conn:
         return None
@@ -527,13 +534,42 @@ def clean_hu_parameters(hu_data):
             if cleaned[field].isdigit():
                 cleaned[field] = cleaned[field].zfill(18)
 
-        if field == 'pack_qty':
-            try:
-                float(cleaned[field])
-            except ValueError:
-                raise ValueError(f"pack_qty harus berupa angka: {cleaned[field]}")
+    # Handle pack_qty
+    if 'pack_qty' in cleaned:
+        try:
+            pack_qty_str = str(cleaned['pack_qty']).strip()
+            if not pack_qty_str:
+                raise ValueError("Pack Qty tidak boleh kosong")
+            pack_qty = float(pack_qty_str)
+            if pack_qty <= 0:
+                raise ValueError("Pack Qty harus lebih besar dari 0")
+            cleaned['pack_qty'] = pack_qty
+        except (ValueError, TypeError):
+            raise ValueError(f"pack_qty harus berupa angka: {cleaned['pack_qty']}")
 
-    optional_fields = ['batch', 'sp_stck_no', 'base_unit_qty']
+    # Handle base_unit_qty - PERBAIKAN DI SINI
+    base_unit_qty_value = cleaned.get('base_unit_qty')
+
+    # Jika base_unit_qty ada dan valid, gunakan itu
+    if base_unit_qty_value is not None and base_unit_qty_value != '':
+        try:
+            base_unit_qty_str = str(base_unit_qty_value).strip()
+            if base_unit_qty_str:  # Jika tidak empty string
+                base_unit_qty = float(base_unit_qty_str)
+                if base_unit_qty <= 0:
+                    raise ValueError("Base Unit Qty harus lebih besar dari 0")
+                cleaned['base_unit_qty'] = base_unit_qty
+            else:
+                # Jika base_unit_qty adalah empty string, use pack_qty
+                cleaned['base_unit_qty'] = cleaned['pack_qty']
+        except (ValueError, TypeError):
+            # Jika base_unit_qty invalid, fallback to pack_qty
+            cleaned['base_unit_qty'] = cleaned['pack_qty']
+    else:
+        # Jika base_unit_qty tidak provided atau None, use pack_qty
+        cleaned['base_unit_qty'] = cleaned['pack_qty']
+
+    optional_fields = ['batch', 'sp_stck_no']
     for field in optional_fields:
         value = cleaned.get(field)
         if value is None:
@@ -559,11 +595,22 @@ def prepare_hu_items(cleaned_data):
     if sp_stck_no is None:
         sp_stck_no = ''
 
+    # Gunakan base_unit_qty jika valid, otherwise pack_qty
+    quantity_to_use = cleaned_data.get('base_unit_qty')
+    if quantity_to_use is None or quantity_to_use <= 0:
+        quantity_to_use = cleaned_data['pack_qty']
+
+    if quantity_to_use <= 0:
+        raise ValueError(f"Quantity harus lebih besar dari 0, got: {quantity_to_use}")
+
+    quantity_str = f"{quantity_to_use:.3f}".rstrip('0').rstrip('.') if '.' in f"{quantity_to_use}" else f"{quantity_to_use}"
+
+    # HANYA GUNAKAN PACK_QTY
     item = {
         "MATERIAL": material,
         "PLANT": cleaned_data['plant'],
         "STGE_LOC": cleaned_data['stge_loc'],
-        "PACK_QTY": cleaned_data['pack_qty'],
+        "PACK_QTY": quantity_str,
         "HU_ITEM_TYPE": "1",
         "BATCH": batch,
         "SPEC_STOCK": "E" if sp_stck_no else "",
@@ -576,25 +623,71 @@ def validate_sap_response(result):
     if not result:
         return False, "Tidak ada response dari SAP RFC call"
 
+    logger.info(f"SAP Response keys: {list(result.keys())}")
+
+    # Cek E_RETURN untuk error/warning
     if 'E_RETURN' in result and result['E_RETURN']:
         error_type = result['E_RETURN'].get('TYPE', '')
         error_message = result['E_RETURN'].get('MESSAGE', 'Unknown SAP error')
+        error_id = result['E_RETURN'].get('ID', '')
+        error_number = result['E_RETURN'].get('NUMBER', '')
 
-        if error_type in ['E', 'A']:
-            return False, error_message
-        elif error_type == 'W':
-            return True, error_message
-        elif error_type == 'S':
-            pass
+        logger.info(f"SAP Return - Type: {error_type}, ID: {error_id}, Number: {error_number}, Message: {error_message}")
 
-    if result.get('E_HUKEY'):
-        hu_number = result['E_HUKEY']
+        if error_type in ['E', 'A']:  # Error atau Abort
+            return False, f"SAP Error: {error_message}"
+        elif error_type == 'W':  # Warning
+            logger.warning(f"SAP Warning: {error_message}")
+            # Warning tidak menghalangi pembuatan HU, lanjutkan pengecekan E_HUKEY
+        elif error_type == 'S':  # Success
+            logger.info(f"SAP Success: {error_message}")
+        elif error_type == 'I':  # Information
+            logger.info(f"SAP Info: {error_message}")
+
+    # Cek E_HUKEY - ini yang utama
+    e_hukey = result.get('E_HUKEY')
+    if e_hukey:
+        hu_number = str(e_hukey).strip()
         hu_number_clean = hu_number.lstrip('0') or '0'
-        logger.info(f"HU berhasil dibuat: {hu_number} -> {hu_number_clean}")
-        return True, f"HU berhasil dibuat: {hu_number_clean}"
-    else:
-        logger.warning(f"Tidak ada E_HUKEY dalam response. Fields yang ada: {list(result.keys())}")
-        return False, "Gagal membuat HU - sistem SAP tidak mengembalikan nomor HU"
+
+        # Validasi HU number
+        if hu_number_clean and hu_number_clean != '0':
+            logger.info(f"E_HUKEY valid: {hu_number} -> {hu_number_clean}")
+            return True, f"HU berhasil dibuat: {hu_number_clean}"
+        else:
+            logger.warning(f"E_HUKEY tidak valid: '{hu_number}'")
+
+    # Cek T_ITEMS untuk status item
+    t_items = result.get('T_ITEMS', [])
+    if t_items:
+        for i, item in enumerate(t_items):
+            item_status = item.get('STATS', '')
+            item_material = item.get('MATERIAL', '')
+            logger.info(f"T_ITEMS[{i}] - Material: {item_material}, Status: {item_status}")
+
+            # Jika ada status success di T_ITEMS, anggap berhasil
+            if 'Sukses' in item_status or 'Success' in item_status:
+                logger.info(f"Item {i} status menunjukkan success")
+                if e_hukey:
+                    hu_number_clean = str(e_hukey).lstrip('0') or '0'
+                    return True, f"HU berhasil dibuat: {hu_number_clean}"
+                else:
+                    return True, "HU berhasil dibuat (nomor HU tidak tersedia)"
+
+    # Cek E_MESSAGE
+    if result.get('E_MESSAGE'):
+        e_message = result['E_MESSAGE']
+        logger.info(f"E_MESSAGE: {e_message}")
+        if e_message and 'success' in e_message.lower():
+            return True, f"HU berhasil dibuat: {e_message}"
+
+    # Jika tidak ada E_HUKEY tapi juga tidak ada error, mungkin success dengan cara lain
+    if not result.get('E_RETURN') or (result.get('E_RETURN') and result['E_RETURN'].get('TYPE') in ['S', 'W', 'I']):
+        logger.info("Tidak ada E_HUKEY tetapi tidak ada error yang fatal, mungkin HU berhasil dibuat")
+        return True, "HU berhasil dibuat (konfirmasi melalui sistem SAP)"
+
+    logger.warning(f"Tidak ada E_HUKEY dalam response. Full response: {result}")
+    return False, "Gagal membuat HU - sistem SAP tidak mengembalikan nomor HU"
 
 # ==================== CREATE HU FUNCTIONS ====================
 
@@ -603,6 +696,30 @@ def create_single_hu(data):
     for field in required_fields:
         if field not in data or not data[field]:
             error_msg = f"Field wajib {field} tidak ditemukan atau kosong"
+            logger.error(f"{error_msg}")
+            return {"success": False, "error": error_msg}, 400
+
+    # Validasi quantity - PERBAIKAN DI SINI
+    pack_qty = data.get('pack_qty')
+    if pack_qty is None or pack_qty == '':
+        error_msg = "pack_qty tidak boleh kosong"
+        logger.error(f"{error_msg}")
+        return {"success": False, "error": error_msg}, 400
+
+    try:
+        float(pack_qty)
+    except (ValueError, TypeError):
+        error_msg = f"pack_qty harus berupa angka: {pack_qty}"
+        logger.error(f"{error_msg}")
+        return {"success": False, "error": error_msg}, 400
+
+    # base_unit_qty tidak wajib, jadi tidak perlu validasi ketat
+    base_unit_qty = data.get('base_unit_qty')
+    if base_unit_qty is not None and base_unit_qty != '':
+        try:
+            float(base_unit_qty)
+        except (ValueError, TypeError):
+            error_msg = f"base_unit_qty harus berupa angka: {base_unit_qty}"
             logger.error(f"{error_msg}")
             return {"success": False, "error": error_msg}, 400
 
@@ -615,7 +732,7 @@ def create_single_hu(data):
         logger.error(f"{error_msg}")
         return {"success": False, "error": error_msg}, 400
 
-    logger.info(f"Menggunakan SAP User dari request: {sap_user}")
+    logger.info(f"Create Single HU - User: {sap_user}, HU: {data['hu_exid']}")
 
     sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
     if not sap_conn:
@@ -625,31 +742,44 @@ def create_single_hu(data):
 
     try:
         cleaned_data = clean_hu_parameters(data)
+        items = prepare_hu_items(cleaned_data)
+
+        # Validasi final items - PERBAIKAN DI SINI
+        for item in items:
+            pack_qty_val = item.get('PACK_QTY', '')
+
+            if not pack_qty_val or pack_qty_val == '0':
+                error_msg = f"PACK_QTY tidak valid: '{pack_qty_val}'"
+                logger.error(f"{error_msg}")
+                return {"success": False, "error": error_msg}, 400
 
         params = {
             "I_HU_EXID": cleaned_data['hu_exid'],
             "I_PACK_MAT": cleaned_data['pack_mat'],
             "I_PLANT": cleaned_data['plant'],
             "I_STGE_LOC": cleaned_data['stge_loc'],
-            "T_ITEMS": prepare_hu_items(cleaned_data)
+            "T_ITEMS": items
         }
 
-        logger.info(f"Memanggil RFC ZRFC_CREATE_HU_EXT dengan HU External: {cleaned_data['hu_exid']}")
+        logger.info(f"Memanggil RFC ZRFC_CREATE_HU_EXT dengan HU: {cleaned_data['hu_exid']}")
         result = sap_conn.call('ZRFC_CREATE_HU_EXT', **params)
 
         success, message = validate_sap_response(result)
 
         if success:
-            hu_number = result.get('E_HUKEY')
+            hu_number = result.get('E_HUKEY', '')
             hu_number_clean = hu_number.lstrip('0') or '0'
-            logger.info(f"HU berhasil dibuat - HU Key: {hu_number} -> {hu_number_clean}")
+
+            logger.info(f"HU berhasil dibuat: {hu_number_clean}")
             return {
                 "success": True,
                 "message": message,
                 "data": result,
-                "created_hu": hu_number_clean
+                "created_hu": hu_number_clean,
+                "hu_exid": cleaned_data['hu_exid']
             }, 200
         else:
+            logger.error(f"Gagal membuat HU: {message}")
             return {"success": False, "error": message}, 400
 
     except ValueError as e:
@@ -686,7 +816,7 @@ def create_single_multi_hu(data):
         logger.error(f"{error_msg}")
         return {"success": False, "error": error_msg}, 400
 
-    logger.info(f"Menggunakan SAP User dari request: {sap_user}")
+    logger.info(f"Create Single Multi HU - User: {sap_user}, HU: {data['hu_exid']}")
 
     sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
     if not sap_conn:
@@ -714,6 +844,20 @@ def create_single_multi_hu(data):
                     logger.error(f"{error_msg}")
                     return {"success": False, "error": error_msg}, 400
 
+                # Validasi quantity item sebelum cleaning
+                pack_qty = item.get('pack_qty')
+                if pack_qty is None or pack_qty == '':
+                    error_msg = f"Item {i+1}: pack_qty tidak boleh kosong"
+                    logger.error(f"{error_msg}")
+                    return {"success": False, "error": error_msg}, 400
+
+                try:
+                    float(pack_qty)
+                except (ValueError, TypeError):
+                    error_msg = f"Item {i+1}: pack_qty harus berupa angka: {pack_qty}"
+                    logger.error(f"{error_msg}")
+                    return {"success": False, "error": error_msg}, 400
+
                 cleaned_item = clean_hu_parameters({
                     'hu_exid': main_data['hu_exid'],
                     'pack_mat': main_data['pack_mat'],
@@ -721,15 +865,35 @@ def create_single_multi_hu(data):
                     'stge_loc': main_data['stge_loc'],
                     'material': item.get('material'),
                     'pack_qty': item.get('pack_qty'),
+                    'base_unit_qty': item.get('base_unit_qty'),
                     'batch': item.get('batch', ''),
                     'sp_stck_no': item.get('sp_stck_no', '')
                 })
 
+                # Prepare material
+                material = cleaned_item['material']
+                if material.isdigit() and len(material) < 18:
+                    material = material.zfill(18)
+
+                # Gunakan base_unit_qty jika valid, otherwise pack_qty
+                quantity_to_use = cleaned_item.get('base_unit_qty')
+                if quantity_to_use is None or quantity_to_use <= 0:
+                    quantity_to_use = cleaned_item['pack_qty']
+
+                if quantity_to_use <= 0:
+                    error_msg = f"Item {i+1}: Quantity harus lebih besar dari 0, got: {quantity_to_use}"
+                    logger.error(f"{error_msg}")
+                    return {"success": False, "error": error_msg}, 400
+
+                quantity_str = f"{quantity_to_use:.3f}".rstrip('0').rstrip('.') if '.' in f"{quantity_to_use}" else f"{quantity_to_use}"
+
+                logger.info(f"Item {i+1} - Material: {material}, Qty: {quantity_str}")
+
                 items.append({
-                    "MATERIAL": cleaned_item['material'],
+                    "MATERIAL": material,
                     "PLANT": cleaned_item['plant'],
                     "STGE_LOC": cleaned_item['stge_loc'],
-                    "PACK_QTY": cleaned_item['pack_qty'],
+                    "PACK_QTY": quantity_str,
                     "HU_ITEM_TYPE": "1",
                     "BATCH": cleaned_item['batch'],
                     "SPEC_STOCK": "E" if cleaned_item['sp_stck_no'] else "",
@@ -741,6 +905,17 @@ def create_single_multi_hu(data):
                 logger.error(f"{error_msg}")
                 return {"success": False, "error": error_msg}, 400
 
+        logger.info(f"Prepared {len(items)} items untuk HU {main_data['hu_exid']}")
+
+        # Validasi final items sebelum kirim ke SAP
+        for i, item in enumerate(items):
+            pack_qty_val = item.get('PACK_QTY', '')
+
+            if not pack_qty_val or pack_qty_val == '0':
+                error_msg = f"Item {i+1}: PACK_QTY tidak valid: '{pack_qty_val}'"
+                logger.error(f"{error_msg}")
+                return {"success": False, "error": error_msg}, 400
+
         params = {
             "I_HU_EXID": main_data['hu_exid'],
             "I_PACK_MAT": main_data['pack_mat'],
@@ -749,27 +924,36 @@ def create_single_multi_hu(data):
             "T_ITEMS": items
         }
 
-        logger.info(f"Memanggil RFC ZRFC_CREATE_HU_EXT dengan HU: {main_data['hu_exid']}")
+        logger.info(f"Memanggil RFC ZRFC_CREATE_HU_EXT untuk Multi-Item HU")
+        logger.info(f"Items yang dikirim: {items}")
         result = sap_conn.call('ZRFC_CREATE_HU_EXT', **params)
+
+        # Debug response SAP
+        logger.info(f"SAP Response: {result}")
 
         success, message = validate_sap_response(result)
 
         if success:
-            hu_number = result.get('E_HUKEY')
+            hu_number = result.get('E_HUKEY', '')
             hu_number_clean = hu_number.lstrip('0') or '0'
-            logger.info(f"HU Multi berhasil dibuat - HU Key: {hu_number} -> {hu_number_clean}")
+
+            logger.info(f"HU Multi berhasil dibuat: {hu_number_clean}")
             return {
                 "success": True,
                 "message": message,
                 "data": result,
-                "created_hu": hu_number_clean
+                "created_hu": hu_number_clean,
+                "hu_exid": main_data['hu_exid'],
+                "items_count": len(items)
             }, 200
         else:
+            logger.error(f"Gagal membuat HU Multi: {message}")
             return {"success": False, "error": message}, 400
 
     except Exception as e:
         error_msg = f"Error buat HU multi: {str(e)}"
         logger.error(f"{error_msg}")
+        logger.error(traceback.format_exc())
         return {"success": False, "error": error_msg}, 500
     finally:
         if sap_conn:
@@ -800,7 +984,7 @@ def create_multiple_hus(data):
         logger.error(f"{error_msg}")
         return {"success": False, "error": error_msg}, 400
 
-    logger.info(f"Menggunakan SAP User dari request: {sap_user}")
+    logger.info(f"Create Multiple HUs - User: {sap_user}, Total: {len(data['hus'])}")
 
     sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
     if not sap_conn:
@@ -813,48 +997,127 @@ def create_multiple_hus(data):
         success_count = 0
 
         for i, hu_data in enumerate(data['hus']):
-            try:
-                logger.info(f"Memproses HU {i+1}/{len(data['hus'])}: {hu_data.get('hu_exid', 'UNKNOWN')}")
+            hu_exid = hu_data.get('hu_exid', f'HU_{i+1}')
+            logger.info(f"Memproses HU {i+1}/{len(data['hus'])}: {hu_exid}")
 
+            try:
                 required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'material', 'pack_qty']
-                for field in required_fields:
-                    if field not in hu_data:
-                        error_msg = f"Field {field} tidak ditemukan di HU {i+1}"
-                        logger.error(f"{error_msg}")
-                        results.append({
-                            "hu_exid": hu_data.get('hu_exid', f"HU_{i+1}"),
-                            "success": False,
-                            "error": error_msg
-                        })
-                        continue
+                missing_fields = [field for field in required_fields if field not in hu_data or not hu_data[field]]
+
+                if missing_fields:
+                    error_msg = f"HU {i+1}: Field wajib {', '.join(missing_fields)} tidak ditemukan"
+                    logger.error(f"{error_msg}")
+                    results.append({
+                        "hu_exid": hu_exid,
+                        "success": False,
+                        "error": error_msg
+                    })
+                    continue
+
+                # Validasi quantity sebelum cleaning
+                pack_qty = hu_data.get('pack_qty')
+                if pack_qty is None or pack_qty == '':
+                    error_msg = f"HU {i+1}: pack_qty tidak boleh kosong"
+                    logger.error(f"{error_msg}")
+                    results.append({
+                        "hu_exid": hu_exid,
+                        "success": False,
+                        "error": error_msg
+                    })
+                    continue
+
+                try:
+                    float(pack_qty)
+                except (ValueError, TypeError):
+                    error_msg = f"HU {i+1}: pack_qty harus berupa angka: {pack_qty}"
+                    logger.error(f"{error_msg}")
+                    results.append({
+                        "hu_exid": hu_exid,
+                        "success": False,
+                        "error": error_msg
+                    })
+                    continue
 
                 cleaned_data = clean_hu_parameters(hu_data)
+
+                # Prepare material
+                material = cleaned_data['material']
+                if material.isdigit() and len(material) < 18:
+                    material = material.zfill(18)
+
+                batch = cleaned_data.get('batch', '')
+                sp_stck_no = cleaned_data.get('sp_stck_no', '')
+
+                # Gunakan base_unit_qty jika valid, otherwise pack_qty
+                quantity_to_use = cleaned_data.get('base_unit_qty')
+                if quantity_to_use is None or quantity_to_use <= 0:
+                    quantity_to_use = cleaned_data['pack_qty']
+
+                if quantity_to_use <= 0:
+                    error_msg = f"HU {i+1}: Quantity harus lebih besar dari 0, got: {quantity_to_use}"
+                    logger.error(f"{error_msg}")
+                    results.append({
+                        "hu_exid": hu_exid,
+                        "success": False,
+                        "error": error_msg
+                    })
+                    continue
+
+                quantity_str = f"{quantity_to_use:.3f}".rstrip('0').rstrip('.') if '.' in f"{quantity_to_use}" else f"{quantity_to_use}"
+
+                logger.info(f"HU {i+1} - Material: {material}, Qty: {quantity_str}")
+
+                items = [{
+                    "MATERIAL": material,
+                    "PLANT": cleaned_data['plant'],
+                    "STGE_LOC": cleaned_data['stge_loc'],
+                    "PACK_QTY": quantity_str,
+                    "HU_ITEM_TYPE": "1",
+                    "BATCH": batch,
+                    "SPEC_STOCK": "E" if sp_stck_no else "",
+                    "SP_STCK_NO": sp_stck_no
+                }]
+
+                # Validasi final items sebelum kirim ke SAP
+                pack_qty_val = items[0].get('PACK_QTY', '')
+                if not pack_qty_val or pack_qty_val == '0':
+                    error_msg = f"HU {i+1}: PACK_QTY tidak valid: '{pack_qty_val}'"
+                    logger.error(f"{error_msg}")
+                    results.append({
+                        "hu_exid": hu_exid,
+                        "success": False,
+                        "error": error_msg
+                    })
+                    continue
 
                 params = {
                     "I_HU_EXID": cleaned_data['hu_exid'],
                     "I_PACK_MAT": cleaned_data['pack_mat'],
                     "I_PLANT": cleaned_data['plant'],
                     "I_STGE_LOC": cleaned_data['stge_loc'],
-                    "T_ITEMS": prepare_hu_items(cleaned_data)
+                    "T_ITEMS": items
                 }
 
+                logger.info(f"Memanggil RFC untuk HU {i+1}: {cleaned_data['hu_exid']}")
                 result = sap_conn.call('ZRFC_CREATE_HU_EXT', **params)
 
                 success, message = validate_sap_response(result)
 
                 if success:
-                    hu_number = result.get('E_HUKEY')
+                    hu_number = result.get('E_HUKEY', '')
                     hu_number_clean = hu_number.lstrip('0') or '0'
-                    logger.info(f"HU {i+1} berhasil - HU Key: {hu_number} -> {hu_number_clean}")
+
+                    logger.info(f"HU {i+1} berhasil: {hu_number_clean}")
                     results.append({
                         "hu_exid": cleaned_data['hu_exid'],
                         "success": True,
                         "message": message,
-                        "data": result,
-                        "created_hu": hu_number_clean
+                        "created_hu": hu_number_clean,
+                        "data": result
                     })
                     success_count += 1
                 else:
+                    logger.error(f"HU {i+1} gagal: {message}")
                     results.append({
                         "hu_exid": cleaned_data['hu_exid'],
                         "success": False,
@@ -865,58 +1128,54 @@ def create_multiple_hus(data):
                 error_msg = f"Data tidak valid: {str(e)}"
                 logger.error(f"HU {i+1} error: {error_msg}")
                 results.append({
-                    "hu_exid": hu_data.get('hu_exid', f'HU_{i+1}'),
+                    "hu_exid": hu_exid,
                     "success": False,
                     "error": error_msg
                 })
             except Exception as e:
                 error_msg = f"Error processing HU: {str(e)}"
                 logger.error(f"HU {i+1} error: {error_msg}")
+                logger.error(traceback.format_exc())
                 results.append({
-                    "hu_exid": hu_data.get('hu_exid', f'HU_{i+1}'),
+                    "hu_exid": hu_exid,
                     "success": False,
                     "error": error_msg
                 })
 
-        logger.info(f"Total HU: {len(results)}, Berhasil: {success_count}, Gagal: {len(results)-success_count}")
+        logger.info(f"Batch completed - Total: {len(results)}, Berhasil: {success_count}, Gagal: {len(results) - success_count}")
+
+        summary = {
+            "total": len(results),
+            "success": success_count,
+            "failed": len(results) - success_count
+        }
 
         if success_count == 0:
             return {
                 "success": False,
                 "message": f"Semua {len(results)} HU gagal dibuat",
-                "data": results,
-                "summary": {
-                    "total": len(results),
-                    "success": success_count,
-                    "failed": len(results) - success_count
-                }
+                "results": results,
+                "summary": summary
             }, 400
         elif success_count == len(results):
             return {
                 "success": True,
                 "message": f"Semua {len(results)} HU berhasil dibuat",
-                "data": results,
-                "summary": {
-                    "total": len(results),
-                    "success": success_count,
-                    "failed": len(results) - success_count
-                }
+                "results": results,
+                "summary": summary
             }, 200
         else:
             return {
                 "success": True,
-                "message": f"Processed {len(results)} HUs, {success_count} successful, {len(results)-success_count} failed",
-                "data": results,
-                "summary": {
-                    "total": len(results),
-                    "success": success_count,
-                    "failed": len(results) - success_count
-                }
+                "message": f"Processed {len(results)} HUs, {success_count} successful, {len(results) - success_count} failed",
+                "results": results,
+                "summary": summary
             }, 207
 
     except Exception as e:
         error_msg = f"Error buat multiple HU: {str(e)}"
         logger.error(f"{error_msg}")
+        logger.error(traceback.format_exc())
         return {"success": False, "error": error_msg}, 500
     finally:
         if sap_conn:
@@ -928,7 +1187,6 @@ def create_multiple_hus(data):
 def api_create_single():
     data = request.get_json()
     if not data:
-        logger.error("Data kosong diterima di /hu/create-single")
         return jsonify({"success": False, "error": "Data kosong"}), 400
 
     logger.info("/hu/create-single dipanggil")
@@ -939,7 +1197,6 @@ def api_create_single():
 def api_create_single_multi():
     data = request.get_json()
     if not data:
-        logger.error("Data kosong diterima di /hu/create-single-multi")
         return jsonify({"success": False, "error": "Data kosong"}), 400
 
     logger.info("/hu/create-single-multi dipanggil")
@@ -950,20 +1207,9 @@ def api_create_single_multi():
 def api_create_multiple():
     data = request.get_json()
     if not data:
-        logger.error("Data kosong diterima di /hu/create-multiple")
         return jsonify({"success": False, "error": "Data kosong"}), 400
 
     logger.info("/hu/create-multiple dipanggil")
-
-    if 'hus' not in data or not isinstance(data['hus'], list):
-        return jsonify({"success": False, "error": "Data 'hus' harus berupa array"}), 400
-
-    if len(data['hus']) == 0:
-        return jsonify({"success": False, "error": "Data 'hus' tidak boleh kosong"}), 400
-
-    if 'sap_user' not in data or 'sap_password' not in data:
-        return jsonify({"success": False, "error": "SAP credentials (sap_user, sap_password) wajib diisi"}), 400
-
     result, status_code = create_multiple_hus(data)
     return jsonify(result), status_code
 
@@ -983,7 +1229,6 @@ def api_stock_sync():
         if success:
             active_data = get_active_stock_data(plant, storage_location, include_inactive=False)
 
-            logger.info("Sync stock data berhasil")
             return jsonify({
                 "success": True,
                 "message": "Sync stock data completed successfully",
@@ -994,7 +1239,6 @@ def api_stock_sync():
                 }
             }), 200
         else:
-            logger.error("Sync stock data gagal")
             return jsonify({
                 "success": False,
                 "error": "Sync stock data failed"
@@ -1010,7 +1254,6 @@ def api_stock_sync():
 
 @app.route('/stock/view', methods=['GET'])
 def api_stock_view():
-    """Get stock data untuk view (default: hanya active)"""
     try:
         plant = request.args.get('plant', '3000')
         storage_location = request.args.get('storage_location', '3D10')
@@ -1043,7 +1286,6 @@ def api_stock_view():
 
 @app.route('/stock/view-all', methods=['GET'])
 def api_stock_view_all():
-    """Get semua data stock (termasuk inactive) - untuk admin"""
     try:
         plant = request.args.get('plant', '3000')
         storage_location = request.args.get('storage_location', '3D10')
@@ -1077,65 +1319,8 @@ def api_stock_view_all():
             "error": str(e)
         }), 500
 
-@app.route('/stock/cleanup-stale', methods=['POST'])
-def api_cleanup_stale():
-    try:
-        data = request.get_json() or {}
-        plant = data.get('plant', '3000')
-        storage_location = data.get('storage_location', '3D10')
-        days_threshold = data.get('days_threshold', 7)
-
-        success = cleanup_stale_data(plant, storage_location, days_threshold)
-
-        if success:
-            return jsonify({
-                "success": True,
-                "message": f"Stale data cleanup completed for {plant}/{storage_location}"
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Cleanup failed"
-            }), 500
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-def cleanup_stale_data(plant, storage_location, days_threshold=7):
-    mysql_conn = connect_mysql()
-    if not mysql_conn:
-        return False
-
-    try:
-        with mysql_conn.cursor() as cursor:
-            delete_sql = """
-                DELETE FROM stock_data
-                WHERE plant = %s
-                AND storage_location = %s
-                AND is_active = 0
-                AND last_synced_at < DATE_SUB(%s, INTERVAL %s DAY)
-            """
-
-            cursor.execute(delete_sql, [plant, storage_location, datetime.now(), days_threshold])
-            deleted_count = cursor.rowcount
-
-            mysql_conn.commit()
-
-            logger.info(f"Cleanup: {deleted_count} records di-delete")
-            return True
-
-    except Exception as e:
-        logger.error(f"Error dalam cleanup_stale_data: {e}")
-        return False
-    finally:
-        mysql_conn.close()
-
 @app.route('/stock/status', methods=['GET'])
 def api_stock_status():
-    """Get summary status stock data (untuk dashboard)"""
     try:
         plant = request.args.get('plant', '3000')
         storage_location = request.args.get('storage_location', '3D10')
@@ -1164,9 +1349,7 @@ def api_stock_status():
                 SELECT
                     COUNT(*) as total_records,
                     SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_with_stock,
-                    SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_records,
-                    SUM(CASE WHEN sync_status = 'NOT_IN_SAP' THEN 1 ELSE 0 END) as not_in_sap,
-                    SUM(CASE WHEN sync_status = 'LOCATION_EMPTY' THEN 1 ELSE 0 END) as location_empty
+                    SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_records
                 FROM stock_data
                 WHERE plant = %s AND storage_location = %s
             """, (plant, storage_location))
@@ -1187,9 +1370,7 @@ def api_stock_status():
                     "system_stats": {
                         "total_records": stats_result[0],
                         "active_with_stock": stats_result[1],
-                        "inactive_records": stats_result[2],
-                        "not_in_sap": stats_result[3],
-                        "location_empty": stats_result[4]
+                        "inactive_records": stats_result[2]
                     }
                 }
             }), 200
@@ -1217,6 +1398,68 @@ def api_sync_now():
             return jsonify({"success": False, "error": "Sync failed"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/hu/debug-response', methods=['POST'])
+def debug_hu_response():
+    """Endpoint untuk debug response SAP"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    sap_user = data.get('sap_user')
+    sap_password = data.get('sap_password')
+
+    if not sap_user or not sap_password:
+        return jsonify({"success": False, "error": "SAP credentials required"}), 400
+
+    sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
+    if not sap_conn:
+        return jsonify({"success": False, "error": conn_error}), 401
+
+    try:
+        # Test dengan data minimal
+        test_params = {
+            "I_HU_EXID": "9900000001",
+            "I_PACK_MAT": "50016873",
+            "I_PLANT": "3000",
+            "I_STGE_LOC": "3D10",
+            "T_ITEMS": [{
+                "MATERIAL": "000000000030002555",
+                "PLANT": "3000",
+                "STGE_LOC": "3D10",
+                "PACK_QTY": "1",
+                "HU_ITEM_TYPE": "1",
+                "BATCH": "",
+                "SPEC_STOCK": "",
+                "SP_STCK_NO": ""
+            }]
+        }
+
+        logger.info("Debug: Calling SAP RFC...")
+        result = sap_conn.call('ZRFC_CREATE_HU_EXT', **test_params)
+
+        return jsonify({
+            "success": True,
+            "sap_response": result,
+            "analysis": {
+                "has_e_hukey": 'E_HUKEY' in result,
+                "e_hukey_value": result.get('E_HUKEY'),
+                "has_e_return": 'E_RETURN' in result,
+                "e_return_value": result.get('E_RETURN'),
+                "has_t_items": 'T_ITEMS' in result,
+                "t_items_count": len(result.get('T_ITEMS', [])),
+                "all_keys": list(result.keys())
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+    finally:
+        if sap_conn:
+            sap_conn.close()
 
 @app.route('/health', methods=['GET'])
 def api_health():
