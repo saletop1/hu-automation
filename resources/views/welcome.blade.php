@@ -217,7 +217,7 @@
                 <div class="mt-8 pt-6 border-t border-gray-600 border-opacity-30">
                     <p class="text-blue-300 text-sm">
                         <i class="fas fa-info-circle mr-2"></i>
-                        Supported by IT Department • v2.1.0
+                        PT. Kayu Mebel Indonesia - All Rights Reserved 2025
                     </p>
                 </div>
             </div>

@@ -4,7 +4,7 @@ use App\Http\Controllers\HUController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash; // TAMBAHKAN INI
+use Illuminate\Support\Facades\Hash;
 
 // Public routes
 Route::get('/', function () {
@@ -49,7 +49,7 @@ Route::middleware('guest')->group(function () {
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']), // SEKARANG SUDAH TERDEFINISI
+            'password' => Hash::make($validated['password']),
         ]);
 
         Auth::login($user);

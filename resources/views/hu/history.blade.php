@@ -161,6 +161,17 @@
                 max-width: 300px;
             }
         }
+
+        /* Loading spinner */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner-border {
+            width: 2rem;
+            height: 2rem;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -179,7 +190,7 @@
 
     <div class="container-fluid mt-4">
         @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4 no-print" role="alert">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4 no-print" role="alert" id="successAlert">
             <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -192,8 +203,16 @@
         </div>
         @endif
 
+        <!-- Loading Spinner -->
+        <div class="loading-spinner no-print" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Memuat data terbaru...</p>
+        </div>
+
         <!-- TAMPILAN NORMAL -->
-        <div class="card border-0 shadow-sm no-print">
+        <div class="card border-0 shadow-sm no-print" id="mainCard">
             <div class="card-header bg-white py-3">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="card-title mb-0 fw-bold text-gray-800">
@@ -206,6 +225,9 @@
                         </button>
                         <button id="exportBtn" class="btn btn-success btn-sm" disabled>
                             <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </button>
+                        <button id="refreshBtn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh
                         </button>
                     </div>
                 </div>
@@ -310,7 +332,7 @@
                                                 <span class="badge bg-purple-600 text-white">Skenario 3</span>
                                             @else
                                                 <span class="badge bg-secondary text-white">{{ $item->scenario_type ?: '-' }}</span>
-                                            @endif
+                                                @endif
                                         </td>
                                         <td class="border-0 text-gray-600">
                                             @php
@@ -432,6 +454,14 @@
             $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
             $('#endDate').val(today.toISOString().split('T')[0]);
 
+            // Auto refresh jika ada success message dari pembuatan HU baru
+            @if(session('success') && (str_contains(session('success'), 'HU berhasil') || str_contains(session('success'), 'berhasil dibuat')))
+                console.log('HU baru berhasil dibuat, memuat data terbaru...');
+                setTimeout(function() {
+                    refreshData();
+                }, 1000);
+            @endif
+
             // Generate QR Codes untuk semua HU number
             function generateQRCodes() {
                 @foreach($historyData as $item)
@@ -463,6 +493,58 @@
                     }
                 @endforeach
             }
+
+            // Function untuk refresh data
+            function refreshData() {
+                console.log('Memuat data terbaru...');
+                $('#loadingSpinner').show();
+                $('#mainCard').css('opacity', '0.6');
+
+                $.ajax({
+                    url: '{{ route('hu.history') }}',
+                    type: 'GET',
+                    data: {
+                        'refresh': true,
+                        '_token': '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        // Parse HTML response
+                        const $response = $('<div>').html(response);
+
+                        // Update table body
+                        const newTableBody = $response.find('#historyTableBody').html();
+                        $('#historyTableBody').html(newTableBody);
+
+                        // Update print view
+                        const newPrintBody = $response.find('#printTableBody').html();
+                        $('#printTableBody').html(newPrintBody);
+
+                        // Re-generate QR codes
+                        generateQRCodes();
+
+                        // Re-apply filters
+                        applyFilters();
+
+                        // Update selection UI
+                        updateSelectionUI();
+
+                        console.log('Data berhasil diperbarui');
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error refreshing data:', error);
+                        alert('Gagal memuat data terbaru. Silakan refresh halaman manual.');
+                    },
+                    complete: function() {
+                        $('#loadingSpinner').hide();
+                        $('#mainCard').css('opacity', '1');
+                    }
+                });
+            }
+
+            // Manual refresh button
+            $('#refreshBtn').on('click', function() {
+                refreshData();
+            });
 
             // Print Functionality - VERSI DIPERBAIKI
             $('#printBtn').on('click', function() {
@@ -584,6 +666,11 @@
 
             // Generate QR codes saat halaman pertama kali load
             generateQRCodes();
+
+            // Auto-hide success alert setelah 5 detik
+            setTimeout(function() {
+                $('#successAlert').fadeOut();
+            }, 5000);
         });
     </script>
 </body>

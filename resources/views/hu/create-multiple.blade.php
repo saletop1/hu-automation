@@ -2,7 +2,7 @@
 
 @section('content')
 <div class="container-fluid py-4">
-    <!-- Alert Messages dari Laravel Session -->
+    <!-- Alert Messages -->
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
             <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
@@ -17,7 +17,7 @@
         </div>
     @endif
 
-    <!-- Action Buttons di ATAS Container -->
+    <!-- Action Buttons -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
@@ -45,7 +45,7 @@
                 </div>
                 <div>
                     <h1 class="h3 fw-bold text-gray-800 mb-1">Skenario 3</h1>
-                    <p class="text-muted mb-0">Buat Multiple HU (1 HU = 1 Material)</p>
+                    <p class="text-muted mb-0">Buat Multiple HU (Flexible Quantity)</p>
                 </div>
             </div>
         </div>
@@ -62,34 +62,134 @@
                 </div>
 
                 <div class="card-body p-4">
-                    <!-- Toggle Section -->
+                    <!-- Mode Selection -->
                     <div class="row mb-4">
                         <div class="col-12">
                             <div class="card bg-light border-0">
                                 <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <h6 class="fw-semibold text-gray-700 mb-1">
-                                                <i class="fas fa-cogs me-2 text-purple-500"></i>
-                                                Opsi Pembuatan HU
-                                            </h6>
-                                            <p class="text-muted small mb-0">
-                                                Untuk material dengan quantity lebih dari 1, pilih mode pembuatan HU
-                                            </p>
+                                    <h6 class="fw-semibold text-gray-700 mb-3">
+                                        <i class="fas fa-cogs me-2 text-purple-500"></i>
+                                        Pilih Mode Pembuatan HU
+                                    </h6>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-check card-mode-selector">
+                                                <input class="form-check-input" type="radio" name="creationMode" id="modeSplit" value="split" checked>
+                                                <label class="form-check-label w-100" for="modeSplit">
+                                                    <div class="card border-2">
+                                                        <div class="card-body text-center">
+                                                            <i class="fas fa-cubes fa-2x text-primary mb-2"></i>
+                                                            <h6 class="fw-bold">Split Quantity</h6>
+                                                            <small class="text-muted">1 HU = 1 PC</small>
+                                                            <div class="mt-2">
+                                                                <span class="badge bg-primary">Auto</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
                                         </div>
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="splitQuantityToggle" checked>
-                                            <label class="form-check-label fw-semibold" for="splitQuantityToggle">
-                                                <span id="toggleLabel">Split Quantity (1 HU = 1 PC)</span>
-                                            </label>
+                                        <div class="col-md-4">
+                                            <div class="form-check card-mode-selector">
+                                                <input class="form-check-input" type="radio" name="creationMode" id="modeSingle" value="single">
+                                                <label class="form-check-label w-100" for="modeSingle">
+                                                    <div class="card border-2">
+                                                        <div class="card-body text-center">
+                                                            <i class="fas fa-cube fa-2x text-success mb-2"></i>
+                                                            <h6 class="fw-bold">Single HU</h6>
+                                                            <small class="text-muted">1 HU = Total Qty</small>
+                                                            <div class="mt-2">
+                                                                <span class="badge bg-success">Auto</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check card-mode-selector">
+                                                <input class="form-check-input" type="radio" name="creationMode" id="modePartial" value="partial">
+                                                <label class="form-check-label w-100" for="modePartial">
+                                                    <div class="card border-2">
+                                                        <div class="card-body text-center">
+                                                            <i class="fas fa-sliders fa-2x text-warning mb-2"></i>
+                                                            <h6 class="fw-bold">Partial Quantity</h6>
+                                                            <small class="text-muted">Custom Qty per HU</small>
+                                                            <div class="mt-2">
+                                                                <span class="badge bg-warning">Manual</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="mt-2">
-                                        <small class="text-muted">
-                                            <i class="fas fa-info-circle me-1"></i>
-                                            <span id="toggleDescription">
-                                                <strong>Split Quantity:</strong> Setiap 1 PC akan dibuat sebagai HU terpisah
-                                            </span>
+
+                                    <div class="mt-3">
+                                        <div id="modeSplitDesc" class="mode-description">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                <strong>Split Quantity:</strong> Setiap 1 PC akan dibuat sebagai HU terpisah (maksimal sesuai stock tersedia)
+                                            </small>
+                                        </div>
+                                        <div id="modeSingleDesc" class="mode-description d-none">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                <strong>Single HU:</strong> Semua quantity untuk material yang sama akan digabung dalam 1 HU
+                                            </small>
+                                        </div>
+                                        <div id="modePartialDesc" class="mode-description d-none">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                <strong>Partial Quantity:</strong> Buat HU dengan quantity custom (bisa kurang dari stock tersedia)
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Partial Quantity Settings -->
+                    <div id="partialSettings" class="row mb-4 d-none">
+                        <div class="col-12">
+                            <div class="card bg-warning bg-opacity-10 border-warning">
+                                <div class="card-body">
+                                    <h6 class="fw-semibold text-gray-700 mb-3">
+                                        <i class="fas fa-edit me-2 text-warning"></i>
+                                        Pengaturan Quantity Parsial
+                                    </h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Total Quantity yang Akan Dibuat</label>
+                                                <input type="number" class="form-control" id="partialTotalQty"
+                                                       placeholder="Masukkan jumlah PC yang ingin dibuat" min="1" step="1">
+                                                <small class="text-muted">Jumlah total PC yang akan dibuat sebagai HU (bisa kurang dari stock tersedia)</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Quantity per HU</label>
+                                                <select class="form-select" id="partialQtyPerHU">
+                                                    <option value="1">1 PC per HU</option>
+                                                    <option value="2">2 PC per HU</option>
+                                                    <option value="5">5 PC per HU</option>
+                                                    <option value="10">10 PC per HU</option>
+                                                    <option value="custom">Custom...</option>
+                                                </select>
+                                                <div id="customQtyContainer" class="mt-2 d-none">
+                                                    <input type="number" class="form-control" id="customQtyPerHU"
+                                                           placeholder="Masukkan quantity per HU" min="1" step="1">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-info mt-2">
+                                        <small>
+                                            <i class="fas fa-lightbulb me-1"></i>
+                                            <strong>Tips:</strong> Mode ini memungkinkan Anda membuat HU dengan quantity tertentu meskipun stock tersedia lebih banyak.
+                                            Contoh: Stock 80 PC, bisa buat 40 PC dulu.
                                         </small>
                                     </div>
                                 </div>
@@ -98,59 +198,60 @@
                     </div>
 
                     <!-- Auto Sequence Settings -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card bg-light border-0">
-            <div class="card-body">
-                <h6 class="fw-semibold text-gray-700 mb-3">
-                    <i class="fas fa-magic me-2 text-purple-500"></i>
-                    Auto Sequence Settings
-                </h6>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold text-gray-700">
-                                <i class="fas fa-barcode me-1 text-purple-500"></i>
-                                HU External ID
-                            </label>
-                            <div class="alert alert-info p-2">
-                                <small>
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    HU External ID harus 10 digit angka (contoh: 9900000014).
-                                    Isi manual pada HU pertama, maka HU berikutnya akan otomatis terisi secara sequence.
-                                </small>
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <h6 class="fw-semibold text-gray-700 mb-3">
+                                        <i class="fas fa-magic me-2 text-purple-500"></i>
+                                        Auto Sequence Settings
+                                    </h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold text-gray-700">
+                                                    <i class="fas fa-barcode me-1 text-purple-500"></i>
+                                                    HU External ID
+                                                </label>
+                                                <div class="alert alert-info p-2">
+                                                    <small>
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        HU External ID harus 10 digit angka (contoh: 9900000014).
+                                                        Isi manual pada HU pertama, maka HU berikutnya akan otomatis terisi secara sequence.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold text-gray-700">
+                                                    <i class="fas fa-box me-1 text-purple-500"></i>
+                                                    Packaging Material
+                                                </label>
+                                                <select class="form-select" id="globalPackMat">
+                                                    <option value="">Pilih Packaging Material (Apply ke Semua)</option>
+                                                    <option value="VSTDPLTBW01">VSTDPLTBW01</option>
+                                                    <option value="VSTDPLBW002">VSTDPLBW002</option>
+                                                    <option value="50016873">50016873</option>
+                                                </select>
+                                                <small class="text-muted">
+                                                    Pilih sekali, semua HU akan menggunakan packaging material yang sama
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold text-gray-700">
-                                <i class="fas fa-box me-1 text-purple-500"></i>
-                                Packaging Material
-                            </label>
-                            <select class="form-select" id="globalPackMat">
-                                <option value="">Pilih Packaging Material (Apply ke Semua)</option>
-                                <option value="VSTDPLTBW01">VSTDPLTBW01</option>
-                                <option value="VSTDPLBW002">VSTDPLBW002</option>
-                                <option value="50016873">50016873</option>
-                            </select>
-                            <small class="text-muted">
-                                Pilih sekali, semua HU akan menggunakan packaging material yang sama
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
                     <form action="{{ route('hu.store-multiple') }}" method="POST" id="huForm">
                         @csrf
                         <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
-                        <!-- Hidden inputs for SAP Credentials -->
                         <input type="hidden" id="sap_user" name="sap_user" value="">
                         <input type="hidden" id="sap_password" name="sap_password" value="">
+                        <input type="hidden" id="creation_mode" name="creation_mode" value="split">
+                        <input type="hidden" id="total_hus" name="total_hus" value="0">
 
                         <!-- HU List Section -->
                         <div class="row">
@@ -159,11 +260,12 @@
                                     <i class="fas fa-list-ol me-2 text-purple-500"></i>
                                     Daftar Handling Units
                                     <span id="huCount" class="badge bg-purple ms-2">0 HUs</span>
+                                    <span id="totalQty" class="badge bg-success ms-2">0 PC</span>
                                 </h6>
                                 <div class="alert alert-info bg-light border-0 py-2">
                                     <small class="text-muted">
                                         <i class="fas fa-info-circle me-1"></i>
-                                        <span id="modeDescription">Setiap material akan dibuat sebagai HU terpisah</span>
+                                        <span id="modeDescription">Setiap 1 PC akan dibuat sebagai HU terpisah untuk material dengan quantity > 1</span>
                                         <br>
                                         <i class="fas fa-lightbulb me-1 text-warning"></i>
                                         <strong>Tip:</strong> Isi HU External ID dan Packaging Material pada HU pertama, yang lain akan mengikuti secara otomatis
@@ -172,16 +274,20 @@
                             </div>
 
                             <div class="col-12">
-                                <!-- Compact List Container -->
                                 <div id="hus-container" class="compact-list-container mb-3">
                                     <!-- HUs will be dynamically added here -->
                                 </div>
 
-                                <!-- Placeholder when no HUs -->
                                 <div id="husPreview" class="text-center py-5 border-2 border-dashed rounded bg-light">
                                     <i class="fas fa-pallet fa-3x text-gray-400 mb-3"></i>
                                     <h6 class="text-muted mb-2">Belum Ada Handling Unit</h6>
                                     <p class="text-muted small mb-0">Data HU akan ditampilkan di sini setelah material dipilih dari halaman utama</p>
+                                </div>
+
+                                <!-- Stock Validation Info -->
+                                <div id="stockValidation" class="alert alert-warning mt-3 d-none">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <span id="stockValidationMessage"></span>
                                 </div>
                             </div>
                         </div>
@@ -227,199 +333,134 @@
 
 @push('styles')
 <style>
-.border-dashed {
-    border-style: dashed !important;
-}
-.compact-list-container {
-    display: none; /* Sembunyikan saat kosong */
-}
+.border-dashed { border-style: dashed !important; }
+.compact-list-container { display: none; }
 .compact-hu-item {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 12px;
-    transition: all 0.2s ease;
-    border-left: 4px solid #8b5cf6;
+    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; margin-bottom: 12px;
+    border-left: 4px solid #8b5cf6; position: relative;
 }
-.compact-hu-item:hover {
-    background: #e9ecef;
-    border-color: #dee2e6;
+.compact-hu-item:hover { background: #e9ecef; border-color: #dee2e6; }
+.compact-hu-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.compact-hu-title { font-weight: 600; color: #333; font-size: 0.9rem; }
+.compact-hu-badge { background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 500; }
+.compact-hu-content { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.8rem; }
+.compact-hu-field { display: flex; flex-direction: column; }
+.compact-hu-label { font-weight: 500; color: #6c757d; font-size: 0.75rem; margin-bottom: 4px; }
+.compact-hu-value { color: #333; font-weight: 400; }
+.compact-hu-input { width: 100%; padding: 6px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.8rem; }
+.compact-hu-input:focus { border-color: #8b5cf6; outline: none; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25); }
+.compact-hu-select { width: 100%; padding: 6px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.8rem; background: white; }
+.compact-hu-select:focus { border-color: #8b5cf6; outline: none; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25); }
+.quantity-badge { background: #10b981; color: white; padding: 2px 6px; border-radius: 8px; font-size: 0.7rem; font-weight: 500; margin-left: 4px; }
+.split-indicator { background: #f59e0b; color: white; padding: 2px 6px; border-radius: 8px; font-size: 0.7rem; font-weight: 500; margin-left: 4px; }
+.auto-sequence-hint { background: #e9d5ff; border: 1px solid #c4b5fd; border-radius: 4px; padding: 4px 8px; font-size: 0.7rem; color: #6d28d9; margin-top: 2px; }
+
+/* Mode Selector Styles */
+.card-mode-selector .form-check-input {
+    position: absolute;
+    opacity: 0;
 }
-.compact-hu-header {
-    display: flex;
-    justify-content: between;
-    align-items: center;
-    margin-bottom: 12px;
+.card-mode-selector .card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-color: #dee2e6 !important;
+    border-width: 2px !important;
 }
-.compact-hu-title {
-    font-weight: 600;
-    color: #333;
-    font-size: 0.9rem;
-}
-.compact-hu-badge {
-    background: #8b5cf6;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-.compact-hu-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    font-size: 0.8rem;
-}
-.compact-hu-field {
-    display: flex;
-    flex-direction: column;
-}
-.compact-hu-label {
-    font-weight: 500;
-    color: #6c757d;
-    font-size: 0.75rem;
-    margin-bottom: 4px;
-}
-.compact-hu-value {
-    color: #333;
-    font-weight: 400;
-}
-.compact-hu-input {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 0.8rem;
-}
-.compact-hu-input:focus {
-    border-color: #8b5cf6;
-    outline: none;
+.card-mode-selector .form-check-input:checked + .card {
+    border-color: #8b5cf6 !important;
     box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
 }
-.compact-hu-select {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    background: white;
-}
-.compact-hu-select:focus {
-    border-color: #8b5cf6;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
-}
-.quantity-badge {
-    background: #10b981;
-    color: white;
-    padding: 2px 6px;
-    border-radius: 8px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    margin-left: 4px;
-}
-.split-indicator {
-    background: #f59e0b;
-    color: white;
-    padding: 2px 6px;
-    border-radius: 8px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    margin-left: 4px;
-}
-.btn-outline-purple {
-    border-color: #8b5cf6;
-    color: #8b5cf6;
-}
-.btn-outline-purple:hover {
-    background-color: #8b5cf6;
-    color: white;
-}
-.auto-sequence-hint {
-    background: #e9d5ff;
-    border: 1px solid #c4b5fd;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 0.7rem;
-    color: #6d28d9;
-    margin-top: 2px;
-}
+.card-mode-selector #modeSplit:checked + .card { border-color: #3b82f6 !important; }
+.card-mode-selector #modeSingle:checked + .card { border-color: #10b981 !important; }
+.card-mode-selector #modePartial:checked + .card { border-color: #f59e0b !important; }
+
+.mode-description { display: block; }
 </style>
 @endpush
 
 @push('scripts')
 <script>
-// Global variable untuk menghitung HUs
-let huCount = 0;
-let splitQuantityMode = true; // Default mode: split quantity
+// ===== GLOBAL VARIABLES =====
+var huCount = 0;
+var totalQuantity = 0;
+let creationMode = 'split'; // split, single, partial
 let lastPackMat = '';
-let lastHuExidBase = '';
-let lastHuExidNumber = 0;
+let availableStocks = {}; // Menyimpan informasi stock tersedia
+let currentMaterials = []; // Menyimpan data material saat ini
 
+// ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== SKENARIO 3 LOADED ===');
+    initializeApp();
+});
 
-    // Setup toggle event listener
-    document.getElementById('splitQuantityToggle').addEventListener('change', function() {
-        splitQuantityMode = this.checked;
-        updateToggleDisplay();
-        processMaterialsFromSessionStorage();
+function initializeApp() {
+    setupEventListeners();
+    loadInitialData();
+    updateModeDisplay();
+}
+
+function setupEventListeners() {
+    // Mode selection - FIXED EVENT LISTENER
+    document.querySelectorAll('input[name="creationMode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            creationMode = this.value;
+            updateModeDisplay();
+            // Process materials immediately when mode changes
+            if (currentMaterials.length > 0) {
+                processMaterials(currentMaterials);
+            } else {
+                processMaterialsFromSessionStorage();
+            }
+        });
     });
 
-    // Setup global packaging material change listener
+    // Partial quantity settings
+    document.getElementById('partialQtyPerHU').addEventListener('change', function() {
+        const customContainer = document.getElementById('customQtyContainer');
+        if (this.value === 'custom') {
+            customContainer.classList.remove('d-none');
+        } else {
+            customContainer.classList.add('d-none');
+        }
+        if (creationMode === 'partial' && currentMaterials.length > 0) {
+            processMaterials(currentMaterials);
+        }
+    });
+
+    document.getElementById('partialTotalQty').addEventListener('input', function() {
+        if (creationMode === 'partial' && currentMaterials.length > 0) {
+            processMaterials(currentMaterials);
+        }
+    });
+
+    document.getElementById('customQtyPerHU').addEventListener('input', function() {
+        if (creationMode === 'partial' && document.getElementById('partialQtyPerHU').value === 'custom' && currentMaterials.length > 0) {
+            processMaterials(currentMaterials);
+        }
+    });
+
+    // Global packaging material
     document.getElementById('globalPackMat').addEventListener('change', function() {
         lastPackMat = this.value;
         applyPackMatToAll();
     });
 
-    // Cek jika ada pesan sukses dari server dan clear sessionStorage
-    const serverSuccessAlert = document.querySelector('.alert-success');
-    const serverErrorAlert = document.querySelector('.alert-danger');
-
-    if (serverSuccessAlert) {
-        console.log('✅ HUs created successfully, clearing sessionStorage');
-        sessionStorage.removeItem('scenario3_data');
-
-        // Auto-hide success alert setelah 5 detik
-        setTimeout(() => {
-            serverSuccessAlert.remove();
-        }, 5000);
-    }
-
-    if (serverErrorAlert) {
-        console.log('❌ HUs creation failed');
-        // Auto-hide error alert setelah 8 detik
-        setTimeout(() => {
-            serverErrorAlert.remove();
-        }, 8000);
-    }
-
-    // Ambil data dari sessionStorage hanya jika tidak ada pesan sukses/error dari server
-    const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
-    console.log('Raw data from sessionStorage:', scenarioDataRaw);
-
-    if (scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
-        processMaterialsFromSessionStorage();
-    } else {
-        if (!scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
-            console.warn('❌ No data found in sessionStorage for scenario3_data');
-            showMessage('Silakan pilih material dari halaman utama dengan drag & drop terlebih dahulu.', 'info');
-        }
-    }
-
-    // Handle Create HU Button Click
+    // Create HU Button
     document.getElementById('createHuButton').addEventListener('click', function() {
-        if (!validateForm()) {
-            return;
+        if (!validateForm()) return;
+
+        // Validasi stock untuk partial mode
+        if (creationMode === 'partial') {
+            if (!validatePartialStock()) return;
         }
 
-        // Tampilkan modal SAP credentials
+        showMessage('Melanjutkan pembuatan HU...', 'info');
         const sapModal = new bootstrap.Modal(document.getElementById('sapCredentialsModal'));
         sapModal.show();
     });
 
-    // Handle Confirm SAP Credentials
+    // Confirm SAP Credentials
     document.getElementById('confirmSapCredentials').addEventListener('click', function() {
         const modalSapUser = document.querySelector('#sapCredentialsModal input[name="sap_user_modal"]').value;
         const modalSapPassword = document.querySelector('#sapCredentialsModal input[name="sap_password_modal"]').value;
@@ -429,133 +470,211 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Set nilai ke hidden input
         document.getElementById('sap_user').value = modalSapUser;
         document.getElementById('sap_password').value = modalSapPassword;
+        document.getElementById('creation_mode').value = creationMode;
+        document.getElementById('total_hus').value = huCount;
 
-        // Tampilkan loading state
         const confirmBtn = document.getElementById('confirmSapCredentials');
-        const originalText = confirmBtn.innerHTML;
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating All HUs...';
         confirmBtn.disabled = true;
 
-        // Tutup modal
         const sapModal = bootstrap.Modal.getInstance(document.getElementById('sapCredentialsModal'));
         sapModal.hide();
 
-        // Submit form
         setTimeout(() => {
             document.getElementById('huForm').submit();
         }, 500);
     });
 
-    // Reset modal ketika ditutup
-    document.getElementById('sapCredentialsModal').addEventListener('hidden.bs.modal', function () {
+    // Reset modal
+    document.getElementById('sapCredentialsModal').addEventListener('hidden.bs.modal', function() {
         document.querySelector('#sapCredentialsModal form').reset();
         const confirmBtn = document.getElementById('confirmSapCredentials');
         confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirm & Create All HUs';
         confirmBtn.disabled = false;
     });
-});
+}
 
-function processMaterialsFromSessionStorage() {
-    const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
+function updateModeDisplay() {
+    // Update descriptions
+    document.querySelectorAll('.mode-description').forEach(desc => {
+        desc.classList.add('d-none');
+    });
+    document.getElementById(`mode${capitalizeFirst(creationMode)}Desc`).classList.remove('d-none');
 
-    if (scenarioDataRaw) {
-        try {
-            const materials = JSON.parse(scenarioDataRaw);
-            console.log('Parsed materials:', materials);
+    // Update mode description
+    const modeDescription = document.getElementById('modeDescription');
+    switch(creationMode) {
+        case 'split':
+            modeDescription.textContent = 'Setiap 1 PC akan dibuat sebagai HU terpisah untuk material dengan quantity > 1';
+            break;
+        case 'single':
+            modeDescription.textContent = 'Setiap material akan dibuat sebagai HU terpisah (quantity digabung per material)';
+            break;
+        case 'partial':
+            modeDescription.textContent = 'Buat HU dengan quantity custom sesuai pengaturan di atas';
+            break;
+    }
 
-            if (materials && Array.isArray(materials) && materials.length > 0) {
-                console.log('✅ Data valid, processing materials...');
+    // Show/hide partial settings
+    const partialSettings = document.getElementById('partialSettings');
+    if (creationMode === 'partial') {
+        partialSettings.classList.remove('d-none');
+    } else {
+        partialSettings.classList.add('d-none');
+    }
 
-                // Reset counter
-                huCount = 0;
+    // Update form action based on mode
+    document.getElementById('creation_mode').value = creationMode;
+}
 
-                // Clear container
-                document.getElementById('hus-container').innerHTML = '';
-
-                // Group materials by material+batch+salesOrder
-                const groupedMaterials = groupMaterials(materials);
-
-                // Tambahkan setiap material/group sebagai HU
-                Object.values(groupedMaterials).forEach((group, index) => {
-                    console.log(`Processing group ${index}:`, group);
-                    addHUGroupToForm(group);
-                });
-
-                // Setup event listeners untuk auto sequence
-                setupAutoSequenceListeners();
-
-                // Tampilkan container dan sembunyikan placeholder
-                document.getElementById('husPreview').style.display = 'none';
-                document.getElementById('hus-container').style.display = 'block';
-                document.getElementById('huCount').textContent = `${huCount} HUs`;
-
-                console.log(`✅ Successfully loaded ${huCount} HUs`);
-
-            } else {
-                console.warn('❌ Data invalid - empty or not array');
-                showMessage('Data material tidak valid. Silakan pilih ulang dari halaman utama.', 'warning');
-            }
-        } catch (error) {
-            console.error('❌ Error parsing scenario data:', error);
-            showMessage('Error memuat data material. Data mungkin korup. Silakan pilih ulang.', 'error');
-            sessionStorage.removeItem('scenario3_data');
-        }
+function getModeColor(mode) {
+    switch(mode) {
+        case 'split': return '#3b82f6';
+        case 'single': return '#10b981';
+        case 'partial': return '#f59e0b';
+        default: return '#8b5cf6';
     }
 }
 
-function setupAutoSequenceListeners() {
-    // HU External ID auto sequence - FIXED: menggunakan event delegation yang benar
-    document.getElementById('hus-container').addEventListener('blur', function(e) {
-        if (e.target.classList.contains('hu-exid-input')) {
-            const input = e.target;
-            const currentValue = input.value.trim();
+function capitalizeFirst(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
 
-            if (currentValue) {
-                // Validasi format 10 digit angka
-                if (!/^\d{10}$/.test(currentValue)) {
-                    showMessage('HU External ID harus 10 digit angka (contoh: 9900000014)', 'error');
-                    input.focus();
-                    return;
-                }
+function loadInitialData() {
+    const serverSuccessAlert = document.querySelector('.alert-success');
+    const serverErrorAlert = document.querySelector('.alert-danger');
 
-                // Ekstrak base dan number dari input
-                const baseNumber = parseInt(currentValue);
+    if (serverSuccessAlert) {
+        sessionStorage.removeItem('scenario3_data');
+        setTimeout(() => serverSuccessAlert.remove(), 5000);
+    }
 
-                console.log('HU External ID manual input detected:', {
-                    input: currentValue,
-                    baseNumber: baseNumber
-                });
+    if (serverErrorAlert) {
+        setTimeout(() => serverErrorAlert.remove(), 8000);
+    }
 
-                // Update semua HU External ID berdasarkan sequence
-                updateAllHuExidSequence(baseNumber);
-            }
+    const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
+    if (scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
+        processMaterialsFromSessionStorage();
+    } else if (!scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
+        showMessage('Silakan pilih material dari halaman utama dengan drag & drop terlebih dahulu.', 'info');
+    }
+
+    setTimeout(autoSetPackagingMaterialForAllHUs, 500);
+}
+
+// ===== CORE FUNCTIONS =====
+function processMaterialsFromSessionStorage() {
+    const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
+    if (!scenarioDataRaw) {
+        showMessage('Tidak ada data material. Silakan pilih material dari halaman utama.', 'warning');
+        return;
+    }
+
+    try {
+        const materials = JSON.parse(scenarioDataRaw);
+        if (!materials || !Array.isArray(materials) || materials.length === 0) {
+            showMessage('Data material tidak valid.', 'warning');
+            return;
         }
-    }, true);
 
-    // Packaging Material auto apply - FIXED: gunakan event delegation
-    document.getElementById('hus-container').addEventListener('change', function(e) {
-        if (e.target.classList.contains('pack-mat-select')) {
-            const select = e.target;
-            const index = Array.from(document.querySelectorAll('.pack-mat-select')).indexOf(select);
+        currentMaterials = materials; // Store current materials
 
-            if (index === 0 && select.value) {
-                lastPackMat = select.value;
-                document.getElementById('globalPackMat').value = lastPackMat;
-                applyPackMatToAll();
-            }
+        // Filter out materials with zero stock
+        const materialsWithStock = materials.filter(item => {
+            const stockQty = parseFloat(item.stock_quantity || '0');
+            return stockQty > 0;
+        });
+
+        if (materialsWithStock.length === 0) {
+            showMessage('Tidak ada material dengan stock tersedia. Silakan pilih material lain.', 'error');
+            // Clear invalid data from session storage
+            sessionStorage.removeItem('scenario3_data');
+            return;
         }
-    }, true);
+
+        // If some materials were filtered out, show warning
+        if (materialsWithStock.length < materials.length) {
+            const filteredCount = materials.length - materialsWithStock.length;
+            showMessage(`${filteredCount} material dengan stock 0 telah di-filter. Hanya material dengan stock tersedia yang akan diproses.`, 'warning');
+
+            // Update session storage with filtered data
+            sessionStorage.setItem('scenario3_data', JSON.stringify(materialsWithStock));
+        }
+
+        processMaterials(materialsWithStock);
+
+    } catch (error) {
+        console.error('Error parsing materials:', error);
+        showMessage('Error memuat data material. Silakan pilih ulang.', 'error');
+        sessionStorage.removeItem('scenario3_data');
+    }
+}
+
+function loadAvailableStocks(materials, callback) {
+    availableStocks = {};
+
+    if (materials.length === 0) {
+        callback();
+        return;
+    }
+
+    let materialsProcessed = 0;
+
+    materials.forEach(item => {
+        const materialKey = `${item.material}_${item.batch || ''}`;
+        const stockQty = parseFloat(item.stock_quantity || '0');
+
+        // Use the stock quantity from the dragged item directly
+        // This is more reliable than fetching from server
+        availableStocks[materialKey] = {
+            available: stockQty,
+            message: `Stock tersedia: ${stockQty} PC`
+        };
+
+        materialsProcessed++;
+        if (materialsProcessed === materials.length) callback();
+    });
+}
+
+function processMaterials(materials) {
+    // Clear existing HUs
+    huCount = 0;
+    totalQuantity = 0;
+    document.getElementById('hus-container').innerHTML = '';
+
+    // Load available stocks first
+    loadAvailableStocks(materials, () => {
+        const groupedMaterials = groupMaterials(materials);
+
+        Object.values(groupedMaterials).forEach(group => {
+            addHUGroupToForm(group);
+        });
+
+        setupAutoSequenceListeners();
+
+        // Show/Hide containers based on HU count
+        if (huCount > 0) {
+            document.getElementById('husPreview').style.display = 'none';
+            document.getElementById('hus-container').style.display = 'block';
+        } else {
+            document.getElementById('husPreview').style.display = 'block';
+            document.getElementById('hus-container').style.display = 'none';
+        }
+
+        updateHUSummary();
+
+        // Show stock validation if needed
+        showStockValidation();
+    });
 }
 
 function groupMaterials(materials) {
     const groups = {};
-
     materials.forEach(item => {
         const key = `${item.material}_${item.batch || ''}_${getSalesOrderNo(item)}`;
-
         if (!groups[key]) {
             groups[key] = {
                 material: item.material,
@@ -568,109 +687,112 @@ function groupMaterials(materials) {
                 items: []
             };
         }
-
         const quantity = parseFloat(item.stock_quantity || '0');
         groups[key].totalQuantity += quantity;
-        groups[key].items.push({
-            ...item,
-            quantity: quantity
-        });
+        groups[key].items.push({ ...item, quantity: quantity });
     });
-
     return groups;
 }
 
-function updateToggleDisplay() {
-    const toggleLabel = document.getElementById('toggleLabel');
-    const toggleDescription = document.getElementById('toggleDescription');
-    const modeDescription = document.getElementById('modeDescription');
-
-    if (splitQuantityMode) {
-        toggleLabel.textContent = 'Split Quantity (1 HU = 1 PC)';
-        toggleDescription.innerHTML = '<strong>Split Quantity:</strong> Setiap 1 PC akan dibuat sebagai HU terpisah';
-        modeDescription.textContent = 'Setiap 1 PC akan dibuat sebagai HU terpisah untuk material dengan quantity > 1';
-    } else {
-        toggleLabel.textContent = 'Single HU (1 HU = Total Qty)';
-        toggleDescription.innerHTML = '<strong>Single HU:</strong> Semua quantity untuk material yang sama akan digabung dalam 1 HU';
-        modeDescription.textContent = 'Setiap material akan dibuat sebagai HU terpisah (quantity digabung per material)';
-    }
-}
-
-// Fungsi format material number
-function formatMaterialNumber(material) {
-    if (!material) return '';
-    if (/^\d+$/.test(material)) {
-        return material.replace(/^0+/, '') || '0';
-    }
-    return material;
-}
-
-// Fungsi get sales order number
-function getSalesOrderNo(item) {
-    if (item.combined_sales_doc && item.combined_sales_doc !== '-') {
-        return item.combined_sales_doc;
-    }
-    if (item.sales_document && item.item_number) {
-        return item.sales_document + item.item_number;
-    }
-    if (item.sales_document) {
-        return item.sales_document;
-    }
-    return '';
-}
-
-// Fungsi add HU group to form
 function addHUGroupToForm(group) {
-    const container = document.getElementById('hus-container');
     const formattedMaterial = formatMaterialNumber(group.material);
+    const materialKey = `${group.material}_${group.batch || ''}`;
+    const availableStock = availableStocks[materialKey] ? availableStocks[materialKey].available : group.totalQuantity;
 
-    if (splitQuantityMode && group.totalQuantity > 1) {
-        // Split mode: buat HU terpisah untuk setiap PC
-        console.log(`Splitting ${group.totalQuantity} PCs into separate HUs for ${formattedMaterial}`);
+    console.log(`Processing group: ${formattedMaterial}, Available: ${availableStock}, Mode: ${creationMode}`);
 
-        for (let i = 0; i < group.totalQuantity; i++) {
-            addSingleHUToForm(group, i + 1, group.totalQuantity, true);
-        }
-    } else {
-        // Single HU mode: buat 1 HU dengan total quantity
-        addSingleHUToForm(group, 1, group.totalQuantity, false);
+    switch(creationMode) {
+        case 'split':
+            // 1 HU = 1 PC
+            const splitCount = Math.min(availableStock, group.totalQuantity);
+            console.log(`Split mode: creating ${splitCount} HUs`);
+            for (let i = 0; i < splitCount; i++) {
+                addSingleHUToForm(group, i + 1, splitCount, true, 1);
+            }
+            break;
+
+        case 'single':
+            // 1 HU = Total Qty
+            console.log(`Single mode: creating 1 HU with ${availableStock} PC`);
+            addSingleHUToForm(group, 1, 1, false, availableStock);
+            break;
+
+        case 'partial':
+            // Custom quantity
+            const partialSettings = getPartialSettings();
+            if (partialSettings) {
+                const { totalQty, qtyPerHU } = partialSettings;
+                const actualTotalQty = Math.min(totalQty, availableStock);
+                const numberOfHUs = Math.ceil(actualTotalQty / qtyPerHU);
+
+                console.log(`Partial mode: creating ${numberOfHUs} HUs, total ${actualTotalQty} PC, ${qtyPerHU} PC per HU`);
+
+                for (let i = 0; i < numberOfHUs; i++) {
+                    const isLastHU = i === numberOfHUs - 1;
+                    const huQty = isLastHU ? actualTotalQty - (i * qtyPerHU) : qtyPerHU;
+                    addSingleHUToForm(group, i + 1, numberOfHUs, numberOfHUs > 1, huQty);
+                }
+            } else {
+                console.log('Partial settings not valid');
+            }
+            break;
     }
 }
 
-// Fungsi add single HU to form
-function addSingleHUToForm(group, sequence, totalQuantity, isSplit) {
+function getPartialSettings() {
+    const totalQtyInput = document.getElementById('partialTotalQty');
+    const qtyPerHUSelect = document.getElementById('partialQtyPerHU');
+
+    if (!totalQtyInput.value) {
+        // Don't show error message here, just return null
+        return null;
+    }
+
+    const totalQty = parseInt(totalQtyInput.value);
+    if (totalQty <= 0) {
+        showMessage('Total quantity harus lebih dari 0', 'warning');
+        return null;
+    }
+
+    let qtyPerHU;
+    if (qtyPerHUSelect.value === 'custom') {
+        const customQty = document.getElementById('customQtyPerHU').value;
+        if (!customQty || customQty <= 0) {
+            showMessage('Quantity per HU harus lebih dari 0', 'warning');
+            return null;
+        }
+        qtyPerHU = parseInt(customQty);
+    } else {
+        qtyPerHU = parseInt(qtyPerHUSelect.value);
+    }
+
+    if (qtyPerHU <= 0) {
+        showMessage('Quantity per HU harus lebih dari 0', 'warning');
+        return null;
+    }
+
+    return { totalQty, qtyPerHU };
+}
+
+function addSingleHUToForm(group, sequence, totalHUs, isSplit, quantity) {
     const container = document.getElementById('hus-container');
-
     const formattedMaterial = formatMaterialNumber(group.material);
-    const displayQuantity = isSplit ? 1 : totalQuantity;
-    const maxQuantity = isSplit ? 1 : totalQuantity;
 
-    // Generate HU External ID otomatis - FIXED: format 10 digit angka
-    // Default sequence: 9900000001, 9900000002, dst
     const defaultStartNumber = 9900000000;
     const sequenceNumber = huCount + 1;
     const autoHuExid = (defaultStartNumber + sequenceNumber).toString().padStart(10, '0');
-
-    console.log(`📝 Creating HU ${huCount}:`, {
-        material: formattedMaterial,
-        batch: group.batch,
-        quantity: displayQuantity,
-        totalQuantity: totalQuantity,
-        isSplit: isSplit,
-        huExid: autoHuExid
-    });
 
     const newHU = document.createElement('div');
     newHU.className = 'compact-hu-item';
 
     let splitIndicator = '';
-    if (isSplit && totalQuantity > 1) {
-        splitIndicator = `<span class="split-indicator">${sequence}/${totalQuantity}</span>`;
+    if (isSplit && totalHUs > 1) {
+        splitIndicator = `<span class="split-indicator">${sequence}/${totalHUs}</span>`;
     }
 
     let quantityBadge = '';
-    if (totalQuantity > 1 && !isSplit) {
-        quantityBadge = `<span class="quantity-badge">${totalQuantity} PCs</span>`;
+    if (quantity > 1 && !isSplit) {
+        quantityBadge = `<span class="quantity-badge">${quantity} PCs</span>`;
     }
 
     newHU.innerHTML = `
@@ -681,7 +803,7 @@ function addSingleHUToForm(group, sequence, totalQuantity, isSplit) {
                 ${splitIndicator}
                 ${quantityBadge}
             </div>
-            <div class="compact-hu-badge">${displayQuantity.toLocaleString('id-ID')} PC</div>
+            <div class="compact-hu-badge">${quantity.toLocaleString('id-ID')} PC</div>
         </div>
 
         ${group.materialDescription ? `
@@ -738,12 +860,12 @@ function addSingleHUToForm(group, sequence, totalQuantity, isSplit) {
             <div class="compact-hu-field">
                 <span class="compact-hu-label">Pack Quantity <span class="text-danger">*</span></span>
                 <input type="number" class="compact-hu-input" name="hus[${huCount}][pack_qty]"
-                       value="${displayQuantity}" step="0.001" min="0.001" max="${maxQuantity}"
-                       required data-max-qty="${maxQuantity}" ${isSplit ? 'readonly' : ''}>
+                       value="${quantity}" step="0.001" min="0.001"
+                       required data-max-qty="${quantity}" readonly>
                 <small class="text-muted mt-1">
-                    ${isSplit && totalQuantity > 1 ?
-                        `Part ${sequence} of ${totalQuantity} (Auto: 1 PC per HU)` :
-                        `Stock: ${totalQuantity.toLocaleString('id-ID')} PC`}
+                    ${isSplit && totalHUs > 1 ?
+                        `Part ${sequence} of ${totalHUs} (${quantity} PC per HU)` :
+                        `Quantity: ${quantity.toLocaleString('id-ID')} PC`}
                 </small>
             </div>
 
@@ -756,87 +878,145 @@ function addSingleHUToForm(group, sequence, totalQuantity, isSplit) {
     `;
     container.appendChild(newHU);
     huCount++;
+    totalQuantity += quantity;
 }
 
-// Fungsi untuk update semua HU External ID berdasarkan sequence
+function updateHUSummary() {
+    document.getElementById('huCount').textContent = `${huCount} HUs`;
+    document.getElementById('totalQty').textContent = `${totalQuantity.toLocaleString('id-ID')} PC`;
+}
+
+function showStockValidation() {
+    const validationDiv = document.getElementById('stockValidation');
+    const messageSpan = document.getElementById('stockValidationMessage');
+
+    let hasStockIssue = false;
+    let message = '';
+
+    // Check for stock issues
+    for (const [key, stock] of Object.entries(availableStocks)) {
+        const [material, batch] = key.split('_');
+        if (stock.available <= 0) {
+            hasStockIssue = true;
+            message += `Material ${material} (Batch: ${batch || '-'}): Stock tidak tersedia<br>`;
+        }
+    }
+
+    if (hasStockIssue) {
+        validationDiv.classList.remove('d-none');
+        messageSpan.innerHTML = message;
+    } else {
+        validationDiv.classList.add('d-none');
+    }
+}
+
+function validatePartialStock() {
+    const partialSettings = getPartialSettings();
+    if (!partialSettings) {
+        showMessage('Silakan isi pengaturan quantity untuk mode partial', 'warning');
+        return false;
+    }
+
+    const { totalQty } = partialSettings;
+
+    // Check if any material has insufficient stock
+    for (const [key, stock] of Object.entries(availableStocks)) {
+        if (stock.available < totalQty) {
+            showMessage(`Stock tidak mencukupi untuk membuat ${totalQty} PC. Stock tersedia: ${stock.available} PC`, 'warning');
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// ===== EXISTING FUNCTIONS =====
+function setupAutoSequenceListeners() {
+    document.getElementById('hus-container').addEventListener('blur', function(e) {
+        if (e.target.classList.contains('hu-exid-input')) {
+            const input = e.target;
+            const currentValue = input.value.trim();
+            if (currentValue && /^\d{10}$/.test(currentValue)) {
+                updateAllHuExidSequence(parseInt(currentValue));
+            }
+        }
+    }, true);
+
+    document.getElementById('hus-container').addEventListener('change', function(e) {
+        if (e.target.classList.contains('pack-mat-select')) {
+            const select = e.target;
+            const index = Array.from(document.querySelectorAll('.pack-mat-select')).indexOf(select);
+            if (index === 0 && select.value) {
+                lastPackMat = select.value;
+                document.getElementById('globalPackMat').value = lastPackMat;
+                applyPackMatToAll();
+            }
+        }
+    }, true);
+}
+
+function formatMaterialNumber(material) {
+    if (!material) return '';
+    if (/^\d+$/.test(material)) {
+        return material.replace(/^0+/, '') || '0';
+    }
+    return material;
+}
+
+function getSalesOrderNo(item) {
+    if (item.combined_sales_doc && item.combined_sales_doc !== '-') return item.combined_sales_doc;
+    if (item.sales_document && item.item_number) return item.sales_document + item.item_number;
+    if (item.sales_document) return item.sales_document;
+    return '';
+}
+
 function updateAllHuExidSequence(startNumber) {
     const huExidInputs = document.querySelectorAll('#hus-container .hu-exid-input');
-
     huExidInputs.forEach((input, index) => {
         const newNumber = startNumber + index;
-
-        // Validasi agar tidak melebihi 10 digit
         if (newNumber > 9999999999) {
             showMessage(`Sequence melebihi 9999999999. Tidak dapat generate HU External ID.`, 'error');
             return;
         }
-
-        const newHuExid = newNumber.toString().padStart(10, '0');
-        input.value = newHuExid;
+        input.value = newNumber.toString().padStart(10, '0');
     });
-
     showMessage(`Sequence HU External ID berhasil diupdate mulai dari ${startNumber}`, 'success');
 }
 
 function applyPackMatToAll() {
     const packMatSelects = document.querySelectorAll('#hus-container .pack-mat-select');
-
-    packMatSelects.forEach(select => {
-        select.value = lastPackMat;
-    });
-
+    packMatSelects.forEach(select => select.value = lastPackMat);
     if (lastPackMat) {
         showMessage(`Packaging Material "${lastPackMat}" berhasil diterapkan ke semua HU`, 'success');
     }
 }
 
 function validateForm() {
-    console.log('🚀 Form submission started');
-    console.log('Total HUs:', huCount);
-    console.log('Split Quantity Mode:', splitQuantityMode);
-
-    // Validasi: pastikan ada HU
     if (huCount === 0) {
         showMessage('Tidak ada HU yang ditambahkan. Silakan pilih dari halaman utama.', 'error');
         return false;
     }
 
-    // Validasi HU External ID dan Pack Quantity untuk setiap HU
     let validationError = false;
-    const huExidInputs = document.querySelectorAll('#hus-container input[name*="[hu_exid]"]');
-    const packQtyInputs = document.querySelectorAll('#hus-container input[name*="[pack_qty]"]');
-    const packMatSelects = document.querySelectorAll('#hus-container select[name*="[pack_mat]"]');
 
-    // Validasi HU External ID - FIXED: harus 10 digit angka
+    // Validasi HU External ID
+    const huExidInputs = document.querySelectorAll('#hus-container input[name*="[hu_exid]"]');
     huExidInputs.forEach((input, index) => {
         const huExid = input.value.trim();
-
-        // Validasi format 10 digit angka
         if (!/^\d{10}$/.test(huExid)) {
-            showMessage(`HU External ID untuk HU ${index + 1} harus 10 digit angka (contoh: 9900000014)`, 'error');
-            input.focus();
-            validationError = true;
-            return;
-        }
-
-        // Validasi range angka (1 - 9999999999)
-        const huExidNumber = parseInt(huExid);
-        if (huExidNumber < 1 || huExidNumber > 9999999999) {
-            showMessage(`HU External ID untuk HU ${index + 1} harus antara 0000000001 - 9999999999`, 'error');
+            showMessage(`HU External ID untuk HU ${index + 1} harus 10 digit angka`, 'error');
             input.focus();
             validationError = true;
             return;
         }
     });
 
-    if (validationError) {
-        return false;
-    }
+    if (validationError) return false;
 
     // Validasi Packaging Material
+    const packMatSelects = document.querySelectorAll('#hus-container select[name*="[pack_mat]"]');
     packMatSelects.forEach((select, index) => {
-        const packMat = select.value;
-        if (!packMat) {
+        if (!select.value) {
             showMessage(`Packaging Material untuk HU ${index + 1} harus dipilih`, 'error');
             select.focus();
             validationError = true;
@@ -844,50 +1024,15 @@ function validateForm() {
         }
     });
 
-    if (validationError) {
-        return false;
-    }
-
-    // Validasi Quantity
-    packQtyInputs.forEach((input, index) => {
-        const maxQty = parseFloat(input.dataset.maxQty);
-        let enteredQty = input.value.replace(/,/g, '.');
-        const qty = parseFloat(enteredQty);
-
-        console.log(`Validating HU ${index}:`, { enteredQty, qty, maxQty });
-
-        if (!enteredQty || isNaN(qty) || qty <= 0) {
-            showMessage(`Pack Quantity untuk HU ${index + 1} harus lebih dari 0`, 'error');
-            input.focus();
-            validationError = true;
-            return;
-        }
-
-        if (qty > maxQty) {
-            showMessage(`Pack Quantity (${qty.toLocaleString('id-ID')}) melebihi stok tersedia (${maxQty.toLocaleString('id-ID')}) untuk HU ${index + 1}`, 'error');
-            input.focus();
-            validationError = true;
-            return;
-        }
-
-        input.value = enteredQty;
-    });
-
-    if (validationError) {
-        return false;
-    }
-
-    return true;
+    return !validationError;
 }
 
 function resetForm() {
     if (confirm('Apakah Anda yakin ingin membatalkan? Semua data yang telah diisi akan hilang.')) {
-        document.getElementById('huForm').reset();
         window.location.href = "{{ route('hu.index') }}";
     }
 }
 
-// Di bagian JavaScript create-multiple.blade.php - TAMBAHKAN FUNGSI INI
 function autoSetPackagingMaterialForAllHUs() {
     const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
     if (!scenarioDataRaw) return;
@@ -896,14 +1041,12 @@ function autoSetPackagingMaterialForAllHUs() {
         const materials = JSON.parse(scenarioDataRaw);
         if (materials.length === 0) return;
 
-        // Ambil magry dari item pertama (asumsi semua item punya magry yang sama)
         const firstItem = materials[0];
         const magry = firstItem.magry || '';
 
         const globalPackMatSelect = document.getElementById('globalPackMat');
         if (!globalPackMatSelect) return;
 
-        // Reset ke default
         globalPackMatSelect.value = '';
         lastPackMat = '';
 
@@ -913,41 +1056,24 @@ function autoSetPackagingMaterialForAllHUs() {
             applyPackMatToAll();
             showMessage(`Packaging Material otomatis di-set ke "50016873" untuk semua HU (ZMG1)`, 'success');
         } else if (magry === 'ZMG2') {
-            // Untuk ZMG2, set default pertama
             globalPackMatSelect.value = 'VSTDPLTBW01';
             lastPackMat = 'VSTDPLTBW01';
             applyPackMatToAll();
             showMessage(`Packaging Material otomatis di-set ke "VSTDPLTBW01" untuk semua HU (ZMG2)`, 'success');
         }
-
-        console.log('Auto-set global packaging material for magry:', magry);
     } catch (error) {
         console.error('Error in autoSetPackagingMaterialForAllHUs:', error);
     }
 }
 
-// Panggil fungsi ini ketika data dimuat
-document.addEventListener('DOMContentLoaded', function() {
-    // ... kode existing ...
-
-    // Auto-set packaging material setelah data dimuat
-    setTimeout(autoSetPackagingMaterialForAllHUs, 500);
-});
-
-// Panggil fungsi ini ketika data dimuat
-document.addEventListener('DOMContentLoaded', function() {
-    loadMaterialData();
-    // Auto-set packaging material setelah data dimuat
-    setTimeout(autoSetPackagingMaterialForAllHUs, 500);
-});
-
 function showMessage(message, type) {
-    // Hapus alert existing (kecuali yang dari Laravel session)
     const existingAlerts = document.querySelectorAll('.alert.alert-dismissible:not(.alert-success):not(.alert-danger)');
     existingAlerts.forEach(alert => alert.remove());
 
-    const alertClass = type === 'error' ? 'alert-danger' : type === 'warning' ? 'alert-warning' : 'alert-info';
-    const iconClass = type === 'error' ? 'fa-exclamation-triangle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    const alertClass = type === 'error' ? 'alert-danger' :
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    const iconClass = type === 'error' ? 'fa-exclamation-triangle' :
+                     type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
 
     const alertHtml = `
         <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
@@ -959,13 +1085,16 @@ function showMessage(message, type) {
     const container = document.querySelector('.container-fluid');
     container.insertAdjacentHTML('afterbegin', alertHtml);
 
-    // Auto-hide setelah beberapa detik
+    // Auto-hide based on type
+    const autoHideTime = type === 'error' ? 8000 :
+                        type === 'warning' ? 6000 : 4000;
+
     setTimeout(() => {
         const alert = document.querySelector('.alert.' + alertClass);
         if (alert && !alert.classList.contains('alert-success') && !alert.classList.contains('alert-danger')) {
             alert.remove();
         }
-    }, type === 'error' ? 8000 : 5000);
+    }, autoHideTime);
 }
 </script>
 @endpush

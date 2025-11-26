@@ -340,6 +340,20 @@
         .plant-option[data-plant="3000"] {
             border-left: 3px solid #3b82f6;
         }
+
+        /* Style untuk material dengan stock 0 */
+        .zero-stock {
+            opacity: 0.6;
+            background-color: #f8f9fa !important;
+        }
+        .zero-stock .material-number {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+        .zero-stock .badge {
+            background-color: #6c757d !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -452,8 +466,11 @@
                                     </div>
 
                                     <div class="input-group input-group-sm" style="width: 300px;">
-                                        <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, atau sales order...">
-                                        <button class="btn btn-outline-secondary" type="button" id="searchBtn">
+                                        <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, batch, customer...">
+                                        <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary" type="button" id="searchBtn">
                                             <i class="fas fa-search"></i>
                                         </button>
                                     </div>
@@ -488,47 +505,57 @@
                                 <tbody id="stockTableBody">
                                     @php
                                         $hasAvailableStock = false;
+                                        $hasZeroStock = false;
                                     @endphp
 
                                     @if($stockData['success'] && count($stockData['data']) > 0)
                                         @foreach($stockData['data'] as $index => $item)
-                                            <!-- PERBAIKAN: HANYA TAMPILKAN JIKA hu_created = false DAN stock_quantity > 0 -->
-                                            @if(!$item->hu_created && $item->stock_quantity > 0)
-                                                @php $hasAvailableStock = true; @endphp
-                                                <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="{{ $index }}" data-material="{{ $item->material }}" data-batch="{{ $item->batch }}" data-plant="{{ $item->plant }}" data-storage-location="{{ $item->storage_location }}">
-                                                    <td class="border-0">
-                                                        <input type="checkbox" class="table-checkbox row-select" data-index="{{ $index }}">
-                                                    </td>
-                                                    <td class="border-0">
-                                                        <span class="material-status" id="status-{{ $item->material }}-{{ $item->batch }}"></span>
-                                                    </td>
-                                                    <td class="border-0">
-                                                        <span class="material-number">
-                                                            {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
-                                                        </span>
-                                                    </td>
-                                                    <td class="border-0 text-gray-600">{{ $item->material_description ?? '-' }}</td>
-                                                    <td class="border-0 text-gray-600">{{ $item->batch ?? '-' }}</td>
-                                                    <td class="border-0 text-end">
-                                                        <span class="badge bg-success bg-opacity-10 text-success fs-6">
-                                                            {{ number_format((float)($item->stock_quantity ?? 0), 0, ',', '.') }}
-                                                        </span>
-                                                    </td>
-                                                    <td class="border-0 text-gray-600">{{ $item->base_unit == 'ST' ? 'PC' : ($item->base_unit ?? '-') }}</td>
-                                                    <td class="border-0">
-                                                        <span class="sales-document">{{ $item->sales_document && $item->item_number ? $item->sales_document . $item->item_number : '-' }}</span>
-                                                    </td>
-                                                    <td class="border-0 text-gray-600">
-                                                        @if($item->vendor_name)
-                                                            {{ implode(' ', array_slice(explode(' ', $item->vendor_name), 0, 2)) }}
-                                                        @else
-                                                            -
-                                                        @endif
-                                                    </td>
-                                                    <td class="border-0 text-gray-600">
-                                                        {{ $item->last_updated ? \Carbon\Carbon::parse($item->last_updated)->format('d/m/Y H:i:s') : '-' }}
-                                                    </td>
-                                                </tr>
+                                            @if(!$item->hu_created)
+                                                @if($item->stock_quantity > 0)
+                                                    @php $hasAvailableStock = true; @endphp
+                                                    <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="{{ $index }}" data-material="{{ $item->material }}" data-batch="{{ $item->batch }}" data-plant="{{ $item->plant }}" data-storage-location="{{ $item->storage_location }}" data-stock-quantity="{{ $item->stock_quantity }}">
+                                                        <td class="border-0">
+                                                            <input type="checkbox" class="table-checkbox row-select" data-index="{{ $index }}">
+                                                        </td>
+                                                        <td class="border-0">
+                                                            <span class="material-status" id="status-{{ $item->material }}-{{ $item->batch }}"></span>
+                                                        </td>
+                                                        <td class="border-0">
+                                                            <span class="material-number">
+                                                                {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
+                                                            </span>
+                                                        </td>
+                                                        <td class="border-0 text-gray-600">{{ $item->material_description ?? '-' }}</td>
+                                                        <td class="border-0 text-gray-600">{{ $item->batch ?? '-' }}</td>
+                                                        <td class="border-0 text-end">
+                                                            <span class="badge bg-success bg-opacity-10 text-success fs-6">
+                                                                {{ number_format((float)($item->stock_quantity ?? 0), 0, ',', '.') }}
+                                                            </span>
+                                                        </td>
+                                                        <td class="border-0 text-gray-600">{{ $item->base_unit == 'ST' ? 'PC' : ($item->base_unit ?? '-') }}</td>
+                                                        <td class="border-0">
+                                                            <span class="sales-document">{{ $item->sales_document && $item->item_number ? $item->sales_document . $item->item_number : '-' }}</span>
+                                                        </td>
+                                                        <td class="border-0 text-gray-600">
+                                                            @if($item->vendor_name)
+                                                                {{ implode(' ', array_slice(explode(' ', $item->vendor_name), 0, 2)) }}
+                                                            @else
+                                                                -
+                                                            @endif
+                                                        </td>
+                                                        <td class="border-0 text-gray-600">
+                                                            {{ $item->last_updated ? \Carbon\Carbon::parse($item->last_updated)->format('d/m/Y H:i:s') : '-' }}
+                                                        </td>
+                                                    </tr>
+                                                @else
+                                                    @php $hasZeroStock = true; @endphp
+                                                    <!-- Material dengan stock 0 - Hanya untuk debugging -->
+                                                    <tr class="zero-stock" style="display: none;">
+                                                        <td class="border-0 text-center" colspan="10">
+                                                            <small class="text-muted">Material dengan stock 0 (tersembunyi)</small>
+                                                        </td>
+                                                    </tr>
+                                                @endif
                                             @endif
                                         @endforeach
 
@@ -536,7 +563,11 @@
                                             <tr>
                                                 <td colspan="10" class="text-center py-4 text-muted">
                                                     <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                                    Tidak ada data stock tersedia
+                                                    @if($hasZeroStock)
+                                                        Tidak ada data stock tersedia (hanya material dengan stock 0)
+                                                    @else
+                                                        Tidak ada data stock tersedia
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @endif
@@ -682,6 +713,14 @@
     let searchTimeout;
     let isSyncing = false; // Flag untuk mencegah multiple sync
 
+    // Manual plant locations data
+    const manualPlantLocations = {
+        '2000': ['21HU', '21LK', '21NH'],
+        '3000': ['3D10', '3DH1', '3DH2']
+    };
+    let selectedPlant = '3000';
+    let selectedStorageLocation = '3D10';
+
     // ===== SEMUA FUNGSI UTILITAS =====
     function formatMaterialNumber(material) {
         if (!material) return '';
@@ -759,22 +798,22 @@
     }
 
     document.getElementById('goToScenario1').addEventListener('click', function(e) {
-    if (scenarioData.single.length === 0) {
-        e.preventDefault();
-        showMessage('Silakan pilih material terlebih dahulu dengan menyeret ke area Skenario 1', 'warning');
-        return;
-    }
+        if (scenarioData.single.length === 0) {
+            e.preventDefault();
+            showMessage('Silakan pilih material terlebih dahulu dengan menyeret ke area Skenario 1', 'warning');
+            return;
+        }
 
-    // Simpan data ke sessionStorage sebelum navigasi
-    try {
-        sessionStorage.setItem('scenario1_data', JSON.stringify(scenarioData.single[0])); // Hanya ambil item pertama
-        console.log('Data saved to sessionStorage for scenario 1');
-    } catch (error) {
-        console.error('Error saving to sessionStorage:', error);
-        showMessage('Error menyimpan data material', 'error');
-        e.preventDefault();
-    }
-});
+        // Simpan data ke sessionStorage sebelum navigasi
+        try {
+            sessionStorage.setItem('scenario1_data', JSON.stringify(scenarioData.single[0])); // Hanya ambil item pertama
+            console.log('Data saved to sessionStorage for scenario 1');
+        } catch (error) {
+            console.error('Error saving to sessionStorage:', error);
+            showMessage('Error menyimpan data material', 'error');
+            e.preventDefault();
+        }
+    });
 
     // Fungsi untuk mengelola seleksi baris
     function updateSelectionCount() {
@@ -820,6 +859,8 @@
                         scenarioData[scenario].push(item);
                         addedCount++;
                     }
+                } else {
+                    showMessage('Material dengan stock 0 tidak dapat dipilih', 'warning');
                 }
             }
         });
@@ -843,142 +884,176 @@
         updateSelectionCount();
     }
 
-    // Fungsi untuk live search dengan debounce
+    // ===== FUNGSI LIVE SEARCH YANG DIPERBAIKI =====
     function setupLiveSearch() {
-        $('#materialSearch').on('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(function() {
-                loadStockData();
-            }, 500);
+        const searchInput = document.getElementById('materialSearch');
+
+        if (!searchInput) {
+            console.error('Search input element not found');
+            return;
+        }
+
+        console.log('Setting up live search');
+
+        // Debounce function untuk mencegah terlalu banyak request
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Fungsi pencarian utama
+        const performSearch = debounce(function(searchTerm) {
+            console.log('Searching for:', searchTerm);
+
+            const rows = document.querySelectorAll('#stockTableBody tr.draggable-row');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                if (row.style.display === 'none') {
+                    row.style.display = '';
+                }
+
+                // Ambil teks dari semua kolom yang relevan
+                const rowText = row.textContent.toLowerCase();
+
+                const matches = rowText.includes(searchTerm.toLowerCase());
+
+                if (matches || searchTerm === '') {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Tampilkan pesan "tidak ada hasil" jika perlu
+            const noResultsRow = document.getElementById('noResultsMessage');
+            if (visibleCount === 0 && searchTerm.length > 0) {
+                if (!noResultsRow) {
+                    const tbody = document.getElementById('stockTableBody');
+                    const newRow = document.createElement('tr');
+                    newRow.id = 'noResultsMessage';
+                    newRow.innerHTML = `
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="fas fa-search me-2"></i>
+                            Tidak ada material yang cocok dengan "${searchTerm}"
+                        </td>
+                    `;
+                    tbody.appendChild(newRow);
+                } else {
+                    noResultsRow.style.display = '';
+                }
+            } else if (noResultsRow) {
+                noResultsRow.style.display = 'none';
+            }
+
+            // Update badge count untuk hasil yang terlihat
+            updateVisibleStockCount(visibleCount, searchTerm);
+
+            console.log('Search completed. Visible rows:', visibleCount);
+        }, 300); // 300ms debounce delay
+
+        // Event listener untuk input
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.trim();
+            performSearch(searchTerm);
         });
 
-        $('#materialSearch').on('keypress', function(e) {
-            if (e.which === 13) {
-                clearTimeout(searchTimeout);
-                loadStockData();
+        // Clear search ketika tombol escape ditekan
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                searchInput.value = '';
+                performSearch('');
+                searchInput.blur(); // Hilangkan fokus dari input
+            }
+        });
+
+        // Juga search ketika tombol enter ditekan
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const searchTerm = e.target.value.trim();
+                performSearch(searchTerm);
             }
         });
     }
 
-    $(document).ready(function() {
-        $('#selectedPlant').text(`Plant: ${selectedPlant}`);
-        $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
-        updateStorageLocations(selectedPlant);
-        loadScenariosFromSession();
-        setupRowDragEvents();
+    // Fungsi untuk update count badge berdasarkan hasil pencarian
+    function updateVisibleStockCount(visibleCount, searchTerm) {
+        const badge = document.getElementById('stockCountBadge');
+        if (!badge) return;
 
-        // ===== PERBAIKAN: EVENT HANDLER HANYA SATU KALI =====
-        $('#refreshStock').off('click').on('click', function() {
-            if (!isSyncing) {
-                syncStockData();
-            }
-        });
+        if (searchTerm && searchTerm.length > 0) {
+            badge.textContent = `${visibleCount} items (filtered)`;
+            badge.className = 'badge bg-warning bg-opacity-10 text-warning fs-6 ms-2';
+        } else {
+            // Hitung ulang dari data asli jika tidak ada pencarian
+            const availableStockCount = allStockData.filter(item =>
+                !item.hu_created && parseFloat(item.stock_quantity) > 0
+            ).length;
+            badge.textContent = `${availableStockCount} items`;
+            badge.className = 'badge bg-primary bg-opacity-10 text-primary fs-6 ms-2';
+        }
+    }
 
-        $('#searchBtn').off('click').on('click', function() {
-            loadStockData();
-        });
+    // Fungsi untuk clear search
+    function clearSearch() {
+        const searchInput = document.getElementById('materialSearch');
+        if (searchInput) {
+            searchInput.value = '';
 
-        setupLiveSearch();
-
-        $(document).on('click', '#plantList .dropdown-item', function(e) {
-            e.preventDefault();
-            selectedPlant = $(this).data('plant');
-            $('#selectedPlant').text(`Plant: ${selectedPlant}`);
-            updateStorageLocations(selectedPlant);
-            selectedStorageLocation = '';
-            $('#selectedStorageLocation').text('Pilih Lokasi');
-            loadStockData();
-        });
-
-        $(document).on('click', '#storageLocationList .dropdown-item', function(e) {
-            e.preventDefault();
-            selectedStorageLocation = $(this).data('location');
-            $('#selectedStorageLocation').text(selectedStorageLocation ? `Lokasi: ${selectedStorageLocation}` : 'Semua Lokasi');
-            loadStockData();
-        });
-
-        setupDragAndDrop();
-        updateMaterialStatus();
-
-        // Setup event handlers untuk seleksi
-        $('#selectAllHeader').change(function() {
-            const isChecked = $(this).prop('checked');
-            $('.row-select').prop('checked', isChecked);
-
-            if (isChecked) {
-                $('.draggable-row').each(function() {
-                    selectedRows.add(parseInt($(this).data('index')));
-                });
-            } else {
-                selectedRows.clear();
-            }
-            updateSelectionCount();
-        });
-
-        $('tbody').on('change', '.row-select', function() {
-            const index = parseInt($(this).data('index'));
-            if ($(this).prop('checked')) {
-                selectedRows.add(index);
-            } else {
-                selectedRows.delete(index);
-                $('#selectAllHeader').prop('checked', false);
-            }
-            updateSelectionCount();
-        });
-
-        $('#clearSelection').click(function() {
-            if (selectedRows.size > 0) {
-                clearSelection();
-                showMessage('Pilihan berhasil dihapus', 'success');
-            }
-        });
-
-        // Modifikasi drop event untuk menerima multiple items - TIDAK DIUBAH
-        $('.drop-zone').each(function() {
-            const dropZone = $(this)[0];
-            const $dropZone = $(this);
-
-            dropZone.addEventListener('dragover', e => {
-                e.preventDefault();
-                $dropZone.addClass('drag-over');
+            // Tampilkan semua baris
+            const rows = document.querySelectorAll('#stockTableBody tr.draggable-row');
+            rows.forEach(row => {
+                row.style.display = '';
             });
 
-            dropZone.addEventListener('dragleave', e => {
-                $dropZone.removeClass('drag-over');
-            });
+            // Sembunyikan pesan no results
+            const noResultsRow = document.getElementById('noResultsMessage');
+            if (noResultsRow) {
+                noResultsRow.style.display = 'none';
+            }
 
-            dropZone.addEventListener('drop', e => {
-                e.preventDefault();
-                $dropZone.removeClass('drag-over');
-                const scenario = $dropZone.data('scenario');
-
-                if (selectedRows.size > 0) {
-                    addSelectedItemsToScenario(scenario);
-                } else {
-                    const itemIndex = e.dataTransfer.getData('text/plain');
-                    if (itemIndex !== '' && allStockData[itemIndex]) {
-                        // PERBAIKAN: Pastikan hanya material dengan stock > 0 yang bisa ditambahkan
-                        const item = allStockData[itemIndex];
-                        if (parseFloat(item.stock_quantity) > 0) {
-                            addItemToScenario(scenario, item);
-                        } else {
-                            showMessage('Material dengan stock 0 tidak dapat dipilih', 'warning');
-                        }
-                    }
-                }
-            });
-        });
-    });
+            // Reset badge count
+            updateVisibleStockCount(rows.length, '');
+        }
+    }
 
     function updateStorageLocations(plant) {
         const locationList = $('#storageLocationList');
         locationList.empty();
-        locationList.append('<li><a class="dropdown-item" href="#" data-location="">Semua Lokasi</a></li>');
-        if (plant && plantsData[plant]) {
-            plantsData[plant].forEach(location => {
-                locationList.append(`<li><a class="dropdown-item" href="#" data-location="${location}">${location}</a></li>`);
-            });
+        locationList.append('<li><a class="dropdown-item storage-option" href="#" data-location="">Semua Lokasi</a></li>');
+
+        // Ambil lokasi dari data manual atau dari plantsData
+        let locations = [];
+
+        if (manualPlantLocations[plant]) {
+            // Gunakan data manual untuk plant 2000 dan 3000
+            locations = manualPlantLocations[plant];
+        } else if (plantsData[plant]) {
+            // Gunakan data dari database untuk plant lain
+            locations = plantsData[plant];
         }
+
+        // Tambahkan lokasi ke dropdown
+        locations.forEach(location => {
+            locationList.append(`
+                <li>
+                    <a class="dropdown-item storage-option" href="#" data-location="${location}">
+                        ${location}
+                        ${plant === '2000' ? '<small class="text-muted d-block">Plant 2000</small>' : ''}
+                    </a>
+                </li>
+            `);
+        });
+
+        console.log('Updated locations for plant', plant, ':', locations);
     }
 
     function loadStockData() {
@@ -1083,19 +1158,26 @@
 
         // PERBAIKAN: Filter data untuk hanya menampilkan yang belum dibuat HU DAN stock > 0
         const availableData = data.filter(item => !item.hu_created && parseFloat(item.stock_quantity) > 0);
+        const zeroStockData = data.filter(item => !item.hu_created && parseFloat(item.stock_quantity) <= 0);
 
         console.log('Available data after filter:', availableData.length);
+        console.log('Zero stock data:', zeroStockData.length);
 
         // UPDATE BADGE QUANTITY
         const stockCount = availableData.length;
         $('#stockCountBadge').text(stockCount + ' items');
 
         if (availableData.length === 0) {
+            let message = 'Tidak ada data stock tersedia';
+            if (zeroStockData.length > 0) {
+                message += ' (hanya material dengan stock 0 yang tersedia)';
+            }
+
             tbody.append(`
                 <tr>
                     <td colspan="10" class="text-center py-4 text-muted">
                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                        Tidak ada data stock tersedia
+                        ${message}
                     </td>
                 </tr>
             `);
@@ -1111,7 +1193,7 @@
             const customerName = getCustomerName(item.vendor_name);
 
             const row = `
-                <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}">
+                <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}" data-stock-quantity="${item.stock_quantity}">
                     <td class="border-0">
                         <input type="checkbox" class="table-checkbox row-select" data-index="${index}">
                     </td>
@@ -1149,22 +1231,65 @@
         clearSelection();
     }
 
-    // ===== FUNGSI DRAG & DROP DAN SESSION - TIDAK DIUBAH =====
-
-    function setupDragAndDrop() {
-        // Event handlers sudah ditambahkan di $(document).ready()
-    }
+    // ===== FUNGSI DRAG & DROP DAN SESSION =====
 
     function setupRowDragEvents() {
         $('.draggable-row').each(function() {
             const row = $(this)[0];
-            row.addEventListener('dragstart', function(e) {
+            const stockQty = parseFloat($(this).data('stock-quantity') || 0);
+
+            if (stockQty <= 0) {
+                // Disable dragging for items with zero stock
+                $(this).css('opacity', '0.6');
+                $(this).css('cursor', 'not-allowed');
+                row.draggable = false;
+                $(this).attr('title', 'Stock tidak tersedia');
+            } else {
+                row.draggable = true;
+                row.addEventListener('dragstart', function(e) {
+                    if (selectedRows.size > 0) {
+                        e.dataTransfer.setData('text/plain', 'multiple');
+                    } else {
+                        e.dataTransfer.setData('text/plain', $(this).data('index'));
+                    }
+                    e.dataTransfer.effectAllowed = 'copy';
+                });
+            }
+        });
+    }
+
+    function setupDragAndDrop() {
+        // Setup drop zones
+        const dropZones = document.querySelectorAll('.drop-zone');
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                $(this).addClass('drag-over');
+            });
+
+            zone.addEventListener('dragleave', function(e) {
+                $(this).removeClass('drag-over');
+            });
+
+            zone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                $(this).removeClass('drag-over');
+                const scenario = $(this).data('scenario');
+
                 if (selectedRows.size > 0) {
-                    e.dataTransfer.setData('text/plain', 'multiple');
+                    addSelectedItemsToScenario(scenario);
                 } else {
-                    e.dataTransfer.setData('text/plain', $(this).data('index'));
+                    const itemIndex = e.dataTransfer.getData('text/plain');
+                    if (itemIndex !== '' && allStockData[itemIndex]) {
+                        // PERBAIKAN: Pastikan hanya material dengan stock > 0 yang bisa ditambahkan
+                        const item = allStockData[itemIndex];
+                        if (parseFloat(item.stock_quantity) > 0) {
+                            addItemToScenario(scenario, item);
+                        } else {
+                            showMessage('Material dengan stock 0 tidak dapat dipilih', 'warning');
+                        }
+                    }
                 }
-                e.dataTransfer.effectAllowed = 'copy';
             });
         });
     }
@@ -1204,6 +1329,28 @@
         saveScenarioDataToSession(scenario);
         updateMaterialStatus();
         showMessage(`Material ${formatMaterialNumber(item.material)} ditambahkan ke ${getScenarioName(scenario)}`, 'success');
+    }
+
+    function clearInvalidSessionData() {
+        const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
+        if (!scenarioDataRaw) return;
+
+        try {
+            const materials = JSON.parse(scenarioDataRaw);
+            const validMaterials = materials.filter(item => {
+                const stockQty = parseFloat(item.stock_quantity || '0');
+                return stockQty > 0;
+            });
+
+            if (validMaterials.length === 0) {
+                sessionStorage.removeItem('scenario3_data');
+            } else if (validMaterials.length < materials.length) {
+                sessionStorage.setItem('scenario3_data', JSON.stringify(validMaterials));
+            }
+        } catch (error) {
+            console.error('Error cleaning session data:', error);
+            sessionStorage.removeItem('scenario3_data');
+        }
     }
 
     function updateScenarioDisplay(scenario) {
@@ -1346,124 +1493,116 @@
     }
 
     function showMessage(message, type) {
-    // HAPUS SEMUA ALERT (baik session maupun JS) sebelum membuat yang baru
-    $('.container-fluid .alert').remove();
+        // HAPUS SEMUA ALERT (baik session maupun JS) sebelum membuat yang baru
+        $('.container-fluid .alert').remove();
 
-    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
-    const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="fas ${icon} me-2"></i>${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
-    $('.container-fluid').prepend(alertHtml);
-    setTimeout(() => {
-        $('.alert').alert('close');
-    }, 5000);
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+        const alertHtml = `
+            <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
+                <i class="fas ${icon} me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alertHtml);
+        setTimeout(() => {
+            $('.alert').alert('close');
+        }, 5000);
     }
-
-    const manualPlantLocations = {
-    '2000': ['21HU', '21LK', '21NH'],
-    '3000': ['3D10', '3DH1', '3DH2']
-};
-let selectedPlant = '3000';
-let selectedStorageLocation = '3D10';
-// Fungsi untuk update storage locations berdasarkan plant
-function updateStorageLocations(plant) {
-    const locationList = $('#storageLocationList');
-    locationList.empty();
-    locationList.append('<li><a class="dropdown-item storage-option" href="#" data-location="">Semua Lokasi</a></li>');
-
-    // Ambil lokasi dari data manual atau dari plantsData
-    let locations = [];
-
-    if (manualPlantLocations[plant]) {
-        // Gunakan data manual untuk plant 2000 dan 3000
-        locations = manualPlantLocations[plant];
-    } else if (plantsData[plant]) {
-        // Gunakan data dari database untuk plant lain
-        locations = plantsData[plant];
-    }
-
-    // Tambahkan lokasi ke dropdown
-    locations.forEach(location => {
-        locationList.append(`
-            <li>
-                <a class="dropdown-item storage-option" href="#" data-location="${location}">
-                    ${location}
-                    ${plant === '2000' ? '<small class="text-muted d-block">Plant 2000</small>' : ''}
-                </a>
-            </li>
-        `);
-    });
-
-    console.log('Updated locations for plant', plant, ':', locations);
-}
-
-// Event handler untuk plant selection
-$(document).on('click', '#plantList .plant-option', function(e) {
-    e.preventDefault();
-    selectedPlant = $(this).data('plant');
-    $('#selectedPlant').text(`Plant: ${selectedPlant}`);
-
-    // Update storage locations
-    updateStorageLocations(selectedPlant);
-
-    // Reset storage location selection
-    selectedStorageLocation = '';
-    $('#selectedStorageLocation').text('Pilih Lokasi');
-
-    // Load data dengan plant baru
-    loadStockData();
-});
-
-// Event handler untuk storage location selection
-$(document).on('click', '#storageLocationList .storage-option', function(e) {
-    e.preventDefault();
-    selectedStorageLocation = $(this).data('location');
-
-    if (selectedStorageLocation === '') {
-        $('#selectedStorageLocation').text('Semua Lokasi');
-    } else {
-        $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
-    }
-
-    loadStockData();
-});
-
-// Inisialisasi saat document ready
-$(document).ready(function() {
-    $('#selectedPlant').text(`Plant: ${selectedPlant}`);
-    $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
-
-    // Inisialisasi storage locations untuk plant default
-    updateStorageLocations(selectedPlant);
-
-    // Load data awal
-    loadScenariosFromSession();
-    setupRowDragEvents();
-
-    // Setup event handlers untuk search
-    $('#refreshStock').off('click').on('click', function() {
-        if (!isSyncing) {
-            syncStockData();
-        }
-    });
-    $('#searchBtn').off('click').on('click', function() {
-        loadStockData();
-    });
-    setupLiveSearch();
-
-    setupDragAndDrop();
-    updateMaterialStatus();
-
-    // ... kode existing lainnya ...
-});
 
     function showError(message) {
         showMessage(message, 'error');
     }
+
+    // Panggil saat page load
+    document.addEventListener('DOMContentLoaded', function() {
+        clearInvalidSessionData();
+    });
+
+    $(document).ready(function() {
+        $('#selectedPlant').text(`Plant: ${selectedPlant}`);
+        $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
+        updateStorageLocations(selectedPlant);
+        loadScenariosFromSession();
+        setupRowDragEvents();
+
+        // ===== PERBAIKAN: EVENT HANDLER HANYA SATU KALI =====
+        $('#refreshStock').off('click').on('click', function() {
+            if (!isSyncing) {
+                syncStockData();
+            }
+        });
+
+        $('#searchBtn').off('click').on('click', function() {
+            const searchTerm = $('#materialSearch').val().trim();
+            if (searchTerm) {
+                loadStockData(); // Pencarian server-side untuk hasil lebih akurat
+            } else {
+                loadStockData(); // Reload semua data
+            }
+        });
+
+        // Tombol clear search
+        $('#clearSearchBtn').off('click').on('click', function() {
+            clearSearch();
+            loadStockData(); // Reload data tanpa filter
+        });
+
+        setupLiveSearch();
+
+        $(document).on('click', '#plantList .dropdown-item', function(e) {
+            e.preventDefault();
+            selectedPlant = $(this).data('plant');
+            $('#selectedPlant').text(`Plant: ${selectedPlant}`);
+            updateStorageLocations(selectedPlant);
+            selectedStorageLocation = '';
+            $('#selectedStorageLocation').text('Pilih Lokasi');
+            loadStockData();
+        });
+
+        $(document).on('click', '#storageLocationList .dropdown-item', function(e) {
+            e.preventDefault();
+            selectedStorageLocation = $(this).data('location');
+            $('#selectedStorageLocation').text(selectedStorageLocation ? `Lokasi: ${selectedStorageLocation}` : 'Semua Lokasi');
+            loadStockData();
+        });
+
+        setupDragAndDrop();
+        updateMaterialStatus();
+
+        // Setup event handlers untuk seleksi
+        $('#selectAllHeader').change(function() {
+            const isChecked = $(this).prop('checked');
+            $('.row-select').prop('checked', isChecked);
+
+            if (isChecked) {
+                $('.draggable-row').each(function() {
+                    selectedRows.add(parseInt($(this).data('index')));
+                });
+            } else {
+                selectedRows.clear();
+            }
+            updateSelectionCount();
+        });
+
+        $('tbody').on('change', '.row-select', function() {
+            const index = parseInt($(this).data('index'));
+            if ($(this).prop('checked')) {
+                selectedRows.add(index);
+            } else {
+                selectedRows.delete(index);
+                $('#selectAllHeader').prop('checked', false);
+            }
+            updateSelectionCount();
+        });
+
+        $('#clearSelection').click(function() {
+            if (selectedRows.size > 0) {
+                clearSelection();
+                showMessage('Pilihan berhasil dihapus', 'success');
+            }
+        });
+    });
     </script>
 </body>
 </html>

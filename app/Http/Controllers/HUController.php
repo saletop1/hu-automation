@@ -24,55 +24,55 @@ class HUController extends Controller
     }
 
     public function index()
-        {
-            try {
-                // Ambil data stock yang BELUM dibuat HU dengan filter yang benar
-                $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10', '');
+    {
+        try {
+            // Ambil data stock yang BELUM dibuat HU dengan filter yang benar
+            $stockData = $this->getStockDataFromDB(1, null, '', '3000', '3D10', '');
 
-                // Data plants untuk dropdown - hanya yang belum dibuat HU
-                $plantsData = Stock::select('plant', 'storage_location')
-                    ->where('hu_created', false)
-                    ->distinct()
-                    ->get()
-                    ->groupBy('plant')
-                    ->map(function ($item) {
-                        return $item->pluck('storage_location')->unique()->values();
-                    });
+            // Data plants untuk dropdown - hanya yang belum dibuat HU
+            $plantsData = Stock::select('plant', 'storage_location')
+                ->where('hu_created', false)
+                ->distinct()
+                ->get()
+                ->groupBy('plant')
+                ->map(function ($item) {
+                    return $item->pluck('storage_location')->unique()->values();
+                });
 
-                // ✅ TAMBAHKAN PLANT 2000 DENGAN LOKASI MANUAL JIKA KOSONG
-                if ($plantsData->isEmpty()) {
-                    $plantsData = collect([
-                        '2000' => ['21HU', '21LK', '21NH'],
-                        '3000' => ['3D10', '3DH1', '3DH2']
-                    ]);
-                } else {
-                    // ✅ TAMBAHKAN PLANT 2000 JIKA BELUM ADA
-                    if (!$plantsData->has('2000')) {
-                        $plantsData['2000'] = ['21HU', '21LK', '21NH'];
-                    }
-
-                    // ✅ TAMBAHKAN LOKASI DEFAULT UNTUK PLANT 3000 JIKA BELUM ADA
-                    if (!$plantsData->has('3000')) {
-                        $plantsData['3000'] = ['3D10', '3DH1', '3DH2'];
-                    }
+            // ✅ TAMBAHKAN PLANT 2000 DENGAN LOKASI MANUAL JIKA KOSONG
+            if ($plantsData->isEmpty()) {
+                $plantsData = collect([
+                    '2000' => ['21HU', '21LK', '21NH'],
+                    '3000' => ['3D10', '3DH1', '3DH2']
+                ]);
+            } else {
+                // ✅ TAMBAHKAN PLANT 2000 JIKA BELUM ADA
+                if (!$plantsData->has('2000')) {
+                    $plantsData['2000'] = ['21HU', '21LK', '21NH'];
                 }
 
-                // ✅ PERBAIKAN: URUTKAN plantsData, BUKAN $data
-                $plantsData = $plantsData->sortKeys();
-
-                return view('hu.index', compact('stockData', 'plantsData'));
-
-            } catch (\Exception $e) {
-                Log::error('Index page error: ' . $e->getMessage());
-                return view('hu.index', [
-                    'stockData' => ['success' => false, 'data' => [], 'pagination' => []],
-                    'plantsData' => collect([
-                        '2000' => ['21HU', '21LK', '21NH'],
-                        '3000' => ['3D10', '3DH1', '3DH2']
-                    ])->sortKeys()
-                ])->with('error', 'Failed to load page: ' . $e->getMessage());
+                // ✅ TAMBAHKAN LOKASI DEFAULT UNTUK PLANT 3000 JIKA BELUM ADA
+                if (!$plantsData->has('3000')) {
+                    $plantsData['3000'] = ['3D10', '3DH1', '3DH2'];
+                }
             }
+
+            // ✅ PERBAIKAN: URUTKAN plantsData, BUKAN $data
+            $plantsData = $plantsData->sortKeys();
+
+            return view('hu.index', compact('stockData', 'plantsData'));
+
+        } catch (\Exception $e) {
+            Log::error('Index page error: ' . $e->getMessage());
+            return view('hu.index', [
+                'stockData' => ['success' => false, 'data' => [], 'pagination' => []],
+                'plantsData' => collect([
+                    '2000' => ['21HU', '21LK', '21NH'],
+                    '3000' => ['3D10', '3DH1', '3DH2']
+                ])->sortKeys()
+            ])->with('error', 'Failed to load page: ' . $e->getMessage());
         }
+    }
 
     public function createSingle()
     {
@@ -405,7 +405,7 @@ class HUController extends Controller
             if ($response->successful()) {
                 $result = $response->json();
 
-                // Update stock status and create history
+                // ✅ PERBAIKAN: Update stock status and create history - TAMBAHKAN PARAMETER $result
                 $historyCreated = $this->updateStockAndHistory($request, $result, 'single');
 
                 if ($historyCreated) {
@@ -414,7 +414,7 @@ class HUController extends Controller
                     Log::warning('History creation had issues for HU: ' . $request->hu_exid);
                 }
 
-                return back()->with('success', $result['message'] ?? 'HU Created Successfully');
+                return redirect()->route('hu.history')->with('success', $result['message'] ?? 'HU Created Successfully');
             } else {
                 $error = $response->json()['error'] ?? 'Unknown error occurred';
                 Log::error('HU Creation failed', ['error' => $error]);
@@ -479,7 +479,7 @@ class HUController extends Controller
             if ($response->successful()) {
                 $result = $response->json();
 
-                // Update stock status and create history for multiple items
+                // ✅ PERBAIKAN: Update stock status and create history for multiple items - TAMBAHKAN PARAMETER $result
                 $historyCreated = $this->updateStockAndHistoryMulti($request, $result, 'single-multi');
 
                 if ($historyCreated) {
@@ -488,7 +488,7 @@ class HUController extends Controller
                     Log::warning('History creation had issues for multi HU: ' . $request->hu_exid);
                 }
 
-                return back()->with('success', $result['message'] ?? 'HU with multiple materials created successfully');
+                return redirect()->route('hu.history')->with('success', $result['message'] ?? 'HU with multiple materials created successfully');
             } else {
                 $error = $response->json()['error'] ?? 'Unknown error occurred';
                 Log::error('HU Creation (multi) failed', ['error' => $error]);
@@ -502,76 +502,165 @@ class HUController extends Controller
 
     public function storeMultiple(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'hus' => 'required|array|min:1',
-            'hus.*.hu_exid' => 'required|string|size:10|regex:/^\d+$/',
-            'hus.*.pack_mat' => 'required|string',
-            'hus.*.plant' => 'required|string',
-            'hus.*.stge_loc' => 'required|string',
-            'hus.*.material' => 'required|string',
-            'hus.*.pack_qty' => 'required|numeric|min:0.001',
-            'hus.*.batch' => 'nullable|string',
-            'hus.*.sp_stck_no' => 'nullable|string',
-            'base_unit_qty' => 'nullable|string',
-            'sap_user' => 'required|string',
-            'sap_password' => 'required|string',
-        ], [
-            'hus.*.hu_exid.size' => 'HU External ID harus tepat 10 digit angka.',
-            'hus.*.hu_exid.regex' => 'HU External ID hanya boleh berisi angka.',
-        ]);
-
-        if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
-        }
-
         try {
-            // Clean data sebelum dikirim ke Python API
-            $data = $this->cleanHuData($request->all());
+            // Validasi input untuk semua mode
+            $validated = $request->validate([
+                'hus' => 'required|array|min:1',
+                'hus.*.hu_exid' => 'required|string|size:10|regex:/^\d{10}$/',
+                'hus.*.pack_mat' => 'required|string',
+                'hus.*.plant' => 'required|string|size:4',
+                'hus.*.stge_loc' => 'required|string|max:10',
+                'hus.*.material' => 'required|string|max:50',
+                'hus.*.pack_qty' => 'required|numeric|min:0.001',
+                'hus.*.batch' => 'nullable|string|max:20',
+                'hus.*.sp_stck_no' => 'nullable|string|max:30',
+                'sap_user' => 'required|string',
+                'sap_password' => 'required|string',
+                'creation_mode' => 'required|string|in:split,single,partial',
+                'total_hus' => 'required|integer|min:1'
+            ]);
 
-            // ✅ PERBAIKAN: Pastikan SAP credentials termasuk dalam data yang dikirim
-            $data['sap_user'] = $request->sap_user;
-            $data['sap_password'] = $request->sap_password;
+            $invalidMaterials = [];
+            foreach ($validated['hus'] as $index => $hu) {
+                $materialKey = $hu['material'] . '_' . ($hu['batch'] ?? '');
 
-            $baseUnit = $request->input('base_unit_qty', '');
-            foreach ($data['hus'] as &$hu) {
-                $hu['base_unit_qty'] = $baseUnit;
+                // You might want to check actual stock from database here
+                // For now, we'll just validate the submitted quantity
+                if (floatval($hu['pack_qty']) <= 0) {
+                    $invalidMaterials[] = "HU {$index}: Quantity must be greater than 0";
+                }
             }
 
-            Log::info('Sending multiple HU creation request to Python API', [
-                'endpoint' => $this->pythonBaseUrl . '/hu/create-multiple',
-                'sap_user' => $data['sap_user'], // Log user saja (jangan password)
-                'hus_count' => count($data['hus'])
+            if (!empty($invalidMaterials)) {
+                return redirect()->route('hu.create-multiple')
+                    ->with('error', 'Beberapa material memiliki quantity tidak valid: ' . implode(', ', $invalidMaterials))
+                    ->withInput();
+            }
+
+            $creationMode = $validated['creation_mode'] ?? 'split';
+            $totalHUs = $validated['total_hus'] ?? count($validated['hus']);
+
+            Log::info('Store Multiple HUs - Processing', [
+                'mode' => $creationMode,
+                'total_hus' => $totalHUs,
+                'user' => $validated['sap_user'],
+                'first_hu' => $validated['hus'][0]['hu_exid'] ?? 'N/A'
             ]);
 
-            $response = Http::timeout(120)->post($this->pythonBaseUrl . '/hu/create-multiple', $data);
+            // Pilih endpoint berdasarkan mode
+            $endpoint = 'http://localhost:5000/hu/create-multiple-flexible';
 
-            Log::info('Python API response (multiple)', [
-                'status' => $response->status(),
-                'body' => $response->body()
+            // Untuk backward compatibility, jika menggunakan mode lama
+            if (isset($validated['split_mode'])) {
+                $endpoint = 'http://localhost:5000/hu/create-multiple';
+                // Convert split_mode to creation_mode
+                $validated['creation_mode'] = $validated['split_mode'] == '1' ? 'split' : 'single';
+                unset($validated['split_mode']);
+            }
+
+            Log::info('Sending to Flask API', [
+                'endpoint' => $endpoint,
+                'mode' => $validated['creation_mode']
             ]);
+
+            // Kirim request ke Flask API
+            $response = Http::timeout(120)
+                ->retry(3, 1000)
+                ->post($endpoint, $validated);
 
             if ($response->successful()) {
                 $result = $response->json();
 
-                // Update stock status and create history for multiple HUs
-                $historyCreated = $this->updateStockAndHistoryMultiple($request, $result, 'multiple');
+                if ($result['success']) {
+                    $successCount = $result['summary']['success'] ?? 0;
+                    $failedCount = $result['summary']['failed'] ?? 0;
+                    $totalCount = $result['summary']['total'] ?? 0;
 
-                if ($historyCreated) {
-                    Log::info('History created successfully for multiple HUs');
+                    $message = "Berhasil membuat {$successCount} dari {$totalCount} HU";
+                    if ($failedCount > 0) {
+                        $message .= " ({$failedCount} gagal)";
+                    }
+
+                    if (isset($result['summary']['creation_mode'])) {
+                        $message .= " - Mode: " . ucfirst($result['summary']['creation_mode']);
+                    }
+
+                    Log::info('HU Creation Success', [
+                        'success_count' => $successCount,
+                        'failed_count' => $failedCount,
+                        'mode' => $creationMode
+                    ]);
+
+                    // ✅ PERBAIKAN: Update stock status and create history for multiple HUs
+                    $historyCreated = $this->updateStockAndHistoryMultiple($request, $result, 'multiple');
+
+                    if ($historyCreated) {
+                        Log::info('History created successfully for multiple HUs');
+                    } else {
+                        Log::warning('History creation had issues for multiple HUs');
+                    }
+
+                    // Clear session data setelah berhasil
+                    session()->forget('scenario3_data');
+
+                    return redirect()->route('hu.history')->with('success', $message);
                 } else {
-                    Log::warning('History creation had issues for multiple HUs');
-                }
+                    $errorMsg = $result['error'] ?? 'Gagal membuat HU';
+                    Log::error('HU Creation Failed', [
+                        'error' => $errorMsg,
+                        'mode' => $creationMode
+                    ]);
 
-                return back()->with('success', $result['message'] ?? 'Multiple HUs created successfully');
+                    return redirect()->route('hu.create-multiple')
+                        ->with('error', $errorMsg)
+                        ->withInput();
+                }
             } else {
-                $error = $response->json()['error'] ?? 'Unknown error occurred';
-                Log::error('Multiple HU Creation failed', ['error' => $error]);
-                return back()->with('error', $error)->withInput();
+                $statusCode = $response->status();
+                $errorMsg = "Error connecting to SAP service (Status: {$statusCode})";
+
+                Log::error('SAP Service Error', [
+                    'status' => $statusCode,
+                    'response' => $response->body()
+                ]);
+
+                return redirect()->route('hu.create-multiple')
+                    ->with('error', $errorMsg)
+                    ->withInput();
             }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation Error in storeMultiple', [
+                'errors' => $e->errors()
+            ]);
+
+            return redirect()->route('hu.create-multiple')
+                ->withErrors($e->validator)
+                ->withInput();
+
         } catch (\Exception $e) {
-            Log::error('Multiple HU Creation Error: ' . $e->getMessage());
-            return back()->with('error', 'Failed to connect to SAP system: ' . $e->getMessage())->withInput();
+            Log::error('System Error in storeMultiple', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('hu.create-multiple')
+                ->with('error', 'System error: ' . $e->getMessage())
+                ->withInput();
         }
+    }
+
+    /**
+     * Untuk backward compatibility - handle request dari form lama
+     */
+    public function storeMultipleOld(Request $request)
+    {
+        // Redirect ke method baru dengan parameter yang sesuai
+        $request->merge([
+            'creation_mode' => $request->split_mode == '1' ? 'split' : 'single'
+        ]);
+
+        return $this->storeMultiple($request);
     }
 
     // ==================== EXPORT METHOD ====================
@@ -699,6 +788,9 @@ class HUController extends Controller
         }
     }
 
+    /**
+     * ✅ PERBAIKAN UTAMA: Update stock dan history untuk single HU
+     */
     private function updateStockAndHistory($request, $result, $scenarioType)
     {
         try {
@@ -917,6 +1009,9 @@ class HUController extends Controller
         }
     }
 
+    /**
+     * ✅ PERBAIKAN: Update stock dan history untuk single-multi HU
+     */
     private function updateStockAndHistoryMulti($request, $result, $scenarioType)
     {
         try {
@@ -1120,6 +1215,9 @@ class HUController extends Controller
         return $updated;
     }
 
+    /**
+     * ✅ PERBAIKAN: Update stock dan history untuk multiple HUs
+     */
     private function updateStockAndHistoryMultiple($request, $result, $scenarioType)
     {
         try {
