@@ -31,7 +31,15 @@ class HUController extends Controller
 
             // Data plants untuk dropdown - hanya yang belum dibuat HU
             $plantsData = Stock::select('plant', 'storage_location')
-                ->where('hu_created', false)
+                ->where(function($query) {
+                    $query->where('hu_created', false)
+                          ->orWhere(function($q) {
+                              $q->where('hu_created', true)
+                                ->where('stock_quantity', '>', 0);
+                          });
+                })
+                ->where('stock_quantity', '>', 0)
+                ->where('is_active', 1) // ✅ HANYA YANG AKTIF
                 ->distinct()
                 ->get()
                 ->groupBy('plant')
@@ -118,8 +126,17 @@ class HUController extends Controller
     private function getStockDataFromDB($page = 1, $perPage = null, $material = '', $plant = '', $storageLocation = '', $search = '')
     {
         try {
-            // PASTIKAN HANYA AMBIL DATA YANG BELUM DIBUAT HU
-            $query = DB::table('stock_data')->where('hu_created', false);
+            // PERBAIKAN: Hanya ambil data yang BELUM dibuat HU ATAU MASIH ADA SISA STOCK
+            $query = DB::table('stock_data')
+                ->where(function($q) {
+                    $q->where('hu_created', false)
+                      ->orWhere(function($q2) {
+                          $q2->where('hu_created', true)
+                             ->where('stock_quantity', '>', 0);
+                      });
+                })
+                ->where('stock_quantity', '>', 0) // Hanya yang masih ada stock-nya
+                ->where('is_active', 1); // ✅ HANYA YANG AKTIF
 
             // Search general untuk material, deskripsi, atau sales document
             if ($search) {
@@ -245,7 +262,18 @@ class HUController extends Controller
     public function getStock(Request $request)
     {
         try {
-            $query = DB::table('stock_data')->where('hu_created', false);
+            // PERBAIKAN: Query untuk menampilkan material yang masih ada stock-nya
+            // DAN yang belum dibuat HU atau masih ada sisa stock setelah dibuat HU
+            $query = DB::table('stock_data')
+                ->where(function($q) {
+                    $q->where('hu_created', false)
+                      ->orWhere(function($q2) {
+                          $q2->where('hu_created', true)
+                             ->where('stock_quantity', '>', 0);
+                      });
+                })
+                ->where('stock_quantity', '>', 0)
+                ->where('is_active', 1); // ✅ HANYA YANG AKTIF
 
             if ($request->has('search') && !empty($request->search)) {
                 $searchTerm = $request->search;
@@ -267,10 +295,12 @@ class HUController extends Controller
 
             $stockData = $query->orderBy('material', 'asc')->get();
 
-            // Pastikan semua field required ada termasuk magry
+            // PERBAIKAN: Handle magry field yang mungkin tidak ada
             $stockData->each(function ($item) {
-                $item->suggested_pack_mat = $this->getPackagingMaterialByMagry($item->magry ?? '');
-                $item->magry_type = $item->magry ?? '';
+                // Periksa apakah field magry ada, jika tidak gunakan default
+                $magry = property_exists($item, 'magry') ? $item->magry : '';
+                $item->suggested_pack_mat = $this->getPackagingMaterialByMagry($magry);
+                $item->magry_type = $magry;
 
                 // Pastikan field required ada
                 $item->material = $item->material ?? '';
@@ -279,8 +309,14 @@ class HUController extends Controller
                 $item->storage_location = $item->storage_location ?? '';
                 $item->batch = $item->batch ?? '';
                 $item->sales_document = $item->sales_document ?? '';
-                $item->magry = $item->magry ?? ''; // ✅ PASTIKAN magry ADA
+                $item->magry = $magry; // ✅ PASTIKAN magry ADA
             });
+
+            Log::info('Stock data retrieved', [
+                'count' => $stockData->count(),
+                'plant' => $request->plant ?? 'all',
+                'storage_location' => $request->storage_location ?? 'all'
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -303,9 +339,17 @@ class HUController extends Controller
     public function getPlants(Request $request)
     {
         try {
-            // Hanya ambil plants dari data yang belum dibuat HU
+            // PERBAIKAN: Hanya ambil plants dari data yang belum dibuat HU atau masih ada sisa stock
             $plants = DB::table('stock_data')
-                        ->where('hu_created', false)
+                        ->where(function($q) {
+                            $q->where('hu_created', false)
+                              ->orWhere(function($q2) {
+                                  $q2->where('hu_created', true)
+                                     ->where('stock_quantity', '>', 0);
+                              });
+                        })
+                        ->where('stock_quantity', '>', 0)
+                        ->where('is_active', 1) // ✅ HANYA YANG AKTIF
                         ->select('plant')
                         ->distinct()
                         ->orderBy('plant')
@@ -330,9 +374,17 @@ class HUController extends Controller
         $plant = $request->get('plant', '');
 
         try {
-            // Hanya ambil storage locations dari data yang belum dibuat HU
+            // PERBAIKAN: Hanya ambil storage locations dari data yang belum dibuat HU atau masih ada sisa stock
             $query = DB::table('stock_data')
-                        ->where('hu_created', false)
+                        ->where(function($q) {
+                            $q->where('hu_created', false)
+                              ->orWhere(function($q2) {
+                                  $q2->where('hu_created', true)
+                                     ->where('stock_quantity', '>', 0);
+                              });
+                        })
+                        ->where('stock_quantity', '>', 0)
+                        ->where('is_active', 1) // ✅ HANYA YANG AKTIF
                         ->select('storage_location')
                         ->distinct();
 
@@ -790,7 +842,7 @@ class HUController extends Controller
     }
 
     /**
-     * ✅ PERBAIKAN UTAMA: Update stock dan history untuk single HU
+     * ✅ PERBAIKAN UTAMA: Update stock dan history untuk single HU dengan logika sisa stock
      */
     private function updateStockAndHistory($request, $result, $scenarioType)
     {
@@ -809,7 +861,7 @@ class HUController extends Controller
                 'pack_qty' => $request->pack_qty
             ]);
 
-            // ✅ PERBAIKAN: Tambahkan 'id' di select
+            // ✅ PERBAIKAN: Tambahkan 'id' dan 'stock_quantity' di select
             $stockCheck = DB::table('stock_data')
                 ->where('material', $formattedMaterial)
                 ->where('batch', $request->batch)
@@ -836,7 +888,7 @@ class HUController extends Controller
             $materialDescription = $stockCheck->material_description ?? 'Material description not found in database';
             $stockId = $stockCheck->id ?? null;
 
-            // Update stock status - PASTIKAN hu_created diupdate menjadi true
+            // PERBAIKAN: Update stock status dengan logika sisa stock
             $stockUpdated = false;
             if ($stockCheck) {
                 $stockUpdated = $this->updateStockStatus($stockId, $formattedMaterial, $request, $stockCheck);
@@ -882,6 +934,67 @@ class HUController extends Controller
                 'plant' => $request->plant ?? 'null',
                 'stge_loc' => $request->stge_loc ?? 'null'
             ]);
+            return false;
+        }
+    }
+
+    /**
+     * PERBAIKAN: Update stock status dengan memperhitungkan sisa quantity
+     * dan tidak ditimpa saat sync dari SAP
+     */
+    private function updateStockStatus($stockId, $formattedMaterial, $request, $stockCheck)
+    {
+        try {
+            $packQty = (float) $request->pack_qty;
+            $currentStock = (float) $stockCheck->stock_quantity;
+
+            Log::info('Updating stock status:', [
+                'stock_id' => $stockId,
+                'material' => $formattedMaterial,
+                'pack_qty' => $packQty,
+                'current_stock' => $currentStock
+            ]);
+
+            $remainingStock = $currentStock - $packQty;
+
+            $updateData = [
+                'stock_quantity' => $remainingStock,
+                'last_updated' => now(),
+                'sync_status' => 'MANUAL_UPDATE' // ✅ TANDAI SEBAGAI MANUAL UPDATE
+            ];
+
+            // PERBAIKAN: Hanya tandai sebagai hu_created jika stock habis
+            if ($remainingStock <= 0) {
+                $updateData['hu_created'] = true;
+                $updateData['hu_created_at'] = now();
+                $updateData['hu_number'] = $request->hu_exid;
+                $updateData['is_active'] = 0; // ✅ NON-AKTIFKAN JIKA STOCK HABIS
+                Log::info('Stock exhausted, marking as hu_created and inactive');
+            } else {
+                $updateData['hu_created'] = false; // Pastikan false jika masih ada sisa
+                $updateData['is_active'] = 1; // ✅ TETAP AKTIF JIKA MASIH ADA SISA
+                Log::info('Stock remaining: ' . $remainingStock);
+            }
+
+            // Update database
+            if ($stockId) {
+                $updated = DB::table('stock_data')
+                    ->where('id', $stockId)
+                    ->update($updateData);
+            } else {
+                $updated = DB::table('stock_data')
+                    ->where('material', $formattedMaterial)
+                    ->where('batch', $request->batch)
+                    ->where('plant', $request->plant)
+                    ->where('storage_location', $request->stge_loc)
+                    ->update($updateData);
+            }
+
+            Log::info('Stock update result: ' . ($updated ? 'Success' : 'Failed'));
+            return $updated;
+
+        } catch (\Exception $e) {
+            Log::error('Error in updateStockStatus: ' . $e->getMessage());
             return false;
         }
     }
@@ -935,41 +1048,6 @@ class HUController extends Controller
         return null;
     }
 
-    /**
-     * Update stock status
-     */
-    private function updateStockStatus($stockId, $formattedMaterial, $request, $stockCheck)
-    {
-        $updateData = [
-            'hu_created' => true,
-            'hu_created_at' => now(),
-            'hu_number' => $request->hu_exid
-        ];
-
-        // Try update by ID first
-        if ($stockId) {
-            $updated = DB::table('stock_data')
-                ->where('id', $stockId)
-                ->update($updateData);
-
-            if ($updated) {
-                Log::info('Stock updated by ID for material ' . $formattedMaterial);
-                return true;
-            }
-        }
-
-        // Fallback to criteria-based update
-        $updated = DB::table('stock_data')
-            ->where('material', $formattedMaterial)
-            ->where('batch', $request->batch)
-            ->where('plant', $request->plant)
-            ->where('storage_location', $request->stge_loc)
-            ->update($updateData);
-
-        Log::info('Stock update result for material ' . $formattedMaterial . ': ' . ($updated ? 'Success' : 'Failed'));
-        return $updated;
-    }
-
     private function getPackagingMaterialByMagry($magry, $currentPackMat = '')
     {
         // Jika sudah ada pilihan dari user, prioritaskan pilihan user
@@ -1011,7 +1089,7 @@ class HUController extends Controller
     }
 
     /**
-     * ✅ PERBAIKAN: Update stock dan history untuk single-multi HU
+     * ✅ PERBAIKAN: Update stock dan history untuk single-multi HU dengan logika sisa stock
      */
     private function updateStockAndHistoryMulti($request, $result, $scenarioType)
     {
@@ -1034,7 +1112,7 @@ class HUController extends Controller
     }
 
     /**
-     * Process individual item for multi HU
+     * Process individual item for multi HU dengan logika sisa stock
      */
     private function processMultiItem($request, $item, $scenarioType)
     {
@@ -1057,7 +1135,7 @@ class HUController extends Controller
         $materialDescription = $stockItem->material_description ?? 'Material description not found in database';
         $stockId = $stockItem->id ?? null;
 
-        // Update stock status for each item
+        // PERBAIKAN: Update stock status for each item dengan logika sisa stock
         $stockUpdated = false;
         if ($stockItem && $stockId) {
             $stockUpdated = $this->updateMultiStockStatus($stockId, $formattedMaterial, $request, $item);
@@ -1103,6 +1181,60 @@ class HUController extends Controller
             'material' => $displayMaterial
         ]);
         return false;
+    }
+
+    /**
+     * PERBAIKAN: Update stock status for multi HU dengan memperhitungkan sisa quantity
+     */
+    private function updateMultiStockStatus($stockId, $formattedMaterial, $request, $item)
+    {
+        try {
+            $packQty = (float) $item['pack_qty'];
+
+            // Get current stock quantity
+            $currentStock = DB::table('stock_data')
+                ->where('id', $stockId)
+                ->value('stock_quantity');
+
+            $currentStock = (float) $currentStock;
+
+            Log::info('Updating multi stock status:', [
+                'stock_id' => $stockId,
+                'material' => $formattedMaterial,
+                'pack_qty' => $packQty,
+                'current_stock' => $currentStock
+            ]);
+
+            $remainingStock = $currentStock - $packQty;
+
+            $updateData = [
+                'stock_quantity' => $remainingStock,
+                'last_updated' => now(),
+                'sync_status' => 'MANUAL_UPDATE' // ✅ TANDAI SEBAGAI MANUAL UPDATE
+            ];
+
+            // PERBAIKAN: Hanya tandai sebagai hu_created jika stock habis
+            if ($remainingStock <= 0) {
+                $updateData['hu_created'] = true;
+                $updateData['hu_created_at'] = now();
+                $updateData['hu_number'] = $request->hu_exid;
+                $updateData['is_active'] = 0; // ✅ NON-AKTIFKAN JIKA STOCK HABIS
+            } else {
+                $updateData['hu_created'] = false; // Pastikan false jika masih ada sisa
+                $updateData['is_active'] = 1; // ✅ TETAP AKTIF JIKA MASIH ADA SISA
+            }
+
+            $updated = DB::table('stock_data')
+                ->where('id', $stockId)
+                ->update($updateData);
+
+            Log::info('Multi stock update result: ' . ($updated ? 'Success' : 'Failed'));
+            return $updated;
+
+        } catch (\Exception $e) {
+            Log::error('Error in updateMultiStockStatus: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -1156,11 +1288,12 @@ class HUController extends Controller
                 $dbQuery->where('batch', $query['batch']);
             }
 
-            $stockItem = $dbQuery->select('id', 'material_description', 'hu_created')->first();
+            $stockItem = $dbQuery->select('id', 'material_description', 'hu_created', 'stock_quantity')->first();
 
             if ($stockItem) {
                 Log::info('Stock found in ' . $query['description'] . ' for Multi:', [
-                    'stock_id' => $stockItem->id
+                    'stock_id' => $stockItem->id,
+                    'stock_quantity' => $stockItem->stock_quantity
                 ]);
                 return $stockItem;
             }
@@ -1170,54 +1303,7 @@ class HUController extends Controller
     }
 
     /**
-     * Update stock status for multi HU
-     */
-    private function updateMultiStockStatus($stockId, $formattedMaterial, $request, $item)
-    {
-        $updateData = [
-            'hu_created' => true,
-            'hu_created_at' => now(),
-            'hu_number' => $request->hu_exid
-        ];
-
-        // Try update by ID first
-        $updated = DB::table('stock_data')
-            ->where('id', $stockId)
-            ->update($updateData);
-
-        if ($updated) {
-            Log::info('Multi stock updated by ID:', [
-                'stock_id' => $stockId,
-                'material' => $formattedMaterial
-            ]);
-            return true;
-        }
-
-        // Fallback to criteria-based update
-        $updated = DB::table('stock_data')
-            ->where('material', $formattedMaterial)
-            ->where(function($query) use ($item) {
-                if (!empty($item['batch'])) {
-                    $query->where('batch', $item['batch']);
-                } else {
-                    $query->whereNull('batch')->orWhere('batch', '');
-                }
-            })
-            ->where('plant', $request->plant)
-            ->where('storage_location', $request->stge_loc)
-            ->update($updateData);
-
-        Log::info('Multi stock update result:', [
-            'stock_id' => $stockId,
-            'material' => $formattedMaterial,
-            'updated' => $updated
-        ]);
-
-        return $updated;
-    }
-
-    /**
-     * ✅ PERBAIKAN: Update stock dan history untuk multiple HUs
+     * ✅ PERBAIKAN: Update stock dan history untuk multiple HUs dengan logika sisa stock
      */
     private function updateStockAndHistoryMultiple($request, $result, $scenarioType)
     {
@@ -1239,7 +1325,7 @@ class HUController extends Controller
     }
 
     /**
-     * Process individual HU for multiple HUs
+     * Process individual HU for multiple HUs - DIPERBAIKI dengan logika sisa stock
      */
     private function processMultipleHUItem($hu, $scenarioType)
     {
@@ -1252,27 +1338,10 @@ class HUController extends Controller
         $materialDescription = $stockItem->material_description ?? 'Material description not found in database';
         $stockId = $stockItem->id ?? null;
 
-        // Update stock status
+        // PERBAIKAN: Update stock status dengan logika sisa stock
         $stockUpdated = false;
-        if ($stockItem) {
-            $stockUpdated = DB::table('stock_data')
-                ->where('material', $formattedMaterial)
-                ->where(function($query) use ($hu) {
-                    if (!empty($hu['batch'])) {
-                        $query->where('batch', $hu['batch']);
-                    } else {
-                        $query->whereNull('batch')->orWhere('batch', '');
-                    }
-                })
-                ->where('plant', $hu['plant'])
-                ->where('storage_location', $hu['stge_loc'])
-                ->update([
-                    'hu_created' => true,
-                    'hu_created_at' => now(),
-                    'hu_number' => $hu['hu_exid']
-                ]);
-
-            Log::info('Multiple HU stock update for material ' . $formattedMaterial . ': ' . ($stockUpdated ? 'Success' : 'Failed'));
+        if ($stockItem && $stockId) {
+            $stockUpdated = $this->updateStockStatusForMultiple($stockId, $formattedMaterial, $hu);
         }
 
         // Convert pack_qty to integer
@@ -1308,6 +1377,60 @@ class HUController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * PERBAIKAN: Update stock status for multiple HUs dengan memperhitungkan sisa quantity
+     */
+    private function updateStockStatusForMultiple($stockId, $formattedMaterial, $hu)
+    {
+        try {
+            $packQty = (float) $hu['pack_qty'];
+
+            // Get current stock quantity
+            $currentStock = DB::table('stock_data')
+                ->where('id', $stockId)
+                ->value('stock_quantity');
+
+            $currentStock = (float) $currentStock;
+
+            Log::info('Updating multiple HU stock status:', [
+                'stock_id' => $stockId,
+                'material' => $formattedMaterial,
+                'pack_qty' => $packQty,
+                'current_stock' => $currentStock
+            ]);
+
+            $remainingStock = $currentStock - $packQty;
+
+            $updateData = [
+                'stock_quantity' => $remainingStock,
+                'last_updated' => now(),
+                'sync_status' => 'MANUAL_UPDATE' // ✅ TANDAI SEBAGAI MANUAL UPDATE
+            ];
+
+            // PERBAIKAN: Hanya tandai sebagai hu_created jika stock habis
+            if ($remainingStock <= 0) {
+                $updateData['hu_created'] = true;
+                $updateData['hu_created_at'] = now();
+                $updateData['hu_number'] = $hu['hu_exid'];
+                $updateData['is_active'] = 0; // ✅ NON-AKTIFKAN JIKA STOCK HABIS
+            } else {
+                $updateData['hu_created'] = false; // Pastikan false jika masih ada sisa
+                $updateData['is_active'] = 1; // ✅ TETAP AKTIF JIKA MASIH ADA SISA
+            }
+
+            $updated = DB::table('stock_data')
+                ->where('id', $stockId)
+                ->update($updateData);
+
+            Log::info('Multiple HU stock update result: ' . ($updated ? 'Success' : 'Failed'));
+            return $updated;
+
+        } catch (\Exception $e) {
+            Log::error('Error in updateStockStatusForMultiple: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -1361,7 +1484,7 @@ class HUController extends Controller
                 $dbQuery->where('batch', $query['batch']);
             }
 
-            $stockItem = $dbQuery->select('id', 'material_description', 'hu_created')->first();
+            $stockItem = $dbQuery->select('id', 'material_description', 'hu_created', 'stock_quantity')->first();
 
             if ($stockItem) {
                 return $stockItem;
