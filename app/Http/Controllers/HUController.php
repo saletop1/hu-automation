@@ -548,11 +548,12 @@ class HUController extends Controller
             ]);
 
             // Pilih endpoint berdasarkan mode
-            $endpoint = pythonBaseUrl . '/hu/create-multiple-flexible';
+            $url = this->pythonBaseUrl;
+            $endpoint = $url . '/hu/create-multiple-flexible';
 
             // Untuk backward compatibility, jika menggunakan mode lama
             if (isset($validated['split_mode'])) {
-                $endpoint = pythonBaseUrl . '/hu/create-multiple';
+                $endpoint = $url . '/hu/create-multiple';
                 // Convert split_mode to creation_mode
                 $validated['creation_mode'] = $validated['split_mode'] == '1' ? 'split' : 'single';
                 unset($validated['split_mode']);
