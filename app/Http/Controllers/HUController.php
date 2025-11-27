@@ -548,7 +548,7 @@ class HUController extends Controller
             ]);
 
             // Pilih endpoint berdasarkan mode
-            $endpoint = 'http://192.168.:5000/hu/create-multiple-flexible';
+            $endpoint = pythonBaseUrl . '/hu/create-multiple-flexible';
 
             // Untuk backward compatibility, jika menggunakan mode lama
             if (isset($validated['split_mode'])) {
