@@ -548,7 +548,7 @@ class HUController extends Controller
             ]);
 
             // Pilih endpoint berdasarkan mode
-            $url = this->pythonBaseUrl;
+            $url = $this->pythonBaseUrl;
             $endpoint = $url . '/hu/create-multiple-flexible';
 
             // Untuk backward compatibility, jika menggunakan mode lama
