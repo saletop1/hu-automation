@@ -225,6 +225,18 @@ class HUController extends Controller
                 'python_url' => $this->pythonBaseUrl
             ]);
 
+            // STEP 1: HAPUS DATA LAMA untuk plant dan storage_location yang dipilih
+            Log::info('Deleting old stock data for plant: ' . $request->plant .
+                      ', storage_location: ' . $request->storage_location);
+
+            $deletedCount = DB::table('stock_data')
+                ->where('plant', $request->plant)
+                ->where('storage_location', $request->storage_location)
+                ->delete();
+
+            Log::info('Deleted ' . $deletedCount . ' old stock records');
+
+            // STEP 2: Panggil Python API untuk sync data baru
             $response = Http::timeout(1000)->post($this->pythonBaseUrl . '/stock/sync', [
                 'plant' => $request->plant,
                 'storage_location' => $request->storage_location
@@ -240,7 +252,8 @@ class HUController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => $result['message'] ?? 'Stock data synced successfully!'
+                    'message' => $result['message'] ?? 'Stock data synced successfully! ' .
+                                '(Deleted ' . $deletedCount . ' old records)'
                 ]);
             } else {
                 $error = $response->json()['error'] ?? 'Failed to sync stock data';

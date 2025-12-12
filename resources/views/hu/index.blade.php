@@ -1099,58 +1099,74 @@
     }
 
     // ===== PERBAIKAN: FUNGSI SYNC DENGAN FLAG =====
-    function syncStockData() {
+        function syncStockData() {
         // Cegah multiple sync
-        if (isSyncing) {
-            console.log('Sync already in progress, skipping...');
-            return;
-        }
-
-        if (!selectedPlant) {
-            showError('Pilih plant sebelum sync');
-            return;
-        }
-
-        // Set flag sync sedang berjalan
-        isSyncing = true;
-
-        // Non-aktifkan tombol sementara
-        $('#refreshStock').prop('disabled', true).addClass('disabled');
-        showLoading(true);
-
-        console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
-
-        $.ajax({
-            url: "{{ route('hu.sync-stock') }}",
-            type: 'POST',
-            data: {
-                _token: "{{ csrf_token() }}",
-                plant: selectedPlant,
-                storage_location: selectedStorageLocation || '3D10'
-            },
-            success: function(response) {
-                console.log('Sync response:', response);
-                showMessage(response.message, 'success');
-                window.location.reload();
-            },
-            error: function(xhr, status, error) {
-                console.error('Sync error:', error);
-                let errorMessage = 'Error sync data stock';
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMessage = xhr.responseJSON.error;
-                }
-                showError(errorMessage);
-            },
-            complete: function() {
-                // Reset flag dan enable tombol
-                isSyncing = false;
-                showLoading(false);
-                setTimeout(() => {
-                    $('#refreshStock').prop('disabled', false).removeClass('disabled');
-                }, 1000);
+            if (isSyncing) {
+                console.log('Sync already in progress, skipping...');
+                return;
             }
-        });
-    }
+
+            if (!selectedPlant) {
+                showError('Pilih plant sebelum sync');
+                return;
+            }
+
+            // Konfirmasi sebelum sync (karena data akan dihapus)
+            if (!confirm('PERINGATAN: Data stock lama untuk plant ' + selectedPlant +
+                        ' dan lokasi ' + (selectedStorageLocation || 'Semua Lokasi') +
+                        ' akan dihapus dan diganti dengan data baru dari SAP. Lanjutkan?')) {
+                return;
+            }
+
+            // Set flag sync sedang berjalan
+            isSyncing = true;
+
+            // Non-aktifkan tombol sementara
+            $('#refreshStock').prop('disabled', true).addClass('disabled');
+            showLoading(true);
+
+            console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
+
+            $.ajax({
+                url: "{{ route('hu.sync-stock') }}",
+                type: 'POST',
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    plant: selectedPlant,
+                    storage_location: selectedStorageLocation || '3D10'
+                },
+                success: function(response) {
+                    console.log('Sync response:', response);
+
+                    if (response.success) {
+                        // Reload page setelah delay singkat untuk memberi waktu data disimpan
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1000);
+
+                        showMessage(response.message, 'success');
+                    } else {
+                        showError(response.error);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Sync error:', error);
+                    let errorMessage = 'Error sync data stock';
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMessage = xhr.responseJSON.error;
+                    }
+                    showError(errorMessage);
+                },
+                complete: function() {
+                    // Reset flag dan enable tombol
+                    isSyncing = false;
+                    showLoading(false);
+                    setTimeout(() => {
+                        $('#refreshStock').prop('disabled', false).removeClass('disabled');
+                    }, 1000);
+                }
+            });
+        }
 
     function populateStockTable(data) {
         const tbody = $('#stockTableBody');
