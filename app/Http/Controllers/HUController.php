@@ -97,12 +97,40 @@ class HUController extends Controller
         return view('hu.create-multiple');
     }
 
-    public function history()
+    public function history(Request $request)
     {
         try {
-            $historyData = HuHistory::with('stock')
-                ->orderBy('created_at', 'desc')
-                ->paginate(20);
+            // Ambil parameter filter dari request
+            $search = $request->get('search', '');
+            $startDate = $request->get('start_date', '');
+            $endDate = $request->get('end_date', '');
+
+            // Query dasar
+            $query = HuHistory::with('stock')
+                ->orderBy('created_at', 'desc');
+
+            // Filter pencarian
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('hu_number', 'like', "%{$search}%")
+                    ->orWhere('material', 'like', "%{$search}%")
+                    ->orWhere('material_description', 'like', "%{$search}%")
+                    ->orWhere('sales_document', 'like', "%{$search}%")
+                    ->orWhere('batch', 'like', "%{$search}%");
+                });
+            }
+
+            // Filter tanggal
+            if ($startDate) {
+                $query->whereDate('created_at', '>=', $startDate);
+            }
+
+            if ($endDate) {
+                $query->whereDate('created_at', '<=', $endDate);
+            }
+
+            // Pagination 50 baris per halaman
+            $historyData = $query->paginate(50);
 
             // Untuk setiap history yang material_description-nya tidak ada, coba ambil dari stock_data
             foreach ($historyData as $item) {
@@ -113,7 +141,7 @@ class HUController extends Controller
 
             Log::info('History data loaded: ' . $historyData->total() . ' records');
 
-            return view('hu.history', compact('historyData'));
+            return view('hu.history', compact('historyData', 'search', 'startDate', 'endDate'));
         } catch (\Exception $e) {
             Log::error('History fetch error: ' . $e->getMessage());
             return view('hu.history', ['historyData' => []])
@@ -196,7 +224,7 @@ class HUController extends Controller
                 'error' => $e->getMessage(),
                 'pagination' => [
                     'current_page' => $page,
-                    'per_page' => $perPage ?? 20,
+                    'per_page' => $perPage ?? 50,
                     'total' => 0,
                     'total_pages' => 0
                 ]

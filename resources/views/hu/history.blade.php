@@ -162,15 +162,20 @@
             }
         }
 
-        /* Loading spinner */
-        .loading-spinner {
-            display: none;
-            text-align: center;
-            padding: 20px;
+        /* Pagination styling */
+        .pagination {
+            margin-bottom: 0;
         }
-        .spinner-border {
-            width: 2rem;
-            height: 2rem;
+        .page-link {
+            color: #3b82f6;
+            border: 1px solid #dee2e6;
+        }
+        .page-item.active .page-link {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+        }
+        .page-item.disabled .page-link {
+            color: #6c757d;
         }
     </style>
 </head>
@@ -203,14 +208,6 @@
         </div>
         @endif
 
-        <!-- Loading Spinner -->
-        <div class="loading-spinner no-print" id="loadingSpinner">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2 text-muted">Memuat data terbaru...</p>
-        </div>
-
         <!-- TAMPILAN NORMAL -->
         <div class="card border-0 shadow-sm no-print" id="mainCard">
             <div class="card-header bg-white py-3">
@@ -234,27 +231,36 @@
 
                 <!-- Filter Section -->
                 <div class="filter-container mb-3">
-                    <div class="flex-grow-1">
-                        <label class="date-filter-label">Pencarian</label>
-                        <input type="text" id="searchInput" class="form-control form-control-sm search-box"
-                               placeholder="Cari HU Number, material, deskripsi, sales order...">
-                    </div>
-                    <div class="date-filter-group">
-                        <div class="date-filter">
-                            <label class="date-filter-label">Tanggal Mulai</label>
-                            <input type="date" id="startDate" class="form-control form-control-sm">
+                    <form method="GET" action="{{ route('hu.history') }}" id="filterForm" class="w-100">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="date-filter-label">Pencarian</label>
+                                <input type="text" name="search" id="searchInput" class="form-control form-control-sm search-box"
+                                       placeholder="Cari HU Number, material, deskripsi, sales order..."
+                                       value="{{ request('search', '') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="date-filter-label">Tanggal Mulai</label>
+                                <input type="date" name="start_date" id="startDate" class="form-control form-control-sm"
+                                       value="{{ request('start_date', '') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="date-filter-label">Tanggal Akhir</label>
+                                <input type="date" name="end_date" id="endDate" class="form-control form-control-sm"
+                                       value="{{ request('end_date', '') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary btn-sm w-100">
+                                    <i class="fas fa-search me-1"></i> Filter
+                                </button>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <a href="{{ route('hu.history') }}" class="btn btn-outline-secondary btn-sm w-100">
+                                    <i class="fas fa-refresh me-1"></i> Reset
+                                </a>
+                            </div>
                         </div>
-                        <div class="date-filter">
-                            <label class="date-filter-label">Tanggal Akhir</label>
-                            <input type="date" id="endDate" class="form-control form-control-sm">
-                        </div>
-                    </div>
-                    <div class="reset-btn-container">
-                        <label class="date-filter-label opacity-0">Reset</label>
-                        <button id="resetFilterBtn" class="btn btn-outline-secondary btn-sm reset-btn" title="Reset Filter">
-                            <i class="fas fa-refresh"></i>
-                        </button>
-                    </div>
+                    </form>
                 </div>
 
                 <div class="d-flex align-items-center">
@@ -264,7 +270,7 @@
                     </label>
                     <span id="selectedCount" class="badge bg-primary ms-2">0 terpilih</span>
                 </div>
-                <small class="text-muted">Daftar material yang sudah dibuat Handling Unit</small>
+                <small class="text-muted">Menampilkan 50 data per halaman</small>
             </div>
             <div class="card-body p-0">
                 <form id="exportForm" action="{{ route('hu.export') }}" method="POST">
@@ -294,9 +300,7 @@
                         <tbody id="historyTableBody">
                             @if($historyData->count() > 0)
                                 @foreach($historyData as $item)
-                                    <tr class="hover:bg-gray-50"
-                                        data-search="{{ strtolower(($item->hu_number ?? '') . ' ' . ($item->material ?? '') . ' ' . ($item->material_description ?? '') . ' ' . ($item->sales_document ?? '') . ' ' . ($item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '')) }}"
-                                        data-date="{{ $item->created_at ? \Carbon\Carbon::parse($item->created_at)->format('Y-m-d') : '' }}">
+                                    <tr class="hover:bg-gray-50">
                                         <td class="border-0">
                                             <input type="checkbox" class="form-check-input row-checkbox"
                                                    value="{{ $item->id ?? $item->hu_number }}" data-hu="{{ $item->hu_number }}">
@@ -357,6 +361,58 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Pagination Section -->
+                @if($historyData->hasPages())
+                <div class="card-footer bg-white py-3 no-print">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            Menampilkan {{ $historyData->firstItem() ?? 0 }} - {{ $historyData->lastItem() ?? 0 }} dari {{ $historyData->total() }} data
+                        </div>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination pagination-sm mb-0">
+                                {{-- Previous Page Link --}}
+                                @if($historyData->onFirstPage())
+                                    <li class="page-item disabled">
+                                        <span class="page-link">&laquo; Sebelumnya</span>
+                                    </li>
+                                @else
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ $historyData->previousPageUrl() . '&' . http_build_query(request()->except('page')) }}" rel="prev">&laquo; Sebelumnya</a>
+                                    </li>
+                                @endif
+
+                                {{-- Pagination Elements --}}
+                                @foreach($historyData->getUrlRange(1, $historyData->lastPage()) as $page => $url)
+                                    @if($page == $historyData->currentPage())
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ $page }}</span>
+                                        </li>
+                                    @else
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ $url . '&' . http_build_query(request()->except('page')) }}">{{ $page }}</a>
+                                        </li>
+                                    @endif
+                                @endforeach
+
+                                {{-- Next Page Link --}}
+                                @if($historyData->hasMorePages())
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ $historyData->nextPageUrl() . '&' . http_build_query(request()->except('page')) }}" rel="next">Selanjutnya &raquo;</a>
+                                    </li>
+                                @else
+                                    <li class="page-item disabled">
+                                        <span class="page-link">Selanjutnya &raquo;</span>
+                                    </li>
+                                @endif
+                            </ul>
+                        </nav>
+                        <div class="text-muted small">
+                            Halaman {{ $historyData->currentPage() }} dari {{ $historyData->lastPage() }}
+                        </div>
+                    </div>
+                </div>
+                @endif
             </div>
         </div>
 
@@ -365,6 +421,14 @@
             <div class="print-header">
                 <div class="print-title">HANDLING UNIT (HU) HISTORY REPORT</div>
                 <div class="print-subtitle">SAP HU Automation System</div>
+                <div class="print-subtitle" style="font-size: 12px; margin-top: 5px;">
+                    @if(request('search'))
+                        Filter Pencarian: {{ request('search') }}
+                    @endif
+                    @if(request('start_date') || request('end_date'))
+                        | Tanggal: {{ request('start_date', '') }} s/d {{ request('end_date', '') }}
+                    @endif
+                </div>
             </div>
 
             <table class="print-table">
@@ -435,6 +499,8 @@
             </table>
 
             <div class="print-footer">
+                Halaman {{ $historyData->currentPage() }} dari {{ $historyData->lastPage() }} |
+                Total Data: {{ $historyData->total() }} |
                 Dicetak pada: {{ \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') }} WIB
             </div>
         </div>
@@ -446,20 +512,14 @@
         $(document).ready(function() {
             let selectedHUs = [];
 
-            // Set default dates (last 30 days)
-            const today = new Date();
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(today.getDate() - 30);
+            // Set default dates (last 30 days) jika tidak ada filter
+            @if(!request('start_date') && !request('end_date'))
+                const today = new Date();
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(today.getDate() - 30);
 
-            $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
-            $('#endDate').val(today.toISOString().split('T')[0]);
-
-            // Auto refresh jika ada success message dari pembuatan HU baru
-            @if(session('success') && (str_contains(session('success'), 'HU berhasil') || str_contains(session('success'), 'berhasil dibuat')))
-                console.log('HU baru berhasil dibuat, memuat data terbaru...');
-                setTimeout(function() {
-                    refreshData();
-                }, 1000);
+                $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
+                $('#endDate').val(today.toISOString().split('T')[0]);
             @endif
 
             // Generate QR Codes untuk semua HU number
@@ -494,59 +554,12 @@
                 @endforeach
             }
 
-            // Function untuk refresh data
-            function refreshData() {
-                console.log('Memuat data terbaru...');
-                $('#loadingSpinner').show();
-                $('#mainCard').css('opacity', '0.6');
-
-                $.ajax({
-                    url: '{{ route('hu.history') }}',
-                    type: 'GET',
-                    data: {
-                        'refresh': true,
-                        '_token': '{{ csrf_token() }}'
-                    },
-                    success: function(response) {
-                        // Parse HTML response
-                        const $response = $('<div>').html(response);
-
-                        // Update table body
-                        const newTableBody = $response.find('#historyTableBody').html();
-                        $('#historyTableBody').html(newTableBody);
-
-                        // Update print view
-                        const newPrintBody = $response.find('#printTableBody').html();
-                        $('#printTableBody').html(newPrintBody);
-
-                        // Re-generate QR codes
-                        generateQRCodes();
-
-                        // Re-apply filters
-                        applyFilters();
-
-                        // Update selection UI
-                        updateSelectionUI();
-
-                        console.log('Data berhasil diperbarui');
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Error refreshing data:', error);
-                        alert('Gagal memuat data terbaru. Silakan refresh halaman manual.');
-                    },
-                    complete: function() {
-                        $('#loadingSpinner').hide();
-                        $('#mainCard').css('opacity', '1');
-                    }
-                });
-            }
-
-            // Manual refresh button
+            // Refresh button
             $('#refreshBtn').on('click', function() {
-                refreshData();
+                window.location.reload();
             });
 
-            // Print Functionality - VERSI DIPERBAIKI
+            // Print Functionality
             $('#printBtn').on('click', function() {
                 console.log('Print button clicked');
 
@@ -565,47 +578,10 @@
                 console.log('Print completed or cancelled');
             });
 
-            // Filter Functionality
-            function applyFilters() {
-                const searchText = $('#searchInput').val().toLowerCase();
-                const startDate = $('#startDate').val();
-                const endDate = $('#endDate').val();
-
-                $('#historyTableBody tr').each(function() {
-                    const searchData = $(this).data('search') || '';
-                    const rowDate = $(this).data('date') || '';
-
-                    const matchesSearch = searchData.includes(searchText);
-                    const matchesDate = (!startDate || rowDate >= startDate) &&
-                                       (!endDate || rowDate <= endDate);
-
-                    if (matchesSearch && matchesDate) {
-                        $(this).show();
-                    } else {
-                        $(this).hide();
-                    }
-                });
-                updateSelectionUI();
-            }
-
-            // Live Search Functionality
-            $('#searchInput').on('input', applyFilters);
-
-            // Date Filter Functionality
-            $('#startDate, #endDate').on('change', applyFilters);
-
-            // Reset Filter
-            $('#resetFilterBtn').on('click', function() {
-                $('#searchInput').val('');
-                $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
-                $('#endDate').val(today.toISOString().split('T')[0]);
-                applyFilters();
-            });
-
             // Select All Checkbox
             $('#selectAll, #selectAllHeader').on('change', function() {
                 const isChecked = $(this).is(':checked');
-                $('.row-checkbox:visible').prop('checked', isChecked);
+                $('.row-checkbox').prop('checked', isChecked);
                 updateSelectedData();
             });
 
@@ -626,8 +602,8 @@
 
             // Update Selection UI
             function updateSelectionUI() {
-                const visibleCount = $('.row-checkbox:visible').length;
-                const checkedCount = $('.row-checkbox:checked:visible').length;
+                const visibleCount = $('.row-checkbox').length;
+                const checkedCount = $('.row-checkbox:checked').length;
 
                 $('#selectedCount').text(checkedCount + ' terpilih');
 
@@ -660,9 +636,8 @@
                 $('#exportForm').submit();
             });
 
-            // Initialize UI and apply initial filters
+            // Initialize UI
             updateSelectionUI();
-            applyFilters();
 
             // Generate QR codes saat halaman pertama kali load
             generateQRCodes();
