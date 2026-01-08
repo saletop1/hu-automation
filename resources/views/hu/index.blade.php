@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Semua style CSS tetap sama */
+        /* CSS tetap sama seperti sebelumnya */
         .card-hover {
             transition: all 0.3s ease;
             border: 1px solid #e2e8f0;
@@ -60,30 +60,24 @@
             width: 100%;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-
         .material-result-item {
             padding: 8px 12px;
             cursor: pointer;
             border-bottom: 1px solid #f0f0f0;
         }
-
         .material-result-item:hover {
             background-color: #f5f5f5;
         }
-
         .material-result-item.no-result {
             color: #999;
             cursor: default;
         }
-
         .material-result-item:last-child {
             border-bottom: none;
         }
-
         .material-result-item strong {
             color: #333;
         }
-
         .material-result-item small {
             color: #666;
         }
@@ -161,7 +155,6 @@
         .pagination-container.d-none {
             display: none !important;
         }
-        /* Style untuk card yang lebih ringkas */
         .compact-card .card-body {
             padding: 0.75rem;
         }
@@ -183,7 +176,6 @@
             font-size: 0.7rem;
             padding: 0.25rem 0.5rem;
         }
-        /* Sticky positioning untuk kolom kanan */
         .scenario-sidebar {
             position: sticky;
             top: 50px;
@@ -191,7 +183,6 @@
             max-height: 95vh;
             overflow-y: auto;
         }
-        /* Tanda untuk material yang sudah dipilih - BERBEDA UNTUK SETIAP SKENARIO */
         .selected-material-s1 {
             background-color: #e6f7ff !important;
             border-left: 3px solid #1890ff !important;
@@ -220,7 +211,6 @@
         .status-s3 {
             background-color: #722ed1;
         }
-        /* Style untuk item material di card skenario (lebih rapi) */
         .material-item-compact {
             display: flex;
             justify-content: space-between;
@@ -232,7 +222,6 @@
             font-size: 0.65rem;
             min-height: 32px;
         }
-
         .material-code-compact {
             font-family: 'Courier New', monospace;
             font-weight: 600;
@@ -240,7 +229,6 @@
             font-size: 0.6rem;
             line-height: 1.2;
         }
-
         .material-qty-compact {
             font-weight: bold;
             color: #001610ff;
@@ -253,7 +241,6 @@
             min-width: 30px;
             text-align: center;
         }
-        /* Style untuk checkbox yang lebih jelas */
         .table-checkbox {
             width: 14px;
             height: 14px;
@@ -268,18 +255,14 @@
             height: 16px;
             accent-color: #3b82f6;
         }
-        /* Style untuk baris yang dipilih */
         .row-selected {
             background-color: #f0f7ff !important;
         }
-
         #stockCountBadge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-        border: 1px solid #3b82f6;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #3b82f6;
         }
-
-        /* Style baru untuk info seleksi */
         .selection-info {
             display: flex;
             align-items: center;
@@ -321,27 +304,20 @@
             align-items: center;
             gap: 10px;
         }
-        /* Style untuk dropdown plant dan location */
         .plant-option small, .storage-option small {
             font-size: 0.7rem;
             opacity: 0.7;
         }
-
         .dropdown-menu {
             max-height: 300px;
             overflow-y: auto;
         }
-
-        /* Highlight untuk plant 2000 */
         .plant-option[data-plant="2000"] {
             border-left: 3px solid #ff6b35;
         }
-
         .plant-option[data-plant="3000"] {
             border-left: 3px solid #3b82f6;
         }
-
-        /* Style untuk material dengan stock 0 */
         .zero-stock {
             opacity: 0.6;
             background-color: #f8f9fa !important;
@@ -354,54 +330,117 @@
             background-color: #6c757d !important;
             color: white !important;
         }
+        .plant-option.active {
+            background-color: #e6f7ff !important;
+            font-weight: 600 !important;
+        }
+        .plant-option[data-plant="2000"].active {
+            background-color: #fff7e6 !important;
+            border-left: 3px solid #ff6b35 !important;
+        }
+        .plant-option[data-plant="3000"].active {
+            background-color: #e6f7ff !important;
+            border-left: 3px solid #3b82f6 !important;
+        }
+        #plantDropdown.active-2000 {
+            background-color: #ff6b35 !important;
+            color: white !important;
+            border-color: #ff6b35 !important;
+        }
+        #plantDropdown.active-3000 {
+            background-color: #3b82f6 !important;
+            color: white !important;
+            border-color: #3b82f6 !important;
+        }
+        .loading-visible {
+            display: flex !important;
+        }
+        .loading-overlay .spinner-border {
+            width: 4rem;
+            height: 4rem;
+        }
+        .loading-overlay p {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+        .no-plant-selected {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        .no-plant-selected i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        .no-plant-selected h5 {
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .no-plant-selected p {
+            margin-bottom: 1.5rem;
+        }
+        .no-plant-selected .btn {
+            min-width: 150px;
+        }
+        .material-warning {
+            background-color: #fff3cd !important;
+            border-left: 3px solid #ffc107 !important;
+        }
+        .material-warning .material-code-compact {
+            color: #856404;
+        }
+        .warning-badge {
+            background-color: #ffc107 !important;
+            color: #856404 !important;
+            font-size: 0.6rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 4px;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
     <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-green-700 to-yellow-800 shadow-lg">
-    <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
-            <i class="fas fa-cubes me-2"></i>SAP HU Automation
-        </a>
-        <div class="d-flex align-items-center">
-            <span class="navbar-text text-light me-3">
-                <i class="fas fa-user me-1"></i>{{ Auth::user()->name }}
-            </span>
-
-            <div class="d-flex gap-2">
-                <!-- Tombol History HU -->
-                <a href="{{ route('hu.history') }}" class="btn btn-outline-light btn-sm d-flex align-items-center">
-                    <i class="fas fa-history me-1"></i> History HU
-                </a>
-
-                <!-- Tombol Logout -->
-                <form method="POST" action="{{ route('logout') }}" class="d-inline m-0">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-light btn-sm d-flex align-items-center">
-                        <i class="fas fa-sign-out-alt me-1"></i> Logout
-                    </button>
-                </form>
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
+                <i class="fas fa-cubes me-2"></i>SAP HU Automation
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="navbar-text text-light me-3">
+                    <i class="fas fa-user me-1"></i>{{ Auth::user()->name }}
+                </span>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('hu.history') }}" class="btn btn-outline-light btn-sm d-flex align-items-center">
+                        <i class="fas fa-history me-1"></i> History HU
+                    </a>
+                    <form method="POST" action="{{ route('logout') }}" class="d-inline m-0">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-light btn-sm d-flex align-items-center">
+                            <i class="fas fa-sign-out-alt me-1"></i> Logout
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
-            <div class="container-fluid mt-4">
-            @if(session('success'))
+    <div class="container-fluid mt-4">
+        @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
                 <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         @endif
 
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-        <!-- Layout utama dengan kolom kiri lebih lebar dan kanan lebih sempit -->
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
         <div class="row">
-            <!-- Kolom kiri untuk data stock (lebih lebar) -->
             <div class="col-lg-10 mb-4">
                 <div class="card border-0 shadow-sm h-100">
                     <div class="card-header bg-white py-3">
@@ -427,166 +466,94 @@
                                     <span class="selected-count" id="selectedCount">0 item terpilih</span>
                                 </div>
                             </div>
-                            <!-- Di bagian card header - Update dropdown plants -->
-                                <div class="card-header-right">
-                                    <button class="btn btn-outline-danger btn-sm clear-selection-btn" id="clearSelection" title="Hapus pilihan">
-                                        <i class="fas fa-trash"></i>
+                            <div class="card-header-right">
+                                <button class="btn btn-outline-danger btn-sm clear-selection-btn" id="clearSelection" title="Hapus pilihan">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="plantDropdown" data-bs-toggle="dropdown">
+                                        <i class="fas fa-industry me-1"></i>
+                                        <span id="selectedPlant">Pilih Plant</span>
                                     </button>
-
-                                    <!-- Dropdown Plant -->
-                                    <div class="dropdown">
-                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="plantDropdown" data-bs-toggle="dropdown">
-                                            <i class="fas fa-industry me-1"></i>
-                                            <span id="selectedPlant">Plant: 3000</span>
-                                        </button>
-                                        <ul class="dropdown-menu" id="plantList">
-                                            @foreach($plantsData as $plant => $locations)
-                                                <li><a class="dropdown-item plant-option" href="#" data-plant="{{ $plant }}">
-                                                    Plant {{ $plant }}
-                                                    @if($plant == '2000')
-                                                        <small class="text-muted d-block">Lokasi: 21HU, 21LK, 21NH</small>
-                                                    @elseif($plant == '3000')
-                                                        <small class="text-muted d-block">Lokasi: 3D10, 3DH1, 3DH2</small>
-                                                    @endif
-                                                </a></li>
-                                            @endforeach
-                                        </ul>
-                                    </div>
-
-                                    <!-- Dropdown Storage Location -->
-                                    <div class="dropdown">
-                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="storageLocationDropdown" data-bs-toggle="dropdown">
-                                            <i class="fas fa-map-marker-alt me-1"></i>
-                                            <span id="selectedStorageLocation">Lokasi: 3D10</span>
-                                        </button>
-                                        <ul class="dropdown-menu" id="storageLocationList">
-                                            <li><a class="dropdown-item storage-option" href="#" data-location="">Semua Lokasi</a></li>
-                                            <!-- Lokasi akan diisi secara dinamis oleh JavaScript -->
-                                        </ul>
-                                    </div>
-
-                                    <div class="input-group input-group-sm" style="width: 300px;">
-                                        <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, batch, customer...">
-                                        <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" title="Clear search">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                        <button class="btn btn-outline-primary" type="button" id="searchBtn">
-                                            <i class="fas fa-search"></i>
-                                        </button>
-                                    </div>
-                                    <button id="refreshStock" class="btn btn-outline-primary btn-sm refresh-btn">
-                                        <i class="fas fa-sync-alt me-1"></i> Sync Sekarang
-                                    </button>
-                                    <div class="loading-spinner spinner-border spinner-border-sm text-primary me-2" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
+                                    <ul class="dropdown-menu" id="plantList">
+                                        @foreach($plantsData as $plant => $locations)
+                                            <li><a class="dropdown-item plant-option" href="#" data-plant="{{ $plant }}">
+                                                Plant {{ $plant }}
+                                                @if($plant == '2000')
+                                                    <small class="text-muted d-block">Lokasi: 21HU, 21LK, 21NH</small>
+                                                @elseif($plant == '3000')
+                                                    <small class="text-muted d-block">Lokasi: 3D10, 3DH1, 3DH2</small>
+                                                @endif
+                                            </a></li>
+                                        @endforeach
+                                    </ul>
                                 </div>
+
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="storageLocationDropdown" data-bs-toggle="dropdown" disabled>
+                                        <i class="fas fa-map-marker-alt me-1"></i>
+                                        <span id="selectedStorageLocation">Pilih Plant Terlebih Dahulu</span>
+                                    </button>
+                                    <ul class="dropdown-menu" id="storageLocationList">
+                                    </ul>
+                                </div>
+
+                                <div class="input-group input-group-sm" style="width: 300px;">
+                                    <input type="text" id="materialSearch" class="form-control" placeholder="Cari material, deskripsi, batch, customer..." disabled>
+                                    <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" title="Clear search" disabled>
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    <button class="btn btn-outline-primary" type="button" id="searchBtn" disabled>
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                                <button id="refreshStock" class="btn btn-outline-primary btn-sm refresh-btn" disabled>
+                                    <i class="fas fa-sync-alt me-1"></i> Sync Sekarang
+                                </button>
+                                <div class="loading-spinner spinner-border spinner-border-sm text-primary me-2" role="status" style="display: none;">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover stock-table mb-0">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="border-0" style="width: 40px;">
-                                            <input type="checkbox" id="selectAllHeader" class="table-checkbox">
-                                        </th>
-                                        <th class="border-0">Status</th>
-                                        <th class="border-0">Material</th>
-                                        <th class="border-0">Deskripsi</th>
-                                        <th class="border-0">Batch</th>
-                                        <th class="border-0 text-end">Qty Stock</th>
-                                        <th class="border-0">Unit</th>
-                                        <th class="border-0">Dokumen Penjualan</th>
-                                        <th class="border-0">Customer</th>
-                                        <th class="border-0">Update Terakhir</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="stockTableBody">
-                                    @php
-                                        $hasAvailableStock = false;
-                                        $hasZeroStock = false;
-                                    @endphp
-
-                                    @if($stockData['success'] && count($stockData['data']) > 0)
-                                        @foreach($stockData['data'] as $index => $item)
-                                            @if(!$item->hu_created)
-                                                @if($item->stock_quantity > 0)
-                                                    @php $hasAvailableStock = true; @endphp
-                                                    <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="{{ $index }}" data-material="{{ $item->material }}" data-batch="{{ $item->batch }}" data-plant="{{ $item->plant }}" data-storage-location="{{ $item->storage_location }}" data-stock-quantity="{{ $item->stock_quantity }}">
-                                                        <td class="border-0">
-                                                            <input type="checkbox" class="table-checkbox row-select" data-index="{{ $index }}">
-                                                        </td>
-                                                        <td class="border-0">
-                                                            <span class="material-status" id="status-{{ $item->material }}-{{ $item->batch }}"></span>
-                                                        </td>
-                                                        <td class="border-0">
-                                                            <span class="material-number">
-                                                                {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
-                                                            </span>
-                                                        </td>
-                                                        <td class="border-0 text-gray-600">{{ $item->material_description ?? '-' }}</td>
-                                                        <td class="border-0 text-gray-600">{{ $item->batch ?? '-' }}</td>
-                                                        <td class="border-0 text-end">
-                                                            <span class="badge bg-success bg-opacity-10 text-success fs-6">
-                                                                {{ number_format((float)($item->stock_quantity ?? 0), 0, ',', '.') }}
-                                                            </span>
-                                                        </td>
-                                                        <td class="border-0 text-gray-600">{{ $item->base_unit == 'ST' ? 'PC' : ($item->base_unit ?? '-') }}</td>
-                                                        <td class="border-0">
-                                                            <span class="sales-document">{{ $item->sales_document && $item->item_number ? $item->sales_document . $item->item_number : '-' }}</span>
-                                                        </td>
-                                                        <td class="border-0 text-gray-600">
-                                                            @if($item->vendor_name)
-                                                                {{ implode(' ', array_slice(explode(' ', $item->vendor_name), 0, 2)) }}
-                                                            @else
-                                                                -
-                                                            @endif
-                                                        </td>
-                                                        <td class="border-0 text-gray-600">
-                                                            {{ $item->last_updated ? \Carbon\Carbon::parse($item->last_updated)->format('d/m/Y H:i:s') : '-' }}
-                                                        </td>
-                                                    </tr>
-                                                @else
-                                                    @php $hasZeroStock = true; @endphp
-                                                    <!-- Material dengan stock 0 - Hanya untuk debugging -->
-                                                    <tr class="zero-stock" style="display: none;">
-                                                        <td class="border-0 text-center" colspan="10">
-                                                            <small class="text-muted">Material dengan stock 0 (tersembunyi)</small>
-                                                        </td>
-                                                    </tr>
-                                                @endif
-                                            @endif
-                                        @endforeach
-
-                                        @if(!$hasAvailableStock)
-                                            <tr>
-                                                <td colspan="10" class="text-center py-4 text-muted">
-                                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                                    @if($hasZeroStock)
-                                                        Tidak ada data stock tersedia (hanya material dengan stock 0)
-                                                    @else
-                                                        Tidak ada data stock tersedia
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @endif
-                                    @else
+                        <div id="stockTableContainer">
+                            <div class="no-plant-selected" id="noPlantSelectedMessage">
+                                <i class="fas fa-industry"></i>
+                                <h5>Pilih Plant Terlebih Dahulu</h5>
+                                <p>Silakan pilih plant dari dropdown di atas untuk melihat data stock</p>
+                                <button class="btn btn-primary" id="selectPlantBtn">
+                                    <i class="fas fa-chevron-down me-1"></i> Pilih Plant
+                                </button>
+                            </div>
+                            <div class="table-responsive d-none" id="stockTableWrapper">
+                                <table class="table table-hover stock-table mb-0">
+                                    <thead class="bg-gray-50">
                                         <tr>
-                                            <td colspan="10" class="text-center py-4 text-muted">
-                                                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                                Tidak ada data stock tersedia
-                                            </td>
+                                            <th class="border-0" style="width: 40px;">
+                                                <input type="checkbox" id="selectAllHeader" class="table-checkbox">
+                                            </th>
+                                            <th class="border-0">Status</th>
+                                            <th class="border-0">Material</th>
+                                            <th class="border-0">Deskripsi</th>
+                                            <th class="border-0">Batch</th>
+                                            <th class="border-0 text-end">Qty Stock</th>
+                                            <th class="border-0">Unit</th>
+                                            <th class="border-0">Dokumen Penjualan</th>
+                                            <th class="border-0">Customer</th>
+                                            <th class="border-0">Update Terakhir</th>
                                         </tr>
-                                    @endif
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody id="stockTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Kolom kanan untuk skenario (lebih sempit) -->
             <div class="col-lg-2 mb-4">
                 <div class="scenario-sidebar">
                     <div class="row">
@@ -702,8 +669,9 @@
 
     <script>
     // Global variables
-    let allStockData = @json($stockData['success'] ? $stockData['data'] : []);
+    let allStockData = [];
     const plantsData = @json($plantsData ?? []);
+    // PERBAIKAN: Pastikan scenarioData selalu berupa array
     const scenarioData = {
         'single': [],
         'single-multi': [],
@@ -711,17 +679,19 @@
     };
     let selectedRows = new Set();
     let searchTimeout;
-    let isSyncing = false; // Flag untuk mencegah multiple sync
+    let isSyncing = false;
 
-    // Manual plant locations data
+    // Plant locations data
     const manualPlantLocations = {
         '2000': ['21HU', '21LK', '21NH'],
         '3000': ['3D10', '3DH1', '3DH2']
     };
-    let selectedPlant = '3000';
-    let selectedStorageLocation = '3D10';
 
-    // ===== SEMUA FUNGSI UTILITAS =====
+    // State management - TIDAK ADA DEFAULT PLANT
+    let selectedPlant = sessionStorage.getItem('selectedPlant') || '';
+    let selectedStorageLocation = sessionStorage.getItem('selectedStorageLocation') || '';
+
+    // ===== FUNGSI UTILITAS =====
     function formatMaterialNumber(material) {
         if (!material) return '';
         if (/^\d+$/.test(material)) {
@@ -751,7 +721,104 @@
         }
     }
 
-    // Fungsi untuk menandai material yang sudah dipilih PER SKENARIO
+    // ===== FUNGSI VALIDASI PLANT =====
+    function validateMaterialPlant(item) {
+        console.log('DEBUG validateMaterialPlant:', {
+            itemPlant: item.plant,
+            selectedPlant: selectedPlant,
+            itemPlantType: typeof item.plant,
+            selectedPlantType: typeof selectedPlant,
+            material: item.material
+        });
+
+        if (!selectedPlant) {
+            console.log('DEBUG: Plant belum dipilih');
+            return { valid: false, message: 'Plant belum dipilih' };
+        }
+
+        // Konversi kedua nilai ke string untuk perbandingan yang konsisten
+        const itemPlantStr = String(item.plant || '');
+        const selectedPlantStr = String(selectedPlant || '');
+
+        if (itemPlantStr !== selectedPlantStr) {
+            console.log('DEBUG: Plant tidak sama', itemPlantStr, '!==', selectedPlantStr);
+            return {
+                valid: false,
+                message: `Material ${formatMaterialNumber(item.material)} berasal dari Plant ${item.plant}, sedangkan plant yang aktif adalah ${selectedPlant}.`
+            };
+        }
+
+        console.log('DEBUG: Plant valid');
+        return { valid: true };
+    }
+
+    function validateScenarioPlant(scenario) {
+        console.log('DEBUG validateScenarioPlant:', {
+            scenario: scenario,
+            selectedPlant: selectedPlant,
+            itemsCount: scenarioData[scenario] ? scenarioData[scenario].length : 0
+        });
+
+        if (!selectedPlant) {
+            return { valid: false, message: 'Plant belum dipilih' };
+        }
+
+        const items = scenarioData[scenario];
+        // PERBAIKAN: Pastikan items adalah array
+        if (!Array.isArray(items) || items.length === 0) {
+            return { valid: true };
+        }
+
+        const selectedPlantStr = String(selectedPlant || '');
+
+        for (let item of items) {
+            const itemPlantStr = String(item.plant || '');
+
+            console.log('DEBUG checking item:', {
+                itemPlant: item.plant,
+                selectedPlant: selectedPlant,
+                itemPlantStr: itemPlantStr,
+                selectedPlantStr: selectedPlantStr,
+                comparison: itemPlantStr !== selectedPlantStr
+            });
+
+            if (itemPlantStr !== selectedPlantStr) {
+                return {
+                    valid: false,
+                    message: `Material ${formatMaterialNumber(item.material)} berasal dari Plant ${item.plant}, sedangkan plant yang aktif adalah ${selectedPlant}.`
+                };
+            }
+        }
+        return { valid: true };
+    }
+
+    // ===== FUNGSI STATE MANAGEMENT =====
+    function saveSelectedState() {
+        try {
+            sessionStorage.setItem('selectedPlant', selectedPlant);
+            sessionStorage.setItem('selectedStorageLocation', selectedStorageLocation || '');
+            console.log('State saved:', selectedPlant, selectedStorageLocation);
+        } catch (error) {
+            console.error('Error saving state:', error);
+        }
+    }
+
+    function updatePlantVisualIndicator() {
+        $('.plant-option').removeClass('active');
+        $('#plantDropdown').removeClass('active-2000 active-3000');
+
+        if (selectedPlant) {
+            $(`.plant-option[data-plant="${selectedPlant}"]`).addClass('active');
+
+            if (selectedPlant === '2000') {
+                $('#plantDropdown').addClass('active-2000');
+            } else if (selectedPlant === '3000') {
+                $('#plantDropdown').addClass('active-3000');
+            }
+        }
+    }
+
+    // ===== PERBAIKAN UTAMA: updateMaterialStatus() =====
     function updateMaterialStatus() {
         // Reset semua status
         $('.draggable-row').removeClass('selected-material-s1 selected-material-s2 selected-material-s3');
@@ -759,8 +826,23 @@
 
         // Tandai material berdasarkan skenario
         Object.keys(scenarioData).forEach(scenario => {
+            const items = scenarioData[scenario];
+
+            // PERBAIKAN: Pastikan items adalah array sebelum menggunakan forEach
+            if (!Array.isArray(items)) {
+                console.warn(`scenarioData.${scenario} bukan array:`, items);
+                // Reset ke array kosong jika bukan array
+                scenarioData[scenario] = [];
+                return;
+            }
+
             const scenarioClass = getScenarioClass(scenario);
-            scenarioData[scenario].forEach(item => {
+            items.forEach(item => {
+                if (!item || !item.material) {
+                    console.warn(`Item tidak valid di scenario ${scenario}:`, item);
+                    return;
+                }
+
                 $(`.draggable-row[data-material="${item.material}"][data-batch="${item.batch}"][data-plant="${item.plant}"][data-storage-location="${item.storage_location}"]`)
                     .addClass(scenarioClass)
                     .find('.material-status')
@@ -769,7 +851,6 @@
         });
     }
 
-    // Helper functions untuk status per skenario
     function getScenarioClass(scenario) {
         switch(scenario) {
             case 'single': return 'selected-material-s1';
@@ -797,17 +878,52 @@
         }
     }
 
+    // ===== FUNGSI UI TOGGLE =====
+    function toggleUIForPlantSelection(hasPlantSelected) {
+        if (hasPlantSelected) {
+            $('#noPlantSelectedMessage').addClass('d-none');
+            $('#stockTableWrapper').removeClass('d-none');
+            $('#materialSearch').prop('disabled', false);
+            $('#clearSearchBtn').prop('disabled', false);
+            $('#searchBtn').prop('disabled', false);
+            $('#refreshStock').prop('disabled', false);
+            $('#storageLocationDropdown').prop('disabled', false);
+        } else {
+            $('#noPlantSelectedMessage').removeClass('d-none');
+            $('#stockTableWrapper').addClass('d-none');
+            $('#materialSearch').prop('disabled', true);
+            $('#clearSearchBtn').prop('disabled', true);
+            $('#searchBtn').prop('disabled', true);
+            $('#refreshStock').prop('disabled', true);
+            $('#storageLocationDropdown').prop('disabled', true);
+            $('#selectedStorageLocation').text('Pilih Plant Terlebih Dahulu');
+            $('#storageLocationList').empty();
+        }
+    }
+
+    // ===== EVENT HANDLERS =====
     document.getElementById('goToScenario1').addEventListener('click', function(e) {
-        if (scenarioData.single.length === 0) {
+        const items = scenarioData.single;
+
+        // PERBAIKAN: Pastikan items adalah array dan memiliki panjang > 0
+        if (!Array.isArray(items) || items.length === 0) {
             e.preventDefault();
             showMessage('Silakan pilih material terlebih dahulu dengan menyeret ke area Skenario 1', 'warning');
             return;
         }
 
-        // Simpan data ke sessionStorage sebelum navigasi
+        // Validasi plant sebelum navigasi
+        const validation = validateScenarioPlant('single');
+        if (!validation.valid) {
+            e.preventDefault();
+            showMessage(validation.message, 'error');
+            return;
+        }
+
         try {
-            sessionStorage.setItem('scenario1_data', JSON.stringify(scenarioData.single[0])); // Hanya ambil item pertama
-            console.log('Data saved to sessionStorage for scenario 1');
+            sessionStorage.setItem('scenario1_data', JSON.stringify(items[0])); // Hanya item pertama untuk skenario 1
+            sessionStorage.setItem('scenario_plant', selectedPlant);
+            console.log('Data saved for scenario 1');
         } catch (error) {
             console.error('Error saving to sessionStorage:', error);
             showMessage('Error menyimpan data material', 'error');
@@ -815,7 +931,7 @@
         }
     });
 
-    // Fungsi untuk mengelola seleksi baris
+    // ===== FUNGSI SELEKSI =====
     function updateSelectionCount() {
         const count = selectedRows.size;
         $('#selectedCount').text(`${count} item terpilih`);
@@ -830,7 +946,6 @@
         }
     }
 
-    // Fungsi untuk menambahkan item terpilih ke skenario
     function addSelectedItemsToScenario(scenario) {
         if (selectedRows.size === 0) {
             showMessage('Tidak ada item yang dipilih', 'warning');
@@ -838,11 +953,25 @@
         }
 
         let addedCount = 0;
+        let invalidPlantItems = 0;
+
         selectedRows.forEach(index => {
             if (allStockData[index]) {
                 const item = allStockData[index];
-                // PERBAIKAN: Pastikan hanya material dengan stock > 0 yang bisa ditambahkan
+
+                // Validasi plant
+                const plantValidation = validateMaterialPlant(item);
+                if (!plantValidation.valid) {
+                    invalidPlantItems++;
+                    return;
+                }
+
                 if (parseFloat(item.stock_quantity) > 0) {
+                    // PERBAIKAN: Pastikan scenarioData[scenario] adalah array
+                    if (!Array.isArray(scenarioData[scenario])) {
+                        scenarioData[scenario] = [];
+                    }
+
                     const existingIndex = scenarioData[scenario].findIndex(i =>
                         i.material === item.material &&
                         i.batch === item.batch &&
@@ -865,18 +994,21 @@
             }
         });
 
+        if (invalidPlantItems > 0) {
+            showMessage(`${invalidPlantItems} item tidak ditambahkan karena berasal dari plant yang berbeda`, 'warning');
+        }
+
         if (addedCount > 0) {
             updateScenarioDisplay(scenario);
             saveScenarioDataToSession(scenario);
             updateMaterialStatus();
             showMessage(`${addedCount} material ditambahkan ke ${getScenarioName(scenario)}`, 'success');
             clearSelection();
-        } else {
+        } else if (invalidPlantItems === 0) {
             showMessage('Tidak ada material baru yang ditambahkan', 'warning');
         }
     }
 
-    // Fungsi untuk menghapus seleksi
     function clearSelection() {
         selectedRows.clear();
         $('.row-select').prop('checked', false);
@@ -884,7 +1016,7 @@
         updateSelectionCount();
     }
 
-    // ===== FUNGSI LIVE SEARCH YANG DIPERBAIKI =====
+    // ===== FUNGSI SEARCH =====
     function setupLiveSearch() {
         const searchInput = document.getElementById('materialSearch');
 
@@ -893,9 +1025,6 @@
             return;
         }
 
-        console.log('Setting up live search');
-
-        // Debounce function untuk mencegah terlalu banyak request
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -908,7 +1037,6 @@
             };
         }
 
-        // Fungsi pencarian utama
         const performSearch = debounce(function(searchTerm) {
             console.log('Searching for:', searchTerm);
 
@@ -920,9 +1048,7 @@
                     row.style.display = '';
                 }
 
-                // Ambil teks dari semua kolom yang relevan
                 const rowText = row.textContent.toLowerCase();
-
                 const matches = rowText.includes(searchTerm.toLowerCase());
 
                 if (matches || searchTerm === '') {
@@ -933,7 +1059,6 @@
                 }
             });
 
-            // Tampilkan pesan "tidak ada hasil" jika perlu
             const noResultsRow = document.getElementById('noResultsMessage');
             if (visibleCount === 0 && searchTerm.length > 0) {
                 if (!noResultsRow) {
@@ -954,28 +1079,23 @@
                 noResultsRow.style.display = 'none';
             }
 
-            // Update badge count untuk hasil yang terlihat
             updateVisibleStockCount(visibleCount, searchTerm);
-
             console.log('Search completed. Visible rows:', visibleCount);
-        }, 300); // 300ms debounce delay
+        }, 300);
 
-        // Event listener untuk input
         searchInput.addEventListener('input', function(e) {
             const searchTerm = e.target.value.trim();
             performSearch(searchTerm);
         });
 
-        // Clear search ketika tombol escape ditekan
         searchInput.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 searchInput.value = '';
                 performSearch('');
-                searchInput.blur(); // Hilangkan fokus dari input
+                searchInput.blur();
             }
         });
 
-        // Juga search ketika tombol enter ditekan
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 const searchTerm = e.target.value.trim();
@@ -984,7 +1104,6 @@
         });
     }
 
-    // Fungsi untuk update count badge berdasarkan hasil pencarian
     function updateVisibleStockCount(visibleCount, searchTerm) {
         const badge = document.getElementById('stockCountBadge');
         if (!badge) return;
@@ -993,7 +1112,6 @@
             badge.textContent = `${visibleCount} items (filtered)`;
             badge.className = 'badge bg-warning bg-opacity-10 text-warning fs-6 ms-2';
         } else {
-            // Hitung ulang dari data asli jika tidak ada pencarian
             const availableStockCount = allStockData.filter(item =>
                 !item.hu_created && parseFloat(item.stock_quantity) > 0
             ).length;
@@ -1002,52 +1120,65 @@
         }
     }
 
-    // Fungsi untuk clear search
+    function updateStockCountBadge(count) {
+        let badgeText = `${count} items`;
+        let badgeClass = 'badge bg-primary bg-opacity-10 text-primary fs-6 ms-2';
+
+        if (selectedPlant) {
+            badgeText += ` (Plant ${selectedPlant}`;
+            if (selectedStorageLocation) {
+                badgeText += ` / ${selectedStorageLocation}`;
+            } else {
+                badgeText += ' / Semua Lokasi';
+            }
+            badgeText += ')';
+
+            if (selectedPlant === '2000') {
+                badgeClass = 'badge bg-warning bg-opacity-10 text-warning fs-6 ms-2';
+            }
+        }
+
+        $('#stockCountBadge').text(badgeText).attr('class', badgeClass);
+    }
+
     function clearSearch() {
         const searchInput = document.getElementById('materialSearch');
         if (searchInput) {
             searchInput.value = '';
 
-            // Tampilkan semua baris
             const rows = document.querySelectorAll('#stockTableBody tr.draggable-row');
             rows.forEach(row => {
                 row.style.display = '';
             });
 
-            // Sembunyikan pesan no results
             const noResultsRow = document.getElementById('noResultsMessage');
             if (noResultsRow) {
                 noResultsRow.style.display = 'none';
             }
 
-            // Reset badge count
             updateVisibleStockCount(rows.length, '');
         }
     }
 
+    // ===== FUNGSI STORAGE LOCATION =====
     function updateStorageLocations(plant) {
         const locationList = $('#storageLocationList');
         locationList.empty();
-        locationList.append('<li><a class="dropdown-item storage-option" href="#" data-location="">Semua Lokasi</a></li>');
+        locationList.append('<li><a class="dropdown-item storage-option active" href="#" data-location="">Semua Lokasi</a></li>');
 
-        // Ambil lokasi dari data manual atau dari plantsData
         let locations = [];
 
         if (manualPlantLocations[plant]) {
-            // Gunakan data manual untuk plant 2000 dan 3000
             locations = manualPlantLocations[plant];
         } else if (plantsData[plant]) {
-            // Gunakan data dari database untuk plant lain
             locations = plantsData[plant];
         }
 
-        // Tambahkan lokasi ke dropdown
         locations.forEach(location => {
             locationList.append(`
                 <li>
                     <a class="dropdown-item storage-option" href="#" data-location="${location}">
                         ${location}
-                        ${plant === '2000' ? '<small class="text-muted d-block">Plant 2000</small>' : ''}
                     </a>
                 </li>
             `);
@@ -1056,12 +1187,20 @@
         console.log('Updated locations for plant', plant, ':', locations);
     }
 
-    function loadStockData() {
+    // ===== FUNGSI LOAD DATA =====
+    function loadStockData(forceRefresh = false) {
+        if (!selectedPlant) {
+            console.log('Plant belum dipilih, tidak dapat memuat data.');
+            return;
+        }
+
+        console.log('Loading stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
+
         showLoading(true);
         const searchTerm = $('#materialSearch').val();
-        const timestamp = new Date().getTime(); // Anti-cache
+        const timestamp = new Date().getTime();
 
-        console.log('Loading stock data with search:', searchTerm, 'plant:', selectedPlant, 'location:', selectedStorageLocation);
+        $('.loading-overlay').addClass('loading-visible');
 
         $.ajax({
             url: "{{ route('hu.get-stock') }}",
@@ -1070,20 +1209,40 @@
                 search: searchTerm,
                 plant: selectedPlant,
                 storage_location: selectedStorageLocation,
-                _: timestamp // Prevent caching
+                _: timestamp,
+                force_refresh: forceRefresh ? 1 : 0,
+                filter_available: 1
             },
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            },
+            cache: false,
             success: function(response) {
                 console.log('Stock data response:', response);
+
                 if (response.success) {
                     allStockData = response.data || [];
-                    console.log('Total data received:', allStockData.length);
 
-                    // Debug: tampilkan material yang masih ada
-                    allStockData.forEach(item => {
-                        console.log('Material:', item.material, 'HU Created:', item.hu_created, 'Stock Qty:', item.stock_quantity);
-                    });
+                    const filteredData = allStockData.filter(item =>
+                        !item.hu_created && parseFloat(item.stock_quantity) > 0
+                    );
 
-                    populateStockTable(allStockData);
+                    console.log('Filtered data:', filteredData.length);
+
+                    // Debug: tampilkan beberapa item pertama
+                    if (filteredData.length > 0) {
+                        console.log('Sample filtered items:', filteredData.slice(0, 3).map(item => ({
+                            material: item.material,
+                            plant: item.plant,
+                            type: typeof item.plant
+                        })));
+                    }
+
+                    populateStockTable(filteredData);
+                    updateStockCountBadge(filteredData.length);
+
                 } else {
                     showError('Gagal memuat data stock: ' + (response.error || 'Unknown error'));
                 }
@@ -1094,113 +1253,109 @@
             },
             complete: function() {
                 showLoading(false);
+                $('.loading-overlay').removeClass('loading-visible');
             }
         });
     }
 
-    // ===== PERBAIKAN: FUNGSI SYNC DENGAN FLAG =====
-        function syncStockData() {
-        // Cegah multiple sync
-            if (isSyncing) {
-                console.log('Sync already in progress, skipping...');
-                return;
-            }
-
-            if (!selectedPlant) {
-                showError('Pilih plant sebelum sync');
-                return;
-            }
-
-            // Konfirmasi sebelum sync (karena data akan dihapus)
-            if (!confirm('PERINGATAN: Data stock lama untuk plant ' + selectedPlant +
-                        ' dan lokasi ' + (selectedStorageLocation || 'Semua Lokasi') +
-                        ' akan dihapus dan diganti dengan data baru dari SAP. Lanjutkan?')) {
-                return;
-            }
-
-            // Set flag sync sedang berjalan
-            isSyncing = true;
-
-            // Non-aktifkan tombol sementara
-            $('#refreshStock').prop('disabled', true).addClass('disabled');
-            showLoading(true);
-
-            console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
-
-            $.ajax({
-                url: "{{ route('hu.sync-stock') }}",
-                type: 'POST',
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    plant: selectedPlant,
-                    storage_location: selectedStorageLocation || '3D10'
-                },
-                success: function(response) {
-                    console.log('Sync response:', response);
-
-                    if (response.success) {
-                        // Reload page setelah delay singkat untuk memberi waktu data disimpan
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
-
-                        showMessage(response.message, 'success');
-                    } else {
-                        showError(response.error);
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Sync error:', error);
-                    let errorMessage = 'Error sync data stock';
-                    if (xhr.responseJSON && xhr.responseJSON.error) {
-                        errorMessage = xhr.responseJSON.error;
-                    }
-                    showError(errorMessage);
-                },
-                complete: function() {
-                    // Reset flag dan enable tombol
-                    isSyncing = false;
-                    showLoading(false);
-                    setTimeout(() => {
-                        $('#refreshStock').prop('disabled', false).removeClass('disabled');
-                    }, 1000);
-                }
-            });
+    // ===== FUNGSI SYNC =====
+    function syncStockData() {
+        if (isSyncing) {
+            console.log('Sync already in progress');
+            return;
         }
 
+        if (!selectedPlant) {
+            showError('Pilih plant sebelum sync');
+            return;
+        }
+
+        saveSelectedState();
+
+        if (!confirm('PERINGATAN: Data stock lama untuk plant ' + selectedPlant +
+                    ' dan lokasi ' + (selectedStorageLocation || 'Semua Lokasi') +
+                    ' akan dihapus dan diganti dengan data baru dari SAP. Lanjutkan?')) {
+            return;
+        }
+
+        isSyncing = true;
+
+        $('#refreshStock').prop('disabled', true).addClass('disabled');
+        showLoading(true);
+
+        console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
+
+        $.ajax({
+            url: "{{ route('hu.sync-stock') }}",
+            type: 'POST',
+            data: {
+                _token: "{{ csrf_token() }}",
+                plant: selectedPlant,
+                storage_location: selectedStorageLocation || ''
+            },
+            success: function(response) {
+                console.log('Sync response:', response);
+
+                if (response.success) {
+                    showMessage('Sync berhasil! Memuat data terbaru...', 'success');
+
+                    setTimeout(function() {
+                        loadStockData(true);
+                        updatePlantVisualIndicator();
+                        updateStorageLocations(selectedPlant);
+                        clearSearch();
+                    }, 1500);
+
+                } else {
+                    showError(response.error);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Sync error:', error);
+                let errorMessage = 'Error sync data stock';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage = xhr.responseJSON.error;
+                }
+                showError(errorMessage);
+            },
+            complete: function() {
+                isSyncing = false;
+                showLoading(false);
+                setTimeout(() => {
+                    $('#refreshStock').prop('disabled', false).removeClass('disabled');
+                }, 1000);
+            }
+        });
+    }
+
+    // ===== FUNGSI POPULATE TABLE =====
     function populateStockTable(data) {
         const tbody = $('#stockTableBody');
         tbody.empty();
 
-        // PERBAIKAN: Filter data untuk hanya menampilkan yang belum dibuat HU DAN stock > 0
-        const availableData = data.filter(item => !item.hu_created && parseFloat(item.stock_quantity) > 0);
-        const zeroStockData = data.filter(item => !item.hu_created && parseFloat(item.stock_quantity) <= 0);
+        console.log('Populating table with', data.length, 'items');
 
-        console.log('Available data after filter:', availableData.length);
-        console.log('Zero stock data:', zeroStockData.length);
-
-        // UPDATE BADGE QUANTITY
-        const stockCount = availableData.length;
-        $('#stockCountBadge').text(stockCount + ' items');
-
-        if (availableData.length === 0) {
-            let message = 'Tidak ada data stock tersedia';
-            if (zeroStockData.length > 0) {
-                message += ' (hanya material dengan stock 0 yang tersedia)';
-            }
-
+        if (data.length === 0) {
             tbody.append(`
                 <tr>
                     <td colspan="10" class="text-center py-4 text-muted">
                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                        ${message}
+                        Tidak ada data stock tersedia untuk Plant ${selectedPlant}
+                        ${selectedStorageLocation ? `, Lokasi ${selectedStorageLocation}` : ''}
                     </td>
                 </tr>
             `);
             return;
         }
 
-        availableData.forEach(function(item, index) {
+        data.forEach(function(item, index) {
+            const originalIndex = allStockData.findIndex(i =>
+                i.material === item.material &&
+                i.batch === item.batch &&
+                i.plant === item.plant &&
+                i.storage_location === item.storage_location
+            );
+
             const formattedMaterial = formatMaterialNumber(item.material);
             const originalMaterial = item.material;
             const showTooltip = formattedMaterial !== originalMaterial;
@@ -1209,9 +1364,16 @@
             const customerName = getCustomerName(item.vendor_name);
 
             const row = `
-                <tr class="hover:bg-gray-50 draggable-row" draggable="true" data-index="${index}" data-material="${item.material}" data-batch="${item.batch}" data-plant="${item.plant}" data-storage-location="${item.storage_location}" data-stock-quantity="${item.stock_quantity}">
+                <tr class="hover:bg-gray-50 draggable-row"
+                    draggable="true"
+                    data-index="${originalIndex}"
+                    data-material="${item.material}"
+                    data-batch="${item.batch}"
+                    data-plant="${item.plant}"
+                    data-storage-location="${item.storage_location}"
+                    data-stock-quantity="${item.stock_quantity}">
                     <td class="border-0">
-                        <input type="checkbox" class="table-checkbox row-select" data-index="${index}">
+                        <input type="checkbox" class="table-checkbox row-select" data-index="${originalIndex}">
                     </td>
                     <td class="border-0">
                         <span class="material-status" id="status-${item.material}-${item.batch}"></span>
@@ -1247,15 +1409,13 @@
         clearSelection();
     }
 
-    // ===== FUNGSI DRAG & DROP DAN SESSION =====
-
+    // ===== FUNGSI DRAG & DROP =====
     function setupRowDragEvents() {
         $('.draggable-row').each(function() {
             const row = $(this)[0];
             const stockQty = parseFloat($(this).data('stock-quantity') || 0);
 
             if (stockQty <= 0) {
-                // Disable dragging for items with zero stock
                 $(this).css('opacity', '0.6');
                 $(this).css('cursor', 'not-allowed');
                 row.draggable = false;
@@ -1263,10 +1423,13 @@
             } else {
                 row.draggable = true;
                 row.addEventListener('dragstart', function(e) {
+                    const index = $(this).data('index');
+                    console.log('DEBUG dragstart - index:', index, 'item:', allStockData[index]);
+
                     if (selectedRows.size > 0) {
                         e.dataTransfer.setData('text/plain', 'multiple');
                     } else {
-                        e.dataTransfer.setData('text/plain', $(this).data('index'));
+                        e.dataTransfer.setData('text/plain', index);
                     }
                     e.dataTransfer.effectAllowed = 'copy';
                 });
@@ -1275,7 +1438,6 @@
     }
 
     function setupDragAndDrop() {
-        // Setup drop zones
         const dropZones = document.querySelectorAll('.drop-zone');
         dropZones.forEach(zone => {
             zone.addEventListener('dragover', function(e) {
@@ -1292,14 +1454,27 @@
                 $(this).removeClass('drag-over');
                 const scenario = $(this).data('scenario');
 
+                console.log('DEBUG drop event - selectedRows:', selectedRows.size);
+
                 if (selectedRows.size > 0) {
                     addSelectedItemsToScenario(scenario);
                 } else {
                     const itemIndex = e.dataTransfer.getData('text/plain');
-                    if (itemIndex !== '' && allStockData[itemIndex]) {
-                        // PERBAIKAN: Pastikan hanya material dengan stock > 0 yang bisa ditambahkan
+                    console.log('DEBUG drop itemIndex:', itemIndex);
+
+                    if (itemIndex !== '' && itemIndex !== 'multiple' && allStockData[itemIndex]) {
                         const item = allStockData[itemIndex];
+                        console.log('DEBUG drop item:', item);
+
                         if (parseFloat(item.stock_quantity) > 0) {
+                            // Validasi plant sebelum menambahkan
+                            const plantValidation = validateMaterialPlant(item);
+                            console.log('DEBUG plant validation result:', plantValidation);
+
+                            if (!plantValidation.valid) {
+                                showMessage(plantValidation.message, 'error');
+                                return;
+                            }
                             addItemToScenario(scenario, item);
                         } else {
                             showMessage('Material dengan stock 0 tidak dapat dipilih', 'warning');
@@ -1311,17 +1486,30 @@
     }
 
     function addItemToScenario(scenario, item) {
-        // PERBAIKAN: Pastikan hanya material dengan stock > 0 yang bisa ditambahkan
+        console.log('DEBUG addItemToScenario - item:', item);
+
         if (parseFloat(item.stock_quantity) <= 0) {
             showMessage('Material dengan stock 0 tidak dapat dipilih', 'warning');
             return;
         }
 
-        item.combined_sales_doc = combineSalesDocument(item.sales_document, item.item_number);
+        // Validasi plant
+        const plantValidation = validateMaterialPlant(item);
+        console.log('DEBUG addItemToScenario plant validation:', plantValidation);
 
-        // ✅ PASTIKAN magry IKUT DISIMPAN
+        if (!plantValidation.valid) {
+            showMessage(plantValidation.message, 'error');
+            return;
+        }
+
+        item.combined_sales_doc = combineSalesDocument(item.sales_document, item.item_number);
         item.magry = item.magry || '';
         item.suggested_pack_mat = item.suggested_pack_mat || '';
+
+        // PERBAIKAN: Pastikan scenarioData[scenario] adalah array
+        if (!Array.isArray(scenarioData[scenario])) {
+            scenarioData[scenario] = [];
+        }
 
         const existingIndex = scenarioData[scenario].findIndex(i =>
             i.material === item.material &&
@@ -1347,28 +1535,7 @@
         showMessage(`Material ${formatMaterialNumber(item.material)} ditambahkan ke ${getScenarioName(scenario)}`, 'success');
     }
 
-    function clearInvalidSessionData() {
-        const scenarioDataRaw = sessionStorage.getItem('scenario3_data');
-        if (!scenarioDataRaw) return;
-
-        try {
-            const materials = JSON.parse(scenarioDataRaw);
-            const validMaterials = materials.filter(item => {
-                const stockQty = parseFloat(item.stock_quantity || '0');
-                return stockQty > 0;
-            });
-
-            if (validMaterials.length === 0) {
-                sessionStorage.removeItem('scenario3_data');
-            } else if (validMaterials.length < materials.length) {
-                sessionStorage.setItem('scenario3_data', JSON.stringify(validMaterials));
-            }
-        } catch (error) {
-            console.error('Error cleaning session data:', error);
-            sessionStorage.removeItem('scenario3_data');
-        }
-    }
-
+    // ===== FUNGSI SCENARIO =====
     function updateScenarioDisplay(scenario) {
         let containerId = '';
         let dropZoneId = '';
@@ -1391,16 +1558,34 @@
 
         container.empty();
 
-        if (scenarioData[scenario].length > 0) {
+        const items = scenarioData[scenario];
+
+        // PERBAIKAN: Pastikan items adalah array
+        if (!Array.isArray(items)) {
+            console.warn(`scenarioData.${scenario} bukan array di updateScenarioDisplay:`, items);
+            scenarioData[scenario] = []; // Reset ke array kosong
+            return;
+        }
+
+        if (items.length > 0) {
             dropZone.addClass('has-items');
 
-            scenarioData[scenario].forEach((item, index) => {
+            items.forEach((item, index) => {
+                if (!item || !item.material) {
+                    console.warn(`Item tidak valid di scenario ${scenario}:`, item);
+                    return;
+                }
+
                 const formattedMaterial = formatMaterialNumber(item.material);
+                const isDifferentPlant = String(item.plant || '') !== String(selectedPlant || '');
                 const itemElement = `
-                    <div class="material-item-compact position-relative d-flex justify-content-between align-items-center">
+                    <div class="material-item-compact position-relative d-flex justify-content-between align-items-center ${isDifferentPlant ? 'material-warning' : ''}">
                         <button type="button" class="btn-close btn-close-sm" style="font-size: 0.5rem; padding: 2px;" onclick="removeItemFromScenario('${scenario}', ${index})"></button>
                         <div class="d-flex flex-column flex-grow-1 ms-1" style="min-width: 0;">
-                            <div class="material-code-compact text-truncate">${formattedMaterial}</div>
+                            <div class="material-code-compact text-truncate">
+                                ${formattedMaterial}
+                                ${isDifferentPlant ? '<span class="warning-badge">Plant ' + item.plant + '</span>' : ''}
+                            </div>
                             <div class="material-qty-compact text-end">${parseFloat(item.stock_quantity || 0).toLocaleString('id-ID')}</div>
                         </div>
                     </div>
@@ -1413,7 +1598,7 @@
                 badge = $('<div class="scenario-badge"></div>');
                 dropZone.append(badge);
             }
-            badge.text(scenarioData[scenario].length)
+            badge.text(items.length)
                  .css({
                      'background': '#ef4444',
                      'color': 'white',
@@ -1437,6 +1622,10 @@
     }
 
     function removeItemFromScenario(scenario, index) {
+        if (!Array.isArray(scenarioData[scenario])) {
+            scenarioData[scenario] = [];
+        }
+
         scenarioData[scenario].splice(index, 1);
         updateScenarioDisplay(scenario);
         saveScenarioDataToSession(scenario);
@@ -1459,43 +1648,128 @@
         else return;
 
         try {
-            sessionStorage.setItem(key, JSON.stringify(scenarioData[scenario]));
-            console.log(`Data untuk ${key} berhasil disimpan ke session.`);
+            const dataToSave = scenarioData[scenario];
+            // PERBAIKAN: Pastikan data yang disimpan adalah array
+            if (!Array.isArray(dataToSave)) {
+                console.warn(`Data untuk ${key} bukan array, mengubah menjadi array kosong`);
+                scenarioData[scenario] = [];
+                sessionStorage.setItem(key, JSON.stringify([]));
+            } else {
+                sessionStorage.setItem(key, JSON.stringify(dataToSave));
+            }
+
+            sessionStorage.setItem('scenario_plant', selectedPlant);
+            console.log(`Data untuk ${key} berhasil disimpan.`);
         } catch (err) {
             console.error('Gagal menyimpan ke sessionStorage:', err);
             showError('Gagal menyimpan data. Penyimpanan browser mungkin penuh.');
         }
     }
 
+    // ===== PERBAIKAN UTAMA: loadScenariosFromSession() =====
     function loadScenariosFromSession() {
         try {
             const data1 = sessionStorage.getItem('scenario1_data');
             const data2 = sessionStorage.getItem('scenario2_data');
             const data3 = sessionStorage.getItem('scenario3_data');
+            const savedPlant = sessionStorage.getItem('scenario_plant');
 
-            if (data1) {
-                scenarioData.single = JSON.parse(data1);
+            console.log('Loading scenarios from session:', {
+                data1: data1 ? 'exists' : 'null',
+                data2: data2 ? 'exists' : 'null',
+                data3: data3 ? 'exists' : 'null',
+                savedPlant: savedPlant
+            });
+
+            // Reset semua scenario data terlebih dahulu
+            scenarioData.single = [];
+            scenarioData['single-multi'] = [];
+            scenarioData.multiple = [];
+
+            // Hanya load scenario data jika plant yang tersimpan sama dengan plant yang aktif
+            if (savedPlant === selectedPlant) {
+                // Load data untuk skenario 1 (bisa berupa object tunggal atau array)
+                if (data1) {
+                    try {
+                        const parsed = JSON.parse(data1);
+                        // PERBAIKAN: Skenario 1 bisa berupa object tunggal atau array
+                        if (Array.isArray(parsed)) {
+                            scenarioData.single = parsed;
+                        } else if (parsed && typeof parsed === 'object') {
+                            scenarioData.single = [parsed]; // Jadikan array dengan 1 item
+                        }
+                        console.log('Loaded scenario1_data:', scenarioData.single);
+                    } catch (e) {
+                        console.error('Error parsing scenario1_data:', e);
+                        scenarioData.single = [];
+                    }
+                }
+
+                // Load data untuk skenario 2 (harus berupa array)
+                if (data2) {
+                    try {
+                        const parsed = JSON.parse(data2);
+                        if (Array.isArray(parsed)) {
+                            scenarioData['single-multi'] = parsed;
+                        } else {
+                            console.warn('scenario2_data bukan array:', parsed);
+                            scenarioData['single-multi'] = [];
+                        }
+                        console.log('Loaded scenario2_data:', scenarioData['single-multi']);
+                    } catch (e) {
+                        console.error('Error parsing scenario2_data:', e);
+                        scenarioData['single-multi'] = [];
+                    }
+                }
+
+                // Load data untuk skenario 3 (harus berupa array)
+                if (data3) {
+                    try {
+                        const parsed = JSON.parse(data3);
+                        if (Array.isArray(parsed)) {
+                            scenarioData.multiple = parsed;
+                        } else {
+                            console.warn('scenario3_data bukan array:', parsed);
+                            scenarioData.multiple = [];
+                        }
+                        console.log('Loaded scenario3_data:', scenarioData.multiple);
+                    } catch (e) {
+                        console.error('Error parsing scenario3_data:', e);
+                        scenarioData.multiple = [];
+                    }
+                }
+
+                console.log('Scenario data dimuat dari session.');
+
+                // Update display setelah semua data diload
                 updateScenarioDisplay('single');
-            }
-            if (data2) {
-                scenarioData['single-multi'] = JSON.parse(data2);
                 updateScenarioDisplay('single-multi');
-            }
-            if (data3) {
-                scenarioData.multiple = JSON.parse(data3);
                 updateScenarioDisplay('multiple');
+            } else {
+                // Jika plant berbeda, clear semua scenario data
+                console.log('Scenario data dihapus karena plant berbeda (saved:', savedPlant, 'vs selected:', selectedPlant, ')');
+
+                // Hapus dari sessionStorage
+                sessionStorage.removeItem('scenario1_data');
+                sessionStorage.removeItem('scenario2_data');
+                sessionStorage.removeItem('scenario3_data');
             }
 
-            console.log('Scenario data dimuat dari session.');
             updateMaterialStatus();
         } catch (err) {
             console.error('Gagal memuat dari sessionStorage:', err);
+            // Reset semua data scenario
+            scenarioData.single = [];
+            scenarioData['single-multi'] = [];
+            scenarioData.multiple = [];
             sessionStorage.removeItem('scenario1_data');
             sessionStorage.removeItem('scenario2_data');
             sessionStorage.removeItem('scenario3_data');
+            sessionStorage.removeItem('scenario_plant');
         }
     }
 
+    // ===== FUNGSI UTILITAS UI =====
     function showLoading(show) {
         if (show) {
             $('.loading-spinner').show();
@@ -1509,7 +1783,6 @@
     }
 
     function showMessage(message, type) {
-        // HAPUS SEMUA ALERT (baik session maupun JS) sebelum membuat yang baru
         $('.container-fluid .alert').remove();
 
         const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
@@ -1530,19 +1803,97 @@
         showMessage(message, 'error');
     }
 
-    // Panggil saat page load
-    document.addEventListener('DOMContentLoaded', function() {
-        clearInvalidSessionData();
-    });
+    // ===== VALIDASI TOMBOL LANJUT =====
+    function setupScenarioValidation() {
+        // Validasi untuk skenario 2
+        $('#goToScenario2').on('click', function(e) {
+            const items = scenarioData['single-multi'];
 
+            // PERBAIKAN: Pastikan items adalah array dan memiliki panjang > 0
+            if (!Array.isArray(items) || items.length === 0) {
+                e.preventDefault();
+                showMessage('Silakan pilih material terlebih dahulu dengan menyeret ke area Skenario 2', 'warning');
+                return;
+            }
+
+            const validation = validateScenarioPlant('single-multi');
+            if (!validation.valid) {
+                e.preventDefault();
+                showMessage(validation.message, 'error');
+                return;
+            }
+
+            try {
+                sessionStorage.setItem('scenario2_data', JSON.stringify(items));
+                sessionStorage.setItem('scenario_plant', selectedPlant);
+                console.log('Data saved for scenario 2');
+            } catch (error) {
+                console.error('Error saving to sessionStorage:', error);
+                showMessage('Error menyimpan data material', 'error');
+                e.preventDefault();
+            }
+        });
+
+        // Validasi untuk skenario 3
+        $('#goToScenario3').on('click', function(e) {
+            const items = scenarioData.multiple;
+
+            // PERBAIKAN: Pastikan items adalah array dan memiliki panjang > 0
+            if (!Array.isArray(items) || items.length === 0) {
+                e.preventDefault();
+                showMessage('Silakan pilih material terlebih dahulu dengan menyeret ke area Skenario 3', 'warning');
+                return;
+            }
+
+            const validation = validateScenarioPlant('multiple');
+            if (!validation.valid) {
+                e.preventDefault();
+                showMessage(validation.message, 'error');
+                return;
+            }
+
+            try {
+                sessionStorage.setItem('scenario3_data', JSON.stringify(items));
+                sessionStorage.setItem('scenario_plant', selectedPlant);
+                console.log('Data saved for scenario 3');
+            } catch (error) {
+                console.error('Error saving to sessionStorage:', error);
+                showMessage('Error menyimpan data material', 'error');
+                e.preventDefault();
+            }
+        });
+    }
+
+    // ===== INITIALIZATION =====
     $(document).ready(function() {
-        $('#selectedPlant').text(`Plant: ${selectedPlant}`);
-        $('#selectedStorageLocation').text(`Lokasi: ${selectedStorageLocation}`);
-        updateStorageLocations(selectedPlant);
+        console.log('Document ready, selectedPlant:', selectedPlant, 'selectedStorageLocation:', selectedStorageLocation);
+
+        // Setup UI berdasarkan state
+        if (selectedPlant) {
+            $('#selectedPlant').text(`Plant: ${selectedPlant}`);
+            $('#selectedStorageLocation').text(
+                selectedStorageLocation ? `Lokasi: ${selectedStorageLocation}` : 'Semua Lokasi'
+            );
+            updatePlantVisualIndicator();
+            updateStorageLocations(selectedPlant);
+            toggleUIForPlantSelection(true);
+
+            // Load data
+            setTimeout(() => {
+                loadStockData();
+            }, 100);
+        } else {
+            toggleUIForPlantSelection(false);
+        }
+
+        // Load scenario data
         loadScenariosFromSession();
         setupRowDragEvents();
 
-        // ===== PERBAIKAN: EVENT HANDLER HANYA SATU KALI =====
+        // Setup validasi tombol lanjut
+        setupScenarioValidation();
+
+        // Event handlers
         $('#refreshStock').off('click').on('click', function() {
             if (!isSyncing) {
                 syncStockData();
@@ -1552,41 +1903,108 @@
         $('#searchBtn').off('click').on('click', function() {
             const searchTerm = $('#materialSearch').val().trim();
             if (searchTerm) {
-                loadStockData(); // Pencarian server-side untuk hasil lebih akurat
+                loadStockData();
             } else {
-                loadStockData(); // Reload semua data
+                loadStockData();
             }
         });
 
-        // Tombol clear search
         $('#clearSearchBtn').off('click').on('click', function() {
             clearSearch();
-            loadStockData(); // Reload data tanpa filter
+            loadStockData();
+        });
+
+        $('#selectPlantBtn').off('click').on('click', function() {
+            $('#plantDropdown').dropdown('toggle');
         });
 
         setupLiveSearch();
 
+        // Plant selection handler
         $(document).on('click', '#plantList .dropdown-item', function(e) {
             e.preventDefault();
-            selectedPlant = $(this).data('plant');
-            $('#selectedPlant').text(`Plant: ${selectedPlant}`);
-            updateStorageLocations(selectedPlant);
+            e.stopPropagation();
+
+            const newPlant = $(this).data('plant');
+            console.log('Plant dipilih:', newPlant, 'sebelumnya:', selectedPlant);
+
+            if (newPlant === selectedPlant) {
+                console.log('Plant sama, tidak perlu load data');
+                return;
+            }
+
+            // Update state
+            selectedPlant = newPlant;
             selectedStorageLocation = '';
-            $('#selectedStorageLocation').text('Pilih Lokasi');
-            loadStockData();
+
+            // Update UI
+            $('#selectedPlant').text(`Plant: ${selectedPlant}`);
+            $('#selectedStorageLocation').text('Semua Lokasi');
+
+            updatePlantVisualIndicator();
+            updateStorageLocations(selectedPlant);
+            toggleUIForPlantSelection(true);
+
+            // Clear scenario data karena plant berubah
+            scenarioData.single = [];
+            scenarioData['single-multi'] = [];
+            scenarioData.multiple = [];
+
+            // Update display
+            updateScenarioDisplay('single');
+            updateScenarioDisplay('single-multi');
+            updateScenarioDisplay('multiple');
+
+            // Hapus sessionStorage untuk scenario data
+            sessionStorage.removeItem('scenario1_data');
+            sessionStorage.removeItem('scenario2_data');
+            sessionStorage.removeItem('scenario3_data');
+            sessionStorage.removeItem('scenario_plant');
+
+            // Simpan state plant dan location
+            saveSelectedState();
+
+            // Load data
+            console.log('Memuat data untuk plant baru:', selectedPlant);
+            loadStockData(true);
+
+            // Tutup dropdown
+            $('#plantDropdown').dropdown('toggle');
         });
 
+        // Location selection handler
         $(document).on('click', '#storageLocationList .dropdown-item', function(e) {
             e.preventDefault();
-            selectedStorageLocation = $(this).data('location');
-            $('#selectedStorageLocation').text(selectedStorageLocation ? `Lokasi: ${selectedStorageLocation}` : 'Semua Lokasi');
-            loadStockData();
+            e.stopPropagation();
+
+            $('.storage-option').removeClass('active');
+            $(this).addClass('active');
+
+            const newLocation = $(this).data('location');
+            console.log('Location dipilih:', newLocation, 'sebelumnya:', selectedStorageLocation);
+
+            if (newLocation === selectedStorageLocation) {
+                console.log('Location sama, tidak perlu load data');
+                return;
+            }
+
+            selectedStorageLocation = newLocation;
+            $('#selectedStorageLocation').text(
+                selectedStorageLocation ? `Lokasi: ${selectedStorageLocation}` : 'Semua Lokasi'
+            );
+
+            saveSelectedState();
+
+            console.log('Memuat data untuk location baru:', selectedStorageLocation);
+            loadStockData(true);
+
+            $('#storageLocationDropdown').dropdown('toggle');
         });
 
         setupDragAndDrop();
         updateMaterialStatus();
 
-        // Setup event handlers untuk seleksi
+        // Selection handlers
         $('#selectAllHeader').change(function() {
             const isChecked = $(this).prop('checked');
             $('.row-select').prop('checked', isChecked);

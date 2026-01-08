@@ -4,13 +4,16 @@ from pyrfc import Connection
 import os
 import logging
 import pymysql
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 import sys
 import io
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 import atexit
 import traceback
+import threading
+import time
 
 # Fix encoding untuk Windows
 if sys.platform.startswith('win'):
@@ -49,62 +52,486 @@ os.environ['SAP_CLIENT'] = os.getenv('SAP_CLIENT', '300')
 # Scheduler untuk auto sync
 scheduler = BackgroundScheduler()
 
-# Status sync terakhir
+# Status sync terakhir untuk setiap plant/location
 last_sync_status = {
-    'last_success_time': None,
-    'last_attempt_time': None,
-    'last_error': None,
-    'is_running': False
+    '3000_3D10': {
+        'last_success_time': None,
+        'last_attempt_time': None,
+        'last_error': None,
+        'is_running': False,
+        'total_records': 0,
+        'active_records': 0
+    },
+    '2000_21LK': {
+        'last_success_time': None,
+        'last_attempt_time': None,
+        'last_error': None,
+        'is_running': False,
+        'total_records': 0,
+        'active_records': 0
+    },
+    '2000_21HU': {
+        'last_success_time': None,
+        'last_attempt_time': None,
+        'last_error': None,
+        'is_running': False,
+        'total_records': 0,
+        'active_records': 0
+    },
+    '2000_21NH': {
+        'last_success_time': None,
+        'last_attempt_time': None,
+        'last_error': None,
+        'is_running': False,
+        'total_records': 0,
+        'active_records': 0
+    }
 }
 
-def update_sync_status(success=True, error=None):
-    last_sync_status['last_attempt_time'] = datetime.now()
-    last_sync_status['is_running'] = False
+# ===== FUNGSI UPDATE SYNC STATUS YANG DIPERBAIKI =====
+
+def update_sync_status(plant, storage_location, success=True, error=None, total_records=0, active_records=0):
+    key = f"{plant}_{storage_location}"
+
+    if key not in last_sync_status:
+        last_sync_status[key] = {
+            'last_success_time': None,
+            'last_attempt_time': None,
+            'last_error': None,
+            'is_running': False,
+            'total_records': 0,
+            'active_records': 0
+        }
+
+    last_sync_status[key]['last_attempt_time'] = datetime.now()
+    last_sync_status[key]['is_running'] = False
 
     if success:
-        last_sync_status['last_success_time'] = datetime.now()
-        last_sync_status['last_error'] = None
+        last_sync_status[key]['last_success_time'] = datetime.now()
+        last_sync_status[key]['last_error'] = None
+        last_sync_status[key]['total_records'] = total_records
+        last_sync_status[key]['active_records'] = active_records
     else:
-        last_sync_status['last_error'] = error
+        last_sync_status[key]['last_error'] = error
+
+    return last_sync_status[key]
+
+# ===== FUNGSI AUTO SYNC YANG DIPERBAIKI UNTUK MULTIPLE PLANTS =====
 
 def auto_sync_job():
-    if last_sync_status['is_running']:
-        logger.info("Auto sync ditunda karena proses sync sedang berjalan")
-        return
-
-    last_sync_status['is_running'] = True
-    last_sync_status['last_attempt_time'] = datetime.now()
-
-    logger.info("Auto sync dimulai...")
+    """Fungsi utama untuk auto sync semua plant"""
+    logger.info("Auto sync job dimulai...")
 
     try:
+        # Sync untuk plant 3000 - 3D10
+        logger.info("Memulai auto sync untuk Plant 3000, Lokasi 3D10")
+        sync_plant_3000()
+
+        # Tunggu 30 detik sebelum sync plant 2000
+        time.sleep(30)
+
+        # Sync untuk plant 2000 - 21LK
+        logger.info("Memulai auto sync untuk Plant 2000, Lokasi 21LK")
+        sync_plant_2000_21LK()
+
+        # Sync untuk plant 2000 - 21HU
+        logger.info("Memulai auto sync untuk Plant 2000, Lokasi 21HU")
+        sync_plant_2000_21HU()
+
+        # Sync untuk plant 2000 - 21NH
+        logger.info("Memulai auto sync untuk Plant 2000, Lokasi 21NH")
+        sync_plant_2000_21NH()
+
+        logger.info("Auto sync job selesai untuk semua plant")
+
+    except Exception as e:
+        logger.error(f"Error dalam auto sync job: {e}")
+        logger.error(traceback.format_exc())
+
+def sync_plant_3000():
+    """Sync khusus untuk plant 3000"""
+    if last_sync_status['3000_3D10']['is_running']:
+        logger.info("Sync untuk 3000_3D10 ditunda karena sedang berjalan")
+        return
+
+    last_sync_status['3000_3D10']['is_running'] = True
+    last_sync_status['3000_3D10']['last_attempt_time'] = datetime.now()
+
+    try:
+        logger.info("Memulai sync untuk Plant 3000, Storage Location 3D10")
+
         success = sync_stock_data('3000', '3D10')
 
         if success:
-            logger.info("Auto sync selesai")
-            update_sync_status(True)
+            # Ambil data statistik setelah sync
+            mysql_conn = connect_mysql()
+            if mysql_conn:
+                try:
+                    with mysql_conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT
+                                COUNT(*) as total_records,
+                                SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_records
+                            FROM stock_data
+                            WHERE plant = '3000' AND storage_location = '3D10'
+                        """)
+                        result = cursor.fetchone()
+                        if result:
+                            total_records = result[0] or 0
+                            active_records = result[1] or 0
+                        else:
+                            total_records = 0
+                            active_records = 0
+                except Exception as e:
+                    logger.error(f"Error mengambil statistik: {e}")
+                    total_records = 0
+                    active_records = 0
+                finally:
+                    mysql_conn.close()
+            else:
+                total_records = 0
+                active_records = 0
+
+            update_sync_status('3000', '3D10', True, None, total_records, active_records)
+            logger.info(f"Auto sync berhasil untuk 3000/3D10: {active_records} record aktif")
         else:
-            logger.error("Auto sync gagal")
-            update_sync_status(False, "Auto sync gagal")
+            update_sync_status('3000', '3D10', False, "Sync gagal")
+            logger.error("Auto sync gagal untuk 3000/3D10")
 
     except Exception as e:
-        error_msg = f"Error dalam auto sync: {e}"
+        error_msg = f"Error dalam auto sync 3000: {e}"
         logger.error(error_msg)
-        update_sync_status(False, error_msg)
+        update_sync_status('3000', '3D10', False, error_msg)
+    finally:
+        last_sync_status['3000_3D10']['is_running'] = False
+
+def sync_plant_2000_21LK():
+    """Sync khusus untuk plant 2000 - 21LK"""
+    if last_sync_status['2000_21LK']['is_running']:
+        logger.info("Sync untuk 2000_21LK ditunda karena sedang berjalan")
+        return
+
+    last_sync_status['2000_21LK']['is_running'] = True
+    last_sync_status['2000_21LK']['last_attempt_time'] = datetime.now()
+
+    try:
+        logger.info("Memulai sync untuk Plant 2000, Storage Location 21LK")
+
+        success = sync_stock_data('2000', '21LK')
+
+        if success:
+            # Ambil data statistik setelah sync
+            mysql_conn = connect_mysql()
+            if mysql_conn:
+                try:
+                    with mysql_conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT
+                                COUNT(*) as total_records,
+                                SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_records
+                            FROM stock_data
+                            WHERE plant = '2000' AND storage_location = '21LK'
+                        """)
+                        result = cursor.fetchone()
+                        if result:
+                            total_records = result[0] or 0
+                            active_records = result[1] or 0
+                        else:
+                            total_records = 0
+                            active_records = 0
+                except Exception as e:
+                    logger.error(f"Error mengambil statistik: {e}")
+                    total_records = 0
+                    active_records = 0
+                finally:
+                    mysql_conn.close()
+            else:
+                total_records = 0
+                active_records = 0
+
+            update_sync_status('2000', '21LK', True, None, total_records, active_records)
+            logger.info(f"Auto sync berhasil untuk 2000/21LK: {active_records} record aktif")
+        else:
+            update_sync_status('2000', '21LK', False, "Sync gagal")
+            logger.error("Auto sync gagal untuk 2000/21LK")
+
+    except Exception as e:
+        error_msg = f"Error dalam auto sync 2000_21LK: {e}"
+        logger.error(error_msg)
+        update_sync_status('2000', '21LK', False, error_msg)
+    finally:
+        last_sync_status['2000_21LK']['is_running'] = False
+
+def sync_plant_2000_21HU():
+    """Sync khusus untuk plant 2000 - 21HU"""
+    if last_sync_status['2000_21HU']['is_running']:
+        logger.info("Sync untuk 2000_21HU ditunda karena sedang berjalan")
+        return
+
+    last_sync_status['2000_21HU']['is_running'] = True
+    last_sync_status['2000_21HU']['last_attempt_time'] = datetime.now()
+
+    try:
+        logger.info("Memulai sync untuk Plant 2000, Storage Location 21HU")
+
+        success = sync_stock_data('2000', '21HU')
+
+        if success:
+            # Ambil data statistik setelah sync
+            mysql_conn = connect_mysql()
+            if mysql_conn:
+                try:
+                    with mysql_conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT
+                                COUNT(*) as total_records,
+                                SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_records
+                            FROM stock_data
+                            WHERE plant = '2000' AND storage_location = '21HU'
+                        """)
+                        result = cursor.fetchone()
+                        if result:
+                            total_records = result[0] or 0
+                            active_records = result[1] or 0
+                        else:
+                            total_records = 0
+                            active_records = 0
+                except Exception as e:
+                    logger.error(f"Error mengambil statistik: {e}")
+                    total_records = 0
+                    active_records = 0
+                finally:
+                    mysql_conn.close()
+            else:
+                total_records = 0
+                active_records = 0
+
+            update_sync_status('2000', '21HU', True, None, total_records, active_records)
+            logger.info(f"Auto sync berhasil untuk 2000/21HU: {active_records} record aktif")
+        else:
+            update_sync_status('2000', '21HU', False, "Sync gagal")
+            logger.error("Auto sync gagal untuk 2000/21HU")
+
+    except Exception as e:
+        error_msg = f"Error dalam auto sync 2000_21HU: {e}"
+        logger.error(error_msg)
+        update_sync_status('2000', '21HU', False, error_msg)
+    finally:
+        last_sync_status['2000_21HU']['is_running'] = False
+
+def sync_plant_2000_21NH():
+    """Sync khusus untuk plant 2000 - 21NH"""
+    if last_sync_status['2000_21NH']['is_running']:
+        logger.info("Sync untuk 2000_21NH ditunda karena sedang berjalan")
+        return
+
+    last_sync_status['2000_21NH']['is_running'] = True
+    last_sync_status['2000_21NH']['last_attempt_time'] = datetime.now()
+
+    try:
+        logger.info("Memulai sync untuk Plant 2000, Storage Location 21NH")
+
+        success = sync_stock_data('2000', '21NH')
+
+        if success:
+            # Ambil data statistik setelah sync
+            mysql_conn = connect_mysql()
+            if mysql_conn:
+                try:
+                    with mysql_conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT
+                                COUNT(*) as total_records,
+                                SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_records
+                            FROM stock_data
+                            WHERE plant = '2000' AND storage_location = '21NH'
+                        """)
+                        result = cursor.fetchone()
+                        if result:
+                            total_records = result[0] or 0
+                            active_records = result[1] or 0
+                        else:
+                            total_records = 0
+                            active_records = 0
+                except Exception as e:
+                    logger.error(f"Error mengambil statistik: {e}")
+                    total_records = 0
+                    active_records = 0
+                finally:
+                    mysql_conn.close()
+            else:
+                total_records = 0
+                active_records = 0
+
+            update_sync_status('2000', '21NH', True, None, total_records, active_records)
+            logger.info(f"Auto sync berhasil untuk 2000/21NH: {active_records} record aktif")
+        else:
+            update_sync_status('2000', '21NH', False, "Sync gagal")
+            logger.error("Auto sync gagal untuk 2000/21NH")
+
+    except Exception as e:
+        error_msg = f"Error dalam auto sync 2000_21NH: {e}"
+        logger.error(error_msg)
+        update_sync_status('2000', '21NH', False, error_msg)
+    finally:
+        last_sync_status['2000_21NH']['is_running'] = False
+
+# ===== FUNGSI START SCHEDULER YANG DIPERBAIKI =====
 
 def start_scheduler():
     try:
+        # Hapus semua job yang ada
+        scheduler.remove_all_jobs()
+
+        # Job utama untuk auto sync semua plant (setiap 30 menit)
         scheduler.add_job(
             func=auto_sync_job,
             trigger='interval',
             minutes=30,
-            id='auto_sync_job',
+            id='auto_sync_all_plants',
+            name='Auto Sync All Plants',
+            max_instances=1,
             replace_existing=True
         )
+
+        # Job tambahan untuk sync plant 3000 saja (setiap 15 menit)
+        scheduler.add_job(
+            func=sync_plant_3000,
+            trigger='interval',
+            minutes=15,
+            id='auto_sync_3000',
+            name='Auto Sync Plant 3000',
+            max_instances=1,
+            replace_existing=True
+        )
+
+        # Job untuk sync plant 2000 locations (setiap 20 menit)
+        scheduler.add_job(
+            func=sync_plant_2000_21LK,
+            trigger='interval',
+            minutes=20,
+            id='auto_sync_2000_21LK',
+            name='Auto Sync Plant 2000 - 21LK',
+            max_instances=1,
+            replace_existing=True
+        )
+
+        scheduler.add_job(
+            func=sync_plant_2000_21HU,
+            trigger='interval',
+            minutes=20,
+            id='auto_sync_2000_21HU',
+            name='Auto Sync Plant 2000 - 21HU',
+            max_instances=1,
+            replace_existing=True
+        )
+
+        scheduler.add_job(
+            func=sync_plant_2000_21NH,
+            trigger='interval',
+            minutes=20,
+            id='auto_sync_2000_21NH',
+            name='Auto Sync Plant 2000 - 21NH',
+            max_instances=1,
+            replace_existing=True
+        )
+
+        # Job untuk cleanup data lama (setiap hari jam 2 pagi)
+        scheduler.add_job(
+            func=cleanup_old_data,
+            trigger='cron',
+            hour=2,
+            minute=0,
+            id='cleanup_old_data',
+            name='Cleanup Old Data',
+            replace_existing=True
+        )
+
         scheduler.start()
-        logger.info("Scheduler started - Auto sync setiap 30 menit")
+        logger.info("Scheduler started dengan konfigurasi:")
+        logger.info("  - Auto Sync All Plants: setiap 30 menit")
+        logger.info("  - Auto Sync Plant 3000: setiap 15 menit")
+        logger.info("  - Auto Sync Plant 2000 (21LK, 21HU, 21NH): setiap 20 menit")
+        logger.info("  - Cleanup Old Data: setiap hari jam 2 pagi")
+
+        # Jalankan sync pertama kali saat startup
+        logger.info("Menjalankan sync pertama saat startup...")
+        time.sleep(5)
+
+        # Jalankan sync dalam thread terpisah agar tidak block startup
+        startup_thread = threading.Thread(target=initial_sync_on_startup)
+        startup_thread.daemon = True
+        startup_thread.start()
+
     except Exception as e:
         logger.error(f"Gagal start scheduler: {e}")
+        logger.error(traceback.format_exc())
+
+def initial_sync_on_startup():
+    """Jalankan sync pertama saat aplikasi start"""
+    try:
+        logger.info("Memulai initial sync pada startup...")
+
+        # Sync plant 3000
+        sync_plant_3000()
+        time.sleep(10)
+
+        # Sync plant 2000 locations
+        sync_plant_2000_21LK()
+        time.sleep(5)
+
+        sync_plant_2000_21HU()
+        time.sleep(5)
+
+        sync_plant_2000_21NH()
+
+        logger.info("Initial sync pada startup selesai")
+    except Exception as e:
+        logger.error(f"Error dalam initial sync: {e}")
+
+def cleanup_old_data():
+    """Cleanup data lama (lebih dari 7 hari)"""
+    try:
+        logger.info("Memulai cleanup data lama...")
+
+        mysql_conn = connect_mysql()
+        if not mysql_conn:
+            logger.error("Tidak dapat koneksi ke database untuk cleanup")
+            return
+
+        with mysql_conn.cursor() as cursor:
+            # Hapus data yang sudah di-mark inactive dan lebih dari 7 hari
+            cursor.execute("""
+                DELETE FROM stock_data
+                WHERE is_active = 0
+                AND last_updated < DATE_SUB(NOW(), INTERVAL 7 DAY)
+                AND sync_status = 'NOT_IN_SAP'
+            """)
+
+            deleted_count = cursor.rowcount
+
+            # Update data yang sudah dibuat HU dan lebih dari 30 hari
+            cursor.execute("""
+                UPDATE stock_data
+                SET is_active = 0,
+                    sync_status = 'ARCHIVED',
+                    reason = 'Data diarsipkan (lebih dari 30 hari sejak HU dibuat)'
+                WHERE hu_created = 1
+                AND last_updated < DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND is_active = 1
+            """)
+
+            archived_count = cursor.rowcount
+
+            mysql_conn.commit()
+
+            logger.info(f"Cleanup selesai: {deleted_count} data dihapus, {archived_count} data diarsipkan")
+
+    except Exception as e:
+        logger.error(f"Error dalam cleanup data: {e}")
+    finally:
+        if mysql_conn:
+            mysql_conn.close()
 
 def stop_scheduler():
     if scheduler.running:
@@ -118,11 +545,6 @@ atexit.register(stop_scheduler)
 def connect_sap_with_credentials(sap_user, sap_password):
     try:
         # PERBAIKAN: Relax validasi untuk development/testing
-        # default_user = os.getenv("SAP_USER", "auto_email")
-        # if not sap_user or sap_user == default_user:
-        #     logger.error(f"SAP User dari request tidak valid: {sap_user}")
-        #     return None, "SAP User tidak valid atau masih menggunakan default user"
-
         if not sap_password:
             logger.error("SAP Password dari request kosong")
             return None, "SAP Password tidak boleh kosong"
@@ -340,7 +762,7 @@ def soft_delete_missing_records(mysql_conn, sap_business_keys, plant, storage_lo
             cursor.execute("DROP TEMPORARY TABLE temp_business_keys")
 
             if affected_rows > 0:
-                logger.info(f"Marked {affected_rows} SYNCED records sebagai inactive")
+                logger.info(f"Marked {affected_rows} SYNCED records sebagai inactive untuk {plant}/{storage_location}")
 
             return affected_rows
 
@@ -465,7 +887,7 @@ def upsert_sap_data_with_manual_check(mysql_conn, stock_data, plant, storage_loc
                 else:
                     updated += 1
 
-            logger.info(f"Upsert results: {inserted} inserted, {updated} updated, {skipped_manual} skipped (manual updates)")
+            logger.info(f"Upsert results untuk {plant}/{storage_location}: {inserted} inserted, {updated} updated, {skipped_manual} skipped (manual updates)")
             return inserted, updated
 
     except Exception as e:
@@ -473,13 +895,16 @@ def upsert_sap_data_with_manual_check(mysql_conn, stock_data, plant, storage_loc
         raise e
 
 def sync_stock_data(plant='3000', storage_location='3D10'):
+    """✅ PERBAIKAN UTAMA: Sync stock data dengan penutupan koneksi yang DIPASTIKAN"""
     sap_conn = None
     mysql_conn = None
 
     try:
+        logger.info(f"Memulai sync stock data untuk {plant}/{storage_location}")
+
         sap_conn = connect_sap()
         if not sap_conn:
-            logger.error("Tidak dapat melanjutkan sync karena koneksi SAP gagal")
+            logger.error(f"Tidak dapat melanjutkan sync karena koneksi SAP gagal untuk {plant}/{storage_location}")
             return False
 
         mysql_conn = connect_mysql()
@@ -487,6 +912,7 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
             logger.error("Koneksi database gagal")
             return False
 
+        logger.info(f"Memanggil RFC Z_FM_YMMR006NX dengan parameter: Plant={plant}, Storage Location={storage_location}")
         result = sap_conn.call('Z_FM_YMMR006NX',
                              P_WERKS=plant,
                              P_MTART='FERT',
@@ -494,12 +920,14 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
 
         stock_data = result.get('T_DATA', [])
 
+        logger.info(f"Data dari SAP untuk {plant}/{storage_location}: {len(stock_data)} records")
+
         if not stock_data:
-            logger.info("Tidak ada data dari SAP")
+            logger.info(f"Tidak ada data dari SAP untuk {plant}/{storage_location}")
             return handle_empty_sap_data(mysql_conn, plant, storage_location)
 
         sap_business_keys = extract_business_keys(stock_data)
-        logger.info(f"Data dari SAP: {len(sap_business_keys)} unique business keys")
+        logger.info(f"Data dari SAP {plant}/{storage_location}: {len(sap_business_keys)} unique business keys")
 
         # ✅ PERBAIKAN: Gunakan function yang menghormati manual update
         marked_inactive = soft_delete_missing_records(mysql_conn, sap_business_keys, plant, storage_location)
@@ -507,28 +935,44 @@ def sync_stock_data(plant='3000', storage_location='3D10'):
 
         mysql_conn.commit()
 
-        logger.info(f"Sync selesai: {inserted} baru, {updated} update, {marked_inactive} di-nonaktifkan")
+        logger.info(f"Sync selesai untuk {plant}/{storage_location}: {inserted} baru, {updated} update, {marked_inactive} di-nonaktifkan")
         return True
 
     except Exception as e:
-        logger.error(f"Error dalam sync_stock_data: {e}")
+        logger.error(f"Error dalam sync_stock_data untuk {plant}/{storage_location}: {e}")
+        logger.error(traceback.format_exc())
         if mysql_conn:
             mysql_conn.rollback()
         return False
     finally:
-        if sap_conn:
-            sap_conn.close()
-        if mysql_conn:
-            mysql_conn.close()
+        # ✅✅✅ PERBAIKAN PENTING: PASTIKAN KONEKSI SELALU DITUTUP
+        try:
+            if sap_conn:
+                logger.info(f"✅ Menutup koneksi SAP untuk {plant}/{storage_location}")
+                sap_conn.close()
+                logger.info(f"✅ Koneksi SAP untuk {plant}/{storage_location} berhasil ditutup")
+        except Exception as sap_close_error:
+            logger.error(f"⚠️ Error saat menutup koneksi SAP: {sap_close_error}")
+
+        try:
+            if mysql_conn:
+                logger.info(f"✅ Menutup koneksi MySQL untuk {plant}/{storage_location}")
+                mysql_conn.close()
+                logger.info(f"✅ Koneksi MySQL untuk {plant}/{storage_location} berhasil ditutup")
+        except Exception as mysql_close_error:
+            logger.error(f"⚠️ Error saat menutup koneksi MySQL: {mysql_close_error}")
 
 # ==================== FUNGSI VIEW STOCK DATA ====================
 
 def get_active_stock_data(plant='3000', storage_location='3D10', include_inactive=False):
-    mysql_conn = connect_mysql()
-    if not mysql_conn:
-        return None
+    """✅ PERBAIKAN: Fungsi view stock data dengan penutupan koneksi yang dipastikan"""
+    mysql_conn = None
 
     try:
+        mysql_conn = connect_mysql()
+        if not mysql_conn:
+            return None
+
         with mysql_conn.cursor(pymysql.cursors.DictCursor) as cursor:
             if include_inactive:
                 sql = """
@@ -553,7 +997,12 @@ def get_active_stock_data(plant='3000', storage_location='3D10', include_inactiv
         logger.error(f"Error mengambil data stock: {e}")
         return None
     finally:
-        mysql_conn.close()
+        # ✅ PERBAIKAN: Pastikan koneksi selalu ditutup
+        if mysql_conn:
+            try:
+                mysql_conn.close()
+            except Exception as close_error:
+                logger.error(f"Error menutup koneksi MySQL di get_active_stock_data: {close_error}")
 
 # ==================== FUNGSI UTILITY UNTUK HU CREATION ====================
 
@@ -561,11 +1010,13 @@ def validate_stock_availability(material, plant, storage_location, required_qty,
     """
     Validasi ketersediaan stock sebelum membuat HU
     """
-    mysql_conn = connect_mysql()
-    if not mysql_conn:
-        return False, "Database connection error"
+    mysql_conn = None
 
     try:
+        mysql_conn = connect_mysql()
+        if not mysql_conn:
+            return False, "Database connection error"
+
         with mysql_conn.cursor(pymysql.cursors.DictCursor) as cursor:
             # Query stock yang tersedia
             if batch:
@@ -605,7 +1056,10 @@ def validate_stock_availability(material, plant, storage_location, required_qty,
         return False, f"Error validasi stock: {str(e)}"
     finally:
         if mysql_conn:
-            mysql_conn.close()
+            try:
+                mysql_conn.close()
+            except Exception as close_error:
+                logger.error(f"Error menutup koneksi MySQL di validate_stock_availability: {close_error}")
 
 def clean_hu_parameters(hu_data):
     cleaned = hu_data.copy()
@@ -773,6 +1227,7 @@ def validate_sap_response(result):
 # ==================== CREATE HU FUNCTIONS ====================
 
 def create_single_hu(data):
+    """✅ PERBAIKAN: Fungsi create HU dengan penutupan koneksi yang dipastikan"""
     required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'material', 'pack_qty', 'sap_user', 'sap_password']
     for field in required_fields:
         if field not in data or not data[field]:
@@ -806,13 +1261,6 @@ def create_single_hu(data):
 
     sap_user = data.get('sap_user')
     sap_password = data.get('sap_password')
-
-    # PERBAIKAN: Relax validasi user untuk development
-    # default_user = os.getenv("SAP_USER", "auto_email")
-    # if sap_user == default_user:
-    #     error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
-    #     logger.error(f"{error_msg}")
-    #     return {"success": False, "error": error_msg}, 400
 
     logger.info(f"Create Single HU - User: {sap_user}, HU: {data['hu_exid']}")
 
@@ -873,10 +1321,16 @@ def create_single_hu(data):
         logger.error(f"{error_msg}")
         return {"success": False, "error": error_msg}, 500
     finally:
+        # ✅ PERBAIKAN: Pastikan koneksi SAP selalu ditutup
         if sap_conn:
-            sap_conn.close()
+            try:
+                logger.info("✅ Menutup koneksi SAP untuk create_single_hu")
+                sap_conn.close()
+            except Exception as close_error:
+                logger.error(f"⚠️ Error menutup koneksi SAP: {close_error}")
 
 def create_single_multi_hu(data):
+    """✅ PERBAIKAN: Fungsi create multi HU dengan penutupan koneksi yang dipastikan"""
     required_fields = ['hu_exid', 'pack_mat', 'plant', 'stge_loc', 'items', 'sap_user', 'sap_password']
     for field in required_fields:
         if not data.get(field):
@@ -891,13 +1345,6 @@ def create_single_multi_hu(data):
 
     sap_user = data.get('sap_user')
     sap_password = data.get('sap_password')
-
-    # PERBAIKAN: Relax validasi user untuk development
-    # default_user = os.getenv("SAP_USER", "auto_email")
-    # if sap_user == default_user:
-    #     error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
-    #     logger.error(f"{error_msg}")
-    #     return {"success": False, "error": error_msg}, 400
 
     logger.info(f"Create Single Multi HU - User: {sap_user}, HU: {data['hu_exid']}")
 
@@ -1039,10 +1486,16 @@ def create_single_multi_hu(data):
         logger.error(traceback.format_exc())
         return {"success": False, "error": error_msg}, 500
     finally:
+        # ✅ PERBAIKAN: Pastikan koneksi SAP selalu ditutup
         if sap_conn:
-            sap_conn.close()
+            try:
+                logger.info("✅ Menutup koneksi SAP untuk create_single_multi_hu")
+                sap_conn.close()
+            except Exception as close_error:
+                logger.error(f"⚠️ Error menutup koneksi SAP: {close_error}")
 
 def create_multiple_hus(data):
+    """✅ PERBAIKAN: Fungsi create multiple HUs dengan penutupan koneksi yang dipastikan"""
     if 'hus' not in data or not isinstance(data['hus'], list):
         error_msg = "Data 'hus' harus berupa array"
         logger.error(f"{error_msg}")
@@ -1060,13 +1513,6 @@ def create_multiple_hus(data):
 
     sap_user = data.get('sap_user')
     sap_password = data.get('sap_password')
-
-    # PERBAIKAN: Relax validasi user untuk development
-    # default_user = os.getenv("SAP_USER", "auto_email")
-    # if sap_user == default_user:
-    #     error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
-    #     logger.error(f"{error_msg}")
-    #     return {"success": False, "error": error_msg}, 400
 
     logger.info(f"Create Multiple HUs - User: {sap_user}, Total: {len(data['hus'])}")
 
@@ -1262,10 +1708,488 @@ def create_multiple_hus(data):
         logger.error(traceback.format_exc())
         return {"success": False, "error": error_msg}, 500
     finally:
+        # ✅ PERBAIKAN: Pastikan koneksi SAP selalu ditutup
         if sap_conn:
-            sap_conn.close()
+            try:
+                logger.info("✅ Menutup koneksi SAP untuk create_multiple_hus")
+                sap_conn.close()
+            except Exception as close_error:
+                logger.error(f"⚠️ Error menutup koneksi SAP: {close_error}")
 
-# ==================== FUNCTION YANG HILANG - DITAMBAHKAN ====================
+# ==================== ROUTES API ====================
+
+@app.route('/hu/create-single', methods=['POST'])
+def api_create_single():
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    logger.info("/hu/create-single dipanggil")
+    result, status_code = create_single_hu(data)
+    return jsonify(result), status_code
+
+@app.route('/hu/create-single-multi', methods=['POST'])
+def api_create_single_multi():
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    logger.info("/hu/create-single-multi dipanggil")
+    result, status_code = create_single_multi_hu(data)
+    return jsonify(result), status_code
+
+@app.route('/hu/create-multiple-from-stock', methods=['POST'])
+def api_create_multiple_from_stock():
+    """
+    Endpoint khusus untuk membuat multiple HUs dari single material
+    dengan validasi stock dan 1 HU = 1 PC
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    logger.info("/hu/create-multiple-from-stock dipanggil")
+
+    # Validasi additional fields
+    if 'total_hu_needed' not in data:
+        return jsonify({"success": False, "error": "total_hu_needed wajib diisi"}), 400
+
+    result, status_code = create_multiple_hus_from_stock(data)
+    return jsonify(result), status_code
+
+@app.route('/stock/check-availability', methods=['POST'])
+def api_check_stock_availability():
+    """
+    Endpoint untuk mengecek ketersediaan stock sebelum membuat HU
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    required_fields = ['material', 'plant', 'storage_location', 'required_qty']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"success": False, "error": f"Field {field} wajib diisi"}), 400
+
+    try:
+        material = data['material']
+        plant = data['plant']
+        storage_location = data['storage_location']
+        required_qty = int(data['required_qty'])
+        batch = data.get('batch')
+
+        available, message = validate_stock_availability(
+            material, plant, storage_location, required_qty, batch
+        )
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "material": material,
+                "plant": plant,
+                "storage_location": storage_location,
+                "required_quantity": required_qty,
+                "stock_available": available,
+                "message": message
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Error checking stock: {str(e)}"
+        }), 500
+
+@app.route('/hu/create-multiple', methods=['POST'])
+def api_create_multiple():
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    logger.info("/hu/create-multiple dipanggil")
+    result, status_code = create_multiple_hus(data)
+    return jsonify(result), status_code
+
+@app.route('/hu/create-multiple-flexible', methods=['POST'])
+def api_create_multiple_flexible():
+    """
+    Endpoint untuk membuat multiple HUs dengan mode flexible
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    logger.info("/hu/create-multiple-flexible dipanggil")
+
+    # Gunakan fungsi create_multiple_hus yang sudah ada dengan modifikasi
+    result, status_code = create_multiple_hus_flexible(data)
+    return jsonify(result), status_code
+
+@app.route('/stock/sync', methods=['POST'])
+def api_stock_sync():
+    logger.info("/stock/sync dipanggil")
+
+    try:
+        data = request.get_json() or {}
+        plant = data.get('plant', '3000')
+        storage_location = data.get('storage_location', '3D10')
+
+        logger.info(f"Memulai sync stock data: Plant {plant}, Storage Location {storage_location}")
+
+        success = sync_stock_data(plant, storage_location)
+
+        if success:
+            active_data = get_active_stock_data(plant, storage_location, include_inactive=False)
+
+            return jsonify({
+                "success": True,
+                "message": "Sync stock data completed successfully",
+                "data": {
+                    "active_records_count": len(active_data) if active_data else 0,
+                    "plant": plant,
+                    "storage_location": storage_location
+                }
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Sync stock data failed"
+            }), 500
+
+    except Exception as e:
+        error_msg = f"Error dalam sync stock data: {str(e)}"
+        logger.error(f"{error_msg}")
+        return jsonify({
+            "success": False,
+            "error": error_msg
+        }), 500
+
+@app.route('/stock/view', methods=['GET'])
+def api_stock_view():
+    try:
+        plant = request.args.get('plant', '3000')
+        storage_location = request.args.get('storage_location', '3D10')
+        include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+
+        stock_data = get_active_stock_data(plant, storage_location, include_inactive)
+
+        if stock_data is None:
+            return jsonify({
+                "success": False,
+                "error": "Gagal mengambil data stock"
+            }), 500
+
+        return jsonify({
+            "success": True,
+            "data": stock_data,
+            "summary": {
+                "plant": plant,
+                "storage_location": storage_location,
+                "total_records": len(stock_data),
+                "include_inactive": include_inactive
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/stock/view-all', methods=['GET'])
+def api_stock_view_all():
+    try:
+        plant = request.args.get('plant', '3000')
+        storage_location = request.args.get('storage_location', '3D10')
+
+        stock_data = get_active_stock_data(plant, storage_location, include_inactive=True)
+
+        if stock_data is None:
+            return jsonify({
+                "success": False,
+                "error": "Gagal mengambil data stock"
+            }), 500
+
+        active_count = sum(1 for item in stock_data if item.get('is_active') == 1 and item.get('stock_quantity', 0) > 0)
+        inactive_count = len(stock_data) - active_count
+
+        return jsonify({
+            "success": True,
+            "data": stock_data,
+            "summary": {
+                "plant": plant,
+                "storage_location": storage_location,
+                "total_records": len(stock_data),
+                "active_records": active_count,
+                "inactive_records": inactive_count
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/stock/status', methods=['GET'])
+def api_stock_status():
+    mysql_conn = None
+
+    try:
+        plant = request.args.get('plant', '3000')
+        storage_location = request.args.get('storage_location', '3D10')
+
+        mysql_conn = connect_mysql()
+        if not mysql_conn:
+            return jsonify({"success": False, "error": "Database connection failed"}), 500
+
+        with mysql_conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_active,
+                    SUM(stock_quantity) as total_stock_quantity,
+                    COUNT(DISTINCT material) as unique_materials,
+                    MAX(last_updated) as last_updated_time
+                FROM stock_data
+                WHERE plant = %s
+                AND storage_location = %s
+                AND is_active = 1
+                AND stock_quantity > 0
+            """, (plant, storage_location))
+
+            active_result = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_records,
+                    SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_with_stock,
+                    SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_records
+                FROM stock_data
+                WHERE plant = %s AND storage_location = %s
+            """, (plant, storage_location))
+
+            stats_result = cursor.fetchone()
+
+            return jsonify({
+                "success": True,
+                "data": {
+                    "plant": plant,
+                    "storage_location": storage_location,
+                    "view_data": {
+                        "active_records": active_result[0],
+                        "total_stock_quantity": float(active_result[1]) if active_result[1] else 0,
+                        "unique_materials": active_result[2],
+                        "last_updated": active_result[3].isoformat() if active_result[3] else None
+                    },
+                    "system_stats": {
+                        "total_records": stats_result[0],
+                        "active_with_stock": stats_result[1],
+                        "inactive_records": stats_result[2]
+                    }
+                }
+            }), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if mysql_conn:
+            try:
+                mysql_conn.close()
+            except Exception as close_error:
+                logger.error(f"Error menutup koneksi MySQL di api_stock_status: {close_error}")
+
+# ===== ROUTE UNTUK SYNC STATUS YANG DIPERBAIKI =====
+
+@app.route('/sync/status', methods=['GET'])
+def api_sync_status():
+    """Endpoint untuk mendapatkan status sync semua plant"""
+    try:
+        # Format status untuk response
+        formatted_status = {}
+
+        for key, status in last_sync_status.items():
+            plant, location = key.split('_')
+            formatted_status[key] = {
+                'plant': plant,
+                'storage_location': location,
+                'last_success_time': status['last_success_time'].isoformat() if status['last_success_time'] else None,
+                'last_attempt_time': status['last_attempt_time'].isoformat() if status['last_attempt_time'] else None,
+                'last_error': status['last_error'],
+                'is_running': status['is_running'],
+                'total_records': status['total_records'],
+                'active_records': status['active_records']
+            }
+
+        return jsonify({
+            "success": True,
+            "data": formatted_status,
+            "timestamp": datetime.now().isoformat(),
+            "scheduler_running": scheduler.running
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/sync/now', methods=['POST'])
+def api_sync_now():
+    try:
+        data = request.get_json() or {}
+        plant = data.get('plant', '3000')
+        storage_location = data.get('storage_location', '3D10')
+
+        logger.info(f"Manual sync diminta untuk {plant}/{storage_location}")
+
+        success = sync_stock_data(plant, storage_location)
+        if success:
+            return jsonify({"success": True, "message": f"Sync berhasil untuk {plant}/{storage_location}"}), 200
+        else:
+            return jsonify({"success": False, "error": f"Sync gagal untuk {plant}/{storage_location}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/sync/trigger-all', methods=['POST'])
+def api_sync_trigger_all():
+    """Trigger sync untuk semua plant sekaligus"""
+    try:
+        logger.info("Manual trigger semua sync plant")
+
+        # Jalankan dalam thread terpisah agar tidak block request
+        def run_all_syncs():
+            sync_plant_3000()
+            time.sleep(10)
+            sync_plant_2000_21LK()
+            time.sleep(5)
+            sync_plant_2000_21HU()
+            time.sleep(5)
+            sync_plant_2000_21NH()
+
+        sync_thread = threading.Thread(target=run_all_syncs)
+        sync_thread.daemon = True
+        sync_thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": "Sync semua plant telah di-trigger. Proses berjalan di background.",
+            "timestamp": datetime.now().isoformat()
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/hu/debug-response', methods=['POST'])
+def debug_hu_response():
+    """Endpoint untuk debug response SAP"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Data kosong"}), 400
+
+    sap_user = data.get('sap_user')
+    sap_password = data.get('sap_password')
+
+    if not sap_user or not sap_password:
+        return jsonify({"success": False, "error": "SAP credentials required"}), 400
+
+    sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
+    if not sap_conn:
+        return jsonify({"success": False, "error": conn_error}), 401
+
+    try:
+        # Test dengan data minimal
+        test_params = {
+            "I_HU_EXID": "9900000001",
+            "I_PACK_MAT": "50016873",
+            "I_PLANT": "3000",
+            "I_STGE_LOC": "3D10",
+            "T_ITEMS": [{
+                "MATERIAL": "000000000030002555",
+                "PLANT": "3000",
+                "STGE_LOC": "3D10",
+                "PACK_QTY": "1",
+                "HU_ITEM_TYPE": "1",
+                "BATCH": "",
+                "SPEC_STOCK": "",
+                "SP_STCK_NO": ""
+            }]
+        }
+
+        logger.info("Debug: Calling SAP RFC...")
+        result = sap_conn.call('ZRFC_CREATE_HU_EXT', **test_params)
+
+        return jsonify({
+            "success": True,
+            "sap_response": result,
+            "analysis": {
+                "has_e_hukey": 'E_HUKEY' in result,
+                "e_hukey_value": result.get('E_HUKEY'),
+                "has_e_return": 'E_RETURN' in result,
+                "e_return_value": result.get('E_RETURN'),
+                "has_t_items": 'T_ITEMS' in result,
+                "t_items_count": len(result.get('T_ITEMS', [])),
+                "all_keys": list(result.keys())
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+    finally:
+        # ✅ PERBAIKAN: Pastikan koneksi SAP selalu ditutup
+        if sap_conn:
+            try:
+                logger.info("✅ Menutup koneksi SAP untuk debug_hu_response")
+                sap_conn.close()
+            except Exception as close_error:
+                logger.error(f"⚠️ Error menutup koneksi SAP: {close_error}")
+
+@app.route('/health', methods=['GET'])
+def api_health():
+    db_ok = connect_mysql() is not None
+    sap_ok = connect_sap() is not None
+    scheduler_running = scheduler.running if scheduler else False
+
+    # Hitung job yang aktif
+    job_count = len(scheduler.get_jobs()) if scheduler_running else 0
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "database": "connected" if db_ok else "disconnected",
+            "sap": "connected" if sap_ok else "disconnected",
+            "scheduler": {
+                "running": scheduler_running,
+                "job_count": job_count
+            },
+            "auto_sync_status": {
+                "3000_3D10": {
+                    "last_success": last_sync_status['3000_3D10']['last_success_time'].isoformat() if last_sync_status['3000_3D10']['last_success_time'] else None,
+                    "active_records": last_sync_status['3000_3D10']['active_records']
+                },
+                "2000_21LK": {
+                    "last_success": last_sync_status['2000_21LK']['last_success_time'].isoformat() if last_sync_status['2000_21LK']['last_success_time'] else None,
+                    "active_records": last_sync_status['2000_21LK']['active_records']
+                },
+                "2000_21HU": {
+                    "last_success": last_sync_status['2000_21HU']['last_success_time'].isoformat() if last_sync_status['2000_21HU']['last_success_time'] else None,
+                    "active_records": last_sync_status['2000_21HU']['active_records']
+                },
+                "2000_21NH": {
+                    "last_success": last_sync_status['2000_21NH']['last_success_time'].isoformat() if last_sync_status['2000_21NH']['last_success_time'] else None,
+                    "active_records": last_sync_status['2000_21NH']['active_records']
+                }
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+    }), 200
+
+# ===== FUNGSI TAMBAHAN YANG DIPERLUKAN =====
 
 def generate_hus_from_single_material(base_data, total_hu_needed):
     """
@@ -1497,8 +2421,13 @@ def create_multiple_hus_from_stock(data):
         logger.error(traceback.format_exc())
         return {"success": False, "error": error_msg}, 500
     finally:
+        # ✅ PERBAIKAN: Pastikan koneksi SAP selalu ditutup
         if sap_conn:
-            sap_conn.close()
+            try:
+                logger.info("✅ Menutup koneksi SAP untuk create_multiple_hus_from_stock")
+                sap_conn.close()
+            except Exception as close_error:
+                logger.error(f"⚠️ Error menutup koneksi SAP: {close_error}")
 
 def create_multiple_hus_flexible(data):
     """
@@ -1522,13 +2451,6 @@ def create_multiple_hus_flexible(data):
     sap_user = data.get('sap_user')
     sap_password = data.get('sap_password')
     creation_mode = data.get('creation_mode', 'split')  # Default to split mode
-
-    # PERBAIKAN: Relax validasi user untuk development
-    # default_user = os.getenv("SAP_USER", "auto_email")
-    # if sap_user == default_user:
-    #     error_msg = f"SAP User tidak boleh menggunakan default/system user: {default_user}"
-    #     logger.error(f"{error_msg}")
-    #     return {"success": False, "error": error_msg}, 400
 
     logger.info(f"Create Multiple HUs Flexible - User: {sap_user}, Mode: {creation_mode}, Total: {len(data['hus'])}")
 
@@ -1731,382 +2653,21 @@ def create_multiple_hus_flexible(data):
         logger.error(traceback.format_exc())
         return {"success": False, "error": error_msg}, 500
     finally:
+        # ✅ PERBAIKAN: Pastikan koneksi SAP selalu ditutup
         if sap_conn:
-            sap_conn.close()
-
-# ==================== ROUTES API ====================
-
-@app.route('/hu/create-single', methods=['POST'])
-def api_create_single():
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    logger.info("/hu/create-single dipanggil")
-    result, status_code = create_single_hu(data)
-    return jsonify(result), status_code
-
-@app.route('/hu/create-single-multi', methods=['POST'])
-def api_create_single_multi():
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    logger.info("/hu/create-single-multi dipanggil")
-    result, status_code = create_single_multi_hu(data)
-    return jsonify(result), status_code
-
-@app.route('/hu/create-multiple-from-stock', methods=['POST'])
-def api_create_multiple_from_stock():
-    """
-    Endpoint khusus untuk membuat multiple HUs dari single material
-    dengan validasi stock dan 1 HU = 1 PC
-    """
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    logger.info("/hu/create-multiple-from-stock dipanggil")
-
-    # Validasi additional fields
-    if 'total_hu_needed' not in data:
-        return jsonify({"success": False, "error": "total_hu_needed wajib diisi"}), 400
-
-    result, status_code = create_multiple_hus_from_stock(data)
-    return jsonify(result), status_code
-
-@app.route('/stock/check-availability', methods=['POST'])
-def api_check_stock_availability():
-    """
-    Endpoint untuk mengecek ketersediaan stock sebelum membuat HU
-    """
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    required_fields = ['material', 'plant', 'storage_location', 'required_qty']
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"success": False, "error": f"Field {field} wajib diisi"}), 400
-
-    try:
-        material = data['material']
-        plant = data['plant']
-        storage_location = data['storage_location']
-        required_qty = int(data['required_qty'])
-        batch = data.get('batch')
-
-        available, message = validate_stock_availability(
-            material, plant, storage_location, required_qty, batch
-        )
-
-        return jsonify({
-            "success": True,
-            "data": {
-                "material": material,
-                "plant": plant,
-                "storage_location": storage_location,
-                "required_quantity": required_qty,
-                "stock_available": available,
-                "message": message
-            }
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": f"Error checking stock: {str(e)}"
-        }), 500
-
-@app.route('/hu/create-multiple', methods=['POST'])
-def api_create_multiple():
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    logger.info("/hu/create-multiple dipanggil")
-    result, status_code = create_multiple_hus(data)
-    return jsonify(result), status_code
-
-@app.route('/hu/create-multiple-flexible', methods=['POST'])
-def api_create_multiple_flexible():
-    """
-    Endpoint untuk membuat multiple HUs dengan mode flexible
-    """
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    logger.info("/hu/create-multiple-flexible dipanggil")
-
-    # Gunakan fungsi create_multiple_hus yang sudah ada dengan modifikasi
-    result, status_code = create_multiple_hus_flexible(data)
-    return jsonify(result), status_code
-
-@app.route('/stock/sync', methods=['POST'])
-def api_stock_sync():
-    logger.info("/stock/sync dipanggil")
-
-    try:
-        data = request.get_json() or {}
-        plant = data.get('plant', '3000')
-        storage_location = data.get('storage_location', '3D10')
-
-        logger.info(f"Memulai sync stock data: Plant {plant}, Storage Location {storage_location}")
-
-        success = sync_stock_data(plant, storage_location)
-
-        if success:
-            active_data = get_active_stock_data(plant, storage_location, include_inactive=False)
-
-            return jsonify({
-                "success": True,
-                "message": "Sync stock data completed successfully",
-                "data": {
-                    "active_records_count": len(active_data) if active_data else 0,
-                    "plant": plant,
-                    "storage_location": storage_location
-                }
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Sync stock data failed"
-            }), 500
-
-    except Exception as e:
-        error_msg = f"Error dalam sync stock data: {str(e)}"
-        logger.error(f"{error_msg}")
-        return jsonify({
-            "success": False,
-            "error": error_msg
-        }), 500
-
-@app.route('/stock/view', methods=['GET'])
-def api_stock_view():
-    try:
-        plant = request.args.get('plant', '3000')
-        storage_location = request.args.get('storage_location', '3D10')
-        include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
-
-        stock_data = get_active_stock_data(plant, storage_location, include_inactive)
-
-        if stock_data is None:
-            return jsonify({
-                "success": False,
-                "error": "Gagal mengambil data stock"
-            }), 500
-
-        return jsonify({
-            "success": True,
-            "data": stock_data,
-            "summary": {
-                "plant": plant,
-                "storage_location": storage_location,
-                "total_records": len(stock_data),
-                "include_inactive": include_inactive
-            }
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/stock/view-all', methods=['GET'])
-def api_stock_view_all():
-    try:
-        plant = request.args.get('plant', '3000')
-        storage_location = request.args.get('storage_location', '3D10')
-
-        stock_data = get_active_stock_data(plant, storage_location, include_inactive=True)
-
-        if stock_data is None:
-            return jsonify({
-                "success": False,
-                "error": "Gagal mengambil data stock"
-            }), 500
-
-        active_count = sum(1 for item in stock_data if item.get('is_active') == 1 and item.get('stock_quantity', 0) > 0)
-        inactive_count = len(stock_data) - active_count
-
-        return jsonify({
-            "success": True,
-            "data": stock_data,
-            "summary": {
-                "plant": plant,
-                "storage_location": storage_location,
-                "total_records": len(stock_data),
-                "active_records": active_count,
-                "inactive_records": inactive_count
-            }
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/stock/status', methods=['GET'])
-def api_stock_status():
-    try:
-        plant = request.args.get('plant', '3000')
-        storage_location = request.args.get('storage_location', '3D10')
-
-        mysql_conn = connect_mysql()
-        if not mysql_conn:
-            return jsonify({"success": False, "error": "Database connection failed"}), 500
-
-        with mysql_conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total_active,
-                    SUM(stock_quantity) as total_stock_quantity,
-                    COUNT(DISTINCT material) as unique_materials,
-                    MAX(last_updated) as last_updated_time
-                FROM stock_data
-                WHERE plant = %s
-                AND storage_location = %s
-                AND is_active = 1
-                AND stock_quantity > 0
-            """, (plant, storage_location))
-
-            active_result = cursor.fetchone()
-
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total_records,
-                    SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_with_stock,
-                    SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_records
-                FROM stock_data
-                WHERE plant = %s AND storage_location = %s
-            """, (plant, storage_location))
-
-            stats_result = cursor.fetchone()
-
-            return jsonify({
-                "success": True,
-                "data": {
-                    "plant": plant,
-                    "storage_location": storage_location,
-                    "view_data": {
-                        "active_records": active_result[0],
-                        "total_stock_quantity": float(active_result[1]) if active_result[1] else 0,
-                        "unique_materials": active_result[2],
-                        "last_updated": active_result[3].isoformat() if active_result[3] else None
-                    },
-                    "system_stats": {
-                        "total_records": stats_result[0],
-                        "active_with_stock": stats_result[1],
-                        "inactive_records": stats_result[2]
-                    }
-                }
-            }), 200
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        if mysql_conn:
-            mysql_conn.close()
-
-@app.route('/sync/status', methods=['GET'])
-def api_sync_status():
-    return jsonify({
-        "success": True,
-        "data": last_sync_status
-    }), 200
-
-@app.route('/sync/now', methods=['POST'])
-def api_sync_now():
-    try:
-        success = sync_stock_data('3000', '3D10')
-        if success:
-            return jsonify({"success": True}), 200
-        else:
-            return jsonify({"success": False, "error": "Sync failed"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/hu/debug-response', methods=['POST'])
-def debug_hu_response():
-    """Endpoint untuk debug response SAP"""
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "Data kosong"}), 400
-
-    sap_user = data.get('sap_user')
-    sap_password = data.get('sap_password')
-
-    if not sap_user or not sap_password:
-        return jsonify({"success": False, "error": "SAP credentials required"}), 400
-
-    sap_conn, conn_error = connect_sap_with_credentials(sap_user, sap_password)
-    if not sap_conn:
-        return jsonify({"success": False, "error": conn_error}), 401
-
-    try:
-        # Test dengan data minimal
-        test_params = {
-            "I_HU_EXID": "9900000001",
-            "I_PACK_MAT": "50016873",
-            "I_PLANT": "3000",
-            "I_STGE_LOC": "3D10",
-            "T_ITEMS": [{
-                "MATERIAL": "000000000030002555",
-                "PLANT": "3000",
-                "STGE_LOC": "3D10",
-                "PACK_QTY": "1",
-                "HU_ITEM_TYPE": "1",
-                "BATCH": "",
-                "SPEC_STOCK": "",
-                "SP_STCK_NO": ""
-            }]
-        }
-
-        logger.info("Debug: Calling SAP RFC...")
-        result = sap_conn.call('ZRFC_CREATE_HU_EXT', **test_params)
-
-        return jsonify({
-            "success": True,
-            "sap_response": result,
-            "analysis": {
-                "has_e_hukey": 'E_HUKEY' in result,
-                "e_hukey_value": result.get('E_HUKEY'),
-                "has_e_return": 'E_RETURN' in result,
-                "e_return_value": result.get('E_RETURN'),
-                "has_t_items": 'T_ITEMS' in result,
-                "t_items_count": len(result.get('T_ITEMS', [])),
-                "all_keys": list(result.keys())
-            }
-        })
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-    finally:
-        if sap_conn:
-            sap_conn.close()
-
-@app.route('/health', methods=['GET'])
-def api_health():
-    db_ok = connect_mysql() is not None
-    sap_ok = connect_sap() is not None
-
-    return jsonify({
-        "success": True,
-        "data": {
-            "database": "connected" if db_ok else "disconnected",
-            "sap": "connected" if sap_ok else "disconnected",
-            "timestamp": datetime.now().isoformat()
-        }
-    }), 200
+            try:
+                logger.info("✅ Menutup koneksi SAP untuk create_multiple_hus_flexible")
+                sap_conn.close()
+            except Exception as close_error:
+                logger.error(f"⚠️ Error menutup koneksi SAP: {close_error}")
 
 if __name__ == '__main__':
     logger.info("Starting SAP HU Automation API")
+
+    # Log konfigurasi
+    logger.info(f"Database Host: {DB_CONFIG['host']}")
+    logger.info(f"SAP Host: {os.getenv('SAP_ASHOST', '192.168.254.154')}")
+    logger.info(f"SAP Client: {os.getenv('SAP_CLIENT', '300')}")
 
     ensure_magry_column_exists()
     ensure_advanced_columns_exist()
@@ -2128,7 +2689,7 @@ if __name__ == '__main__':
 
     logger.info("Starting Flask server di port 5000...")
     try:
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
     except Exception as e:
         logger.error(f"Gagal start Flask server: {e}")
     finally:
