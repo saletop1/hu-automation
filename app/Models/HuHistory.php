@@ -9,31 +9,25 @@ class HuHistory extends Model
 {
     use HasFactory;
 
-    protected $table = 'hu_histories'; // Sesuaikan dengan nama tabel di database
+    protected $table = 'hu_histories';
 
     protected $fillable = [
-        'stock_id',
         'hu_number',
         'material',
         'material_description',
         'batch',
         'quantity',
         'unit',
-        'sales_document',
         'plant',
         'storage_location',
+        'sales_document',
         'scenario_type',
         'created_by'
     ];
 
     protected $casts = [
-        'quantity' => 'integer',
+        'quantity' => 'decimal:3',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
-
-    public function stock()
-    {
-        return $this->belongsTo(Stock::class, 'stock_id');
-    }
 }

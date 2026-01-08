@@ -5,8 +5,11 @@ namespace App\Exports;
 use App\Models\HuHistory;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class HuHistoryExport implements FromCollection, WithHeadings
+class HuHistoryExport implements FromCollection, WithHeadings, WithMapping, WithStyles
 {
     protected $selectedData;
 
@@ -17,24 +20,7 @@ class HuHistoryExport implements FromCollection, WithHeadings
 
     public function collection()
     {
-        return HuHistory::whereIn('id', $this->selectedData)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'HU Number' => $item->hu_number,
-                    'Material' => $item->material,
-                    'Material Description' => $item->material_description,
-                    'Batch' => $item->batch,
-                    'Quantity' => (int) $item->quantity, // Ensure integer in export
-                    'Unit' => $item->unit,
-                    'Plant' => $item->plant,
-                    'Storage Location' => $item->storage_location,
-                    'Sales Document' => $item->sales_document,
-                    'Scenario Type' => $item->scenario_type,
-                    'Created By' => $item->created_by,
-                    'Created At' => $item->created_at->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s'),
-                ];
-            });
+        return HuHistory::whereIn('id', $this->selectedData)->get();
     }
 
     public function headings(): array
@@ -42,7 +28,7 @@ class HuHistoryExport implements FromCollection, WithHeadings
         return [
             'HU Number',
             'Material',
-            'Material Description',
+            'Deskripsi Material',
             'Batch',
             'Quantity',
             'Unit',
@@ -51,7 +37,33 @@ class HuHistoryExport implements FromCollection, WithHeadings
             'Sales Document',
             'Scenario Type',
             'Created By',
-            'Created At (WIB)'
+            'Created At'
+        ];
+    }
+
+    public function map($history): array
+    {
+        return [
+            $history->hu_number,
+            $history->material,
+            $history->material_description,
+            $history->batch,
+            $history->quantity,
+            $history->unit,
+            $history->plant,
+            $history->storage_location,
+            $history->sales_document,
+            $history->scenario_type,
+            $history->created_by,
+            $history->created_at ? $history->created_at->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '-'
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => ['font' => ['bold' => true]],
+            'A:L' => ['alignment' => ['vertical' => 'center']],
         ];
     }
 }

@@ -21,6 +21,9 @@ class HUController extends Controller
     public function __construct()
     {
         $this->pythonBaseUrl = env('PYTHON_API_URL', 'http://localhost:5000');
+
+        // ✅ SET DEFAULT TIMEZONE KE JAKARTA
+        date_default_timezone_set('Asia/Jakarta');
     }
 
     public function index()
@@ -105,8 +108,8 @@ class HUController extends Controller
             $startDate = $request->get('start_date', '');
             $endDate = $request->get('end_date', '');
 
-            // Query dasar
-            $query = HuHistory::with('stock')
+            // Query dasar - HANYA dari hu_histories table, TIDAK bergantung pada stock
+            $query = HuHistory::query()
                 ->orderBy('created_at', 'desc');
 
             // Filter pencarian
@@ -120,24 +123,23 @@ class HUController extends Controller
                 });
             }
 
-            // Filter tanggal
+            // Filter tanggal - ✅ PERBAIKAN: Handle timezone Jakarta
             if ($startDate) {
-                $query->whereDate('created_at', '>=', $startDate);
+                $startDateJakarta = Carbon::createFromFormat('Y-m-d', $startDate, 'Asia/Jakarta')
+                    ->startOfDay()
+                    ->setTimezone('UTC');
+                $query->where('created_at', '>=', $startDateJakarta);
             }
 
             if ($endDate) {
-                $query->whereDate('created_at', '<=', $endDate);
+                $endDateJakarta = Carbon::createFromFormat('Y-m-d', $endDate, 'Asia/Jakarta')
+                    ->endOfDay()
+                    ->setTimezone('UTC');
+                $query->where('created_at', '<=', $endDateJakarta);
             }
 
             // Pagination 50 baris per halaman
             $historyData = $query->paginate(50);
-
-            // Untuk setiap history yang material_description-nya tidak ada, coba ambil dari stock_data
-            foreach ($historyData as $item) {
-                if (empty($item->material_description) || str_contains($item->material_description, 'not found')) {
-                    $this->fixMissingMaterialDescription($item);
-                }
-            }
 
             Log::info('History data loaded: ' . $historyData->total() . ' records');
 
@@ -498,13 +500,13 @@ class HUController extends Controller
             if ($response->successful()) {
                 $result = $response->json();
 
-                // ✅ PERBAIKAN: Update stock status and create history - TAMBAHKAN PARAMETER $result
-                $historyCreated = $this->updateStockAndHistory($request, $result, 'single');
+                // ✅ PERBAIKAN: Simpan history ke database dengan deskripsi material
+                $historyCreated = $this->saveSingleHuHistory($request, $result, 'single');
 
                 if ($historyCreated) {
-                    Log::info('History created successfully for HU: ' . $request->hu_exid);
+                    Log::info('History saved successfully for HU: ' . $request->hu_exid);
                 } else {
-                    Log::warning('History creation had issues for HU: ' . $request->hu_exid);
+                    Log::warning('History saving had issues for HU: ' . $request->hu_exid);
                 }
 
                 return redirect()->route('hu.history')->with('success', $result['message'] ?? 'HU Created Successfully');
@@ -572,13 +574,13 @@ class HUController extends Controller
             if ($response->successful()) {
                 $result = $response->json();
 
-                // ✅ PERBAIKAN: Update stock status and create history for multiple items - TAMBAHKAN PARAMETER $result
-                $historyCreated = $this->updateStockAndHistoryMulti($request, $result, 'single-multi');
+                // ✅ PERBAIKAN: Simpan history untuk multiple items dengan deskripsi material
+                $historyCreated = $this->saveSingleMultiHuHistory($request, $result, 'single-multi');
 
                 if ($historyCreated) {
-                    Log::info('History created successfully for multi HU: ' . $request->hu_exid);
+                    Log::info('History saved successfully for multi HU: ' . $request->hu_exid);
                 } else {
-                    Log::warning('History creation had issues for multi HU: ' . $request->hu_exid);
+                    Log::warning('History saving had issues for multi HU: ' . $request->hu_exid);
                 }
 
                 return redirect()->route('hu.history')->with('success', $result['message'] ?? 'HU with multiple materials created successfully');
@@ -615,10 +617,6 @@ class HUController extends Controller
 
             $invalidMaterials = [];
             foreach ($validated['hus'] as $index => $hu) {
-                $materialKey = $hu['material'] . '_' . ($hu['batch'] ?? '');
-
-                // You might want to check actual stock from database here
-                // For now, we'll just validate the submitted quantity
                 if (floatval($hu['pack_qty']) <= 0) {
                     $invalidMaterials[] = "HU {$index}: Quantity must be greater than 0";
                 }
@@ -685,13 +683,13 @@ class HUController extends Controller
                         'mode' => $creationMode
                     ]);
 
-                    // ✅ PERBAIKAN: Update stock status and create history for multiple HUs
-                    $historyCreated = $this->updateStockAndHistoryMultiple($request, $result, 'multiple');
+                    // ✅ PERBAIKAN: Simpan history untuk multiple HUs dengan deskripsi material
+                    $historySaved = $this->saveMultipleHusHistory($validated['hus'], $result, $creationMode);
 
-                    if ($historyCreated) {
-                        Log::info('History created successfully for multiple HUs');
+                    if ($historySaved) {
+                        Log::info('History saved successfully for multiple HUs');
                     } else {
-                        Log::warning('History creation had issues for multiple HUs');
+                        Log::warning('History saving had issues for multiple HUs');
                     }
 
                     // Clear session data setelah berhasil
@@ -821,22 +819,6 @@ class HUController extends Controller
     }
 
     /**
-     * Format material number untuk query database
-     * Jika material hanya angka, tambahkan leading zero sampai 18 digit
-     */
-    private function formatMaterialForQuery($material)
-    {
-        // Jika material hanya berisi angka
-        if (preg_match('/^\d+$/', $material)) {
-            // Format ke 18 digit dengan leading zero (standar SAP)
-            return str_pad($material, 18, '0', STR_PAD_LEFT);
-        }
-
-        // Jika bukan angka, return as-is
-        return $material;
-    }
-
-    /**
      * Format material number untuk display (hapus leading zero)
      */
     private function formatMaterialForDisplay($material)
@@ -852,241 +834,18 @@ class HUController extends Controller
     }
 
     /**
-     * Fix missing material description in history
+     * Format material number untuk query database (tambah leading zero jika perlu)
      */
-    private function fixMissingMaterialDescription($historyItem)
+    private function formatMaterialForQuery($material)
     {
-        try {
-            Log::info('Trying to fix missing material_description for history ID: ' . $historyItem->id);
-
-            // Format material untuk query (tambah leading zero)
-            $formattedMaterial = $this->formatMaterialForQuery($historyItem->material);
-
-            $stockItem = DB::table('stock_data')
-                ->where('material', $formattedMaterial)
-                ->select('material_description')
-                ->first();
-
-            if ($stockItem && !empty($stockItem->material_description)) {
-                // Update history record
-                HuHistory::where('id', $historyItem->id)
-                    ->update(['material_description' => $stockItem->material_description]);
-
-                // Update object untuk tampilan saat ini
-                $historyItem->material_description = $stockItem->material_description;
-
-                Log::info('Fixed material_description for history ID: ' . $historyItem->id . ' - ' . $stockItem->material_description);
-            }
-        } catch (\Exception $e) {
-            Log::error('Error fixing material description: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * ✅ PERBAIKAN UTAMA: Update stock dan history untuk single HU dengan logika sisa stock
-     */
-    private function updateStockAndHistory($request, $result, $scenarioType)
-    {
-        try {
-            // Format material untuk query database (tambah leading zero)
-            $formattedMaterial = $this->formatMaterialForQuery($request->material);
-
-            // DEBUG: Log semua parameter yang diterima
-            Log::info('DEBUG - Request data for history:', [
-                'original_material' => $request->material,
-                'formatted_material' => $formattedMaterial,
-                'batch' => $request->batch,
-                'plant' => $request->plant,
-                'stge_loc' => $request->stge_loc,
-                'hu_exid' => $request->hu_exid,
-                'pack_qty' => $request->pack_qty
-            ]);
-
-            // ✅ PERBAIKAN: Tambahkan 'id' dan 'stock_quantity' di select
-            $stockCheck = DB::table('stock_data')
-                ->where('material', $formattedMaterial)
-                ->where('batch', $request->batch)
-                ->where('plant', $request->plant)
-                ->where('storage_location', $request->stge_loc)
-                ->select('id', 'material_description', 'stock_quantity', 'hu_created')
-                ->first();
-
-            Log::info('DEBUG - Stock data check result:', [
-                'search_material' => $formattedMaterial,
-                'batch' => $request->batch,
-                'exists' => $stockCheck ? 'YES' : 'NO',
-                'stock_id' => $stockCheck->id ?? 'NOT FOUND',
-                'material_description' => $stockCheck->material_description ?? 'NOT FOUND',
-                'stock_quantity' => $stockCheck->stock_quantity ?? 0,
-                'hu_created' => $stockCheck->hu_created ?? 'unknown'
-            ]);
-
-            // Jika data tidak ditemukan, cari dengan kriteria yang lebih longgar
-            if (!$stockCheck) {
-                $stockCheck = $this->findStockWithFallback($formattedMaterial, $request->plant, $request->stge_loc, $request->batch);
-            }
-
-            $materialDescription = $stockCheck->material_description ?? 'Material description not found in database';
-            $stockId = $stockCheck->id ?? null;
-
-            // PERBAIKAN: Update stock status dengan logika sisa stock
-            $stockUpdated = false;
-            if ($stockCheck) {
-                $stockUpdated = $this->updateStockStatus($stockId, $formattedMaterial, $request, $stockCheck);
-            }
-
-            // Convert pack_qty to integer
-            $quantity = (int) round($request->pack_qty);
-
-            // Format material untuk display (hapus leading zero)
-            $displayMaterial = $this->formatMaterialForDisplay($request->material);
-
-            // Create history record
-            $history = HuHistory::create([
-                'stock_id' => $stockId,
-                'hu_number' => $request->hu_exid,
-                'material' => $displayMaterial,
-                'material_description' => $materialDescription,
-                'batch' => $request->batch,
-                'quantity' => $quantity,
-                'unit' => 'PC',
-                'plant' => $request->plant,
-                'storage_location' => $request->stge_loc,
-                'sales_document' => $request->sp_stck_no,
-                'scenario_type' => $scenarioType,
-                'created_by' => Auth::check() ? Auth::user()->name : 'System',
-                'created_at' => Carbon::now('Asia/Jakarta')
-            ]);
-
-            Log::info('History created with ID: ' . ($history->id ?? 'Unknown') .
-                    ', Stock ID: ' . $stockId .
-                    ', Material: ' . $displayMaterial .
-                    ', Quantity: ' . $quantity .
-                    ', Material Description: ' . $materialDescription);
-
-            return true;
-
-        } catch (\Exception $e) {
-            Log::error('Error updating stock and history: ' . $e->getMessage());
-            Log::error('Error details: ', [
-                'material' => $request->material ?? 'null',
-                'formatted_material' => $formattedMaterial ?? 'null',
-                'batch' => $request->batch ?? 'null',
-                'plant' => $request->plant ?? 'null',
-                'stge_loc' => $request->stge_loc ?? 'null'
-            ]);
-            return false;
-        }
-    }
-
-    /**
-     * PERBAIKAN: Update stock status dengan memperhitungkan sisa quantity
-     * dan tidak ditimpa saat sync dari SAP
-     */
-    private function updateStockStatus($stockId, $formattedMaterial, $request, $stockCheck)
-    {
-        try {
-            $packQty = (float) $request->pack_qty;
-            $currentStock = (float) $stockCheck->stock_quantity;
-
-            Log::info('Updating stock status:', [
-                'stock_id' => $stockId,
-                'material' => $formattedMaterial,
-                'pack_qty' => $packQty,
-                'current_stock' => $currentStock
-            ]);
-
-            $remainingStock = $currentStock - $packQty;
-
-            $updateData = [
-                'stock_quantity' => $remainingStock,
-                'last_updated' => now(),
-                'sync_status' => 'MANUAL_UPDATE' // ✅ TANDAI SEBAGAI MANUAL UPDATE
-            ];
-
-            // PERBAIKAN: Hanya tandai sebagai hu_created jika stock habis
-            if ($remainingStock <= 0) {
-                $updateData['hu_created'] = true;
-                $updateData['hu_created_at'] = now();
-                $updateData['hu_number'] = $request->hu_exid;
-                $updateData['is_active'] = 0; // ✅ NON-AKTIFKAN JIKA STOCK HABIS
-                Log::info('Stock exhausted, marking as hu_created and inactive');
-            } else {
-                $updateData['hu_created'] = false; // Pastikan false jika masih ada sisa
-                $updateData['is_active'] = 1; // ✅ TETAP AKTIF JIKA MASIH ADA SISA
-                Log::info('Stock remaining: ' . $remainingStock);
-            }
-
-            // Update database
-            if ($stockId) {
-                $updated = DB::table('stock_data')
-                    ->where('id', $stockId)
-                    ->update($updateData);
-            } else {
-                $updated = DB::table('stock_data')
-                    ->where('material', $formattedMaterial)
-                    ->where('batch', $request->batch)
-                    ->where('plant', $request->plant)
-                    ->where('storage_location', $request->stge_loc)
-                    ->update($updateData);
-            }
-
-            Log::info('Stock update result: ' . ($updated ? 'Success' : 'Failed'));
-            return $updated;
-
-        } catch (\Exception $e) {
-            Log::error('Error in updateStockStatus: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Find stock with fallback methods
-     */
-    private function findStockWithFallback($formattedMaterial, $plant, $storageLocation, $batch = null)
-    {
-        $queries = [
-            // Cari tanpa batch
-            [
-                'where' => [
-                    ['material', $formattedMaterial],
-                    ['plant', $plant],
-                    ['storage_location', $storageLocation]
-                ],
-                'description' => 'without batch'
-            ],
-            // Cari hanya berdasarkan material
-            [
-                'where' => [
-                    ['material', $formattedMaterial]
-                ],
-                'description' => 'material only'
-            ],
-            // Cari dengan material original
-            [
-                'where' => [
-                    ['material', $this->formatMaterialForDisplay($formattedMaterial)]
-                ],
-                'description' => 'original material'
-            ]
-        ];
-
-        foreach ($queries as $query) {
-            $stockItem = DB::table('stock_data')
-                ->where($query['where'])
-                ->select('id', 'material_description', 'stock_quantity', 'hu_created')
-                ->first();
-
-            if ($stockItem) {
-                Log::info('DEBUG - Stock data found ' . $query['description'] . ':', [
-                    'stock_id' => $stockItem->id ?? 'NOT FOUND',
-                    'material_description' => $stockItem->material_description ?? 'NOT FOUND'
-                ]);
-                return $stockItem;
-            }
+        // Jika material hanya berisi angka dan panjangnya kurang dari 18 digit
+        if (preg_match('/^\d+$/', $material)) {
+            // Tambah leading zero hingga 18 digit (SAP standard)
+            return str_pad($material, 18, '0', STR_PAD_LEFT);
         }
 
-        return null;
+        // Jika bukan angka, return as-is
+        return $material;
     }
 
     private function getPackagingMaterialByMagry($magry, $currentPackMat = '')
@@ -1130,408 +889,247 @@ class HUController extends Controller
     }
 
     /**
-     * ✅ PERBAIKAN: Update stock dan history untuk single-multi HU dengan logika sisa stock
+     * Ambil deskripsi material dari database stock_data
+     * ✅ PERBAIKAN: Tangani leading zero dengan benar
      */
-    private function updateStockAndHistoryMulti($request, $result, $scenarioType)
+    private function getMaterialDescriptionFromStock($material, $plant = null, $storageLocation = null, $batch = null)
     {
         try {
+            // Format material untuk query: dengan leading zero
+            $materialForQuery = $this->formatMaterialForQuery($material);
+
+            // Juga coba dengan format asli (tanpa leading zero)
+            $materialOriginal = $material;
+
+            $query = DB::table('stock_data')
+                        ->where(function($q) use ($materialForQuery, $materialOriginal) {
+                            // Coba dengan format dengan leading zero
+                            $q->where('material', $materialForQuery)
+                              // Juga coba dengan format asli
+                              ->orWhere('material', $materialOriginal);
+                        });
+
+            if ($plant) {
+                $query->where('plant', $plant);
+            }
+
+            if ($storageLocation) {
+                $query->where('storage_location', $storageLocation);
+            }
+
+            if ($batch) {
+                $query->where('batch', $batch);
+            }
+
+            // Log query untuk debugging
+            Log::info('Querying material description', [
+                'material_input' => $material,
+                'material_for_query' => $materialForQuery,
+                'material_original' => $materialOriginal,
+                'plant' => $plant,
+                'storage_location' => $storageLocation,
+                'batch' => $batch
+            ]);
+
+            // Prioritaskan data yang aktif, tapi jika tidak ada ambil yang tidak aktif
+            $stock = $query->orderBy('is_active', 'desc')
+                          ->orderBy('created_at', 'desc')
+                          ->first();
+
+            if ($stock) {
+                Log::info('Found material description', [
+                    'material' => $stock->material,
+                    'description' => $stock->material_description,
+                    'found_by_format' => $stock->material === $materialForQuery ? 'with_leading_zero' : 'original'
+                ]);
+            } else {
+                Log::warning('Material description not found', [
+                    'material' => $material,
+                    'plant' => $plant,
+                    'storage_location' => $storageLocation
+                ]);
+            }
+
+            return $stock->material_description ?? 'Material description not found';
+        } catch (\Exception $e) {
+            Log::error('Error getting material description: ' . $e->getMessage());
+            return 'Material description not found';
+        }
+    }
+
+    // ==================== HISTORY SAVING METHODS ====================
+
+    /**
+     * Simpan single HU history ke database
+     */
+    private function saveSingleHuHistory($request, $result, $scenarioType)
+    {
+        try {
+            Log::info('Saving single HU history: ' . $request->hu_exid);
+
+            $quantity = (int) round($request->pack_qty);
+            $displayMaterial = $this->formatMaterialForDisplay($request->material);
+
+            // ✅ PERBAIKAN: Ambil deskripsi material dari database
+            $materialDescription = $this->getMaterialDescriptionFromStock(
+                $request->material,
+                $request->plant,
+                $request->stge_loc,
+                $request->batch
+            );
+
+            // ✅ PERBAIKAN: Gunakan Carbon dengan timezone Jakarta
+            $jakartaTime = Carbon::now('Asia/Jakarta');
+
+            // Simpan ke database - ✅ TAMBAHKAN stock_id => null
+            DB::table('hu_histories')->insert([
+                'stock_id' => null, // ✅ PERBAIKAN: Tambahkan stock_id NULL
+                'hu_number' => $request->hu_exid,
+                'material' => $displayMaterial,
+                'material_description' => $materialDescription, // ✅ Deskripsi dari database
+                'batch' => $request->batch,
+                'quantity' => $quantity,
+                'unit' => 'PC',
+                'plant' => $request->plant,
+                'storage_location' => $request->stge_loc,
+                'sales_document' => $request->sp_stck_no,
+                'scenario_type' => $scenarioType,
+                'created_by' => Auth::check() ? Auth::user()->name : 'System',
+                'created_at' => $jakartaTime,
+                'updated_at' => $jakartaTime
+            ]);
+
+            Log::info('Single HU history saved successfully for HU: ' . $request->hu_exid);
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Error saving single HU history: ' . $e->getMessage());
+            Log::error('Error details: ', [
+                'hu_exid' => $request->hu_exid ?? 'null',
+                'material' => $request->material ?? 'null'
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Simpan single-multi HU history ke database
+     */
+    private function saveSingleMultiHuHistory($request, $result, $scenarioType)
+    {
+        try {
+            Log::info('Saving single-multi HU history: ' . $request->hu_exid);
+
             $successCount = 0;
+            $records = [];
+
+            // ✅ PERBAIKAN: Gunakan Carbon dengan timezone Jakarta
+            $jakartaTime = Carbon::now('Asia/Jakarta');
 
             foreach ($request->items as $item) {
-                $success = $this->processMultiItem($request, $item, $scenarioType);
-                if ($success) $successCount++;
+                $quantity = (int) round($item['pack_qty']);
+                $displayMaterial = $this->formatMaterialForDisplay($item['material']);
+
+                // ✅ PERBAIKAN: Ambil deskripsi material dari database
+                $materialDescription = $this->getMaterialDescriptionFromStock(
+                    $item['material'],
+                    $request->plant,
+                    $request->stge_loc,
+                    $item['batch'] ?? null
+                );
+
+                $records[] = [
+                    'stock_id' => null, // ✅ PERBAIKAN: Tambahkan stock_id NULL
+                    'hu_number' => $request->hu_exid,
+                    'material' => $displayMaterial,
+                    'material_description' => $materialDescription, // ✅ Deskripsi dari database
+                    'batch' => $item['batch'] ?? null,
+                    'quantity' => $quantity,
+                    'unit' => 'PC',
+                    'plant' => $request->plant,
+                    'storage_location' => $request->stge_loc,
+                    'sales_document' => $item['sp_stck_no'] ?? null,
+                    'scenario_type' => $scenarioType,
+                    'created_by' => Auth::check() ? Auth::user()->name : 'System',
+                    'created_at' => $jakartaTime,
+                    'updated_at' => $jakartaTime
+                ];
+
+                $successCount++;
             }
 
-            Log::info('Multi HU history creation completed. Success: ' . $successCount . ' of ' . count($request->items));
+            // Insert batch ke database
+            if (!empty($records)) {
+                DB::table('hu_histories')->insert($records);
+            }
+
+            Log::info('Single-multi HU history saved. Items: ' . $successCount);
             return $successCount > 0;
 
         } catch (\Exception $e) {
-            Log::error('Error updating stock and history for multi: ' . $e->getMessage());
-            Log::error('Stack trace for multi: ' . $e->getTraceAsString());
+            Log::error('Error saving single-multi HU history: ' . $e->getMessage());
             return false;
         }
     }
 
     /**
-     * Process individual item for multi HU dengan logika sisa stock
+     * Simpan multiple HUs history ke database
      */
-    private function processMultiItem($request, $item, $scenarioType)
-    {
-        // Format material untuk query database
-        $formattedMaterial = $this->formatMaterialForQuery($item['material']);
-
-        // DEBUG: Log pencarian stock
-        Log::info('Searching stock for Multi HU:', [
-            'hu_exid' => $request->hu_exid,
-            'original_material' => $item['material'],
-            'formatted_material' => $formattedMaterial,
-            'plant' => $request->plant,
-            'storage_location' => $request->stge_loc,
-            'batch' => $item['batch'] ?? 'null'
-        ]);
-
-        // Find stock item
-        $stockItem = $this->findStockItemForMulti($formattedMaterial, $request->plant, $request->stge_loc, $item['batch'] ?? null);
-
-        $materialDescription = $stockItem->material_description ?? 'Material description not found in database';
-        $stockId = $stockItem->id ?? null;
-
-        // PERBAIKAN: Update stock status for each item dengan logika sisa stock
-        $stockUpdated = false;
-        if ($stockItem && $stockId) {
-            $stockUpdated = $this->updateMultiStockStatus($stockId, $formattedMaterial, $request, $item);
-        }
-
-        // Convert pack_qty to integer
-        $quantity = (int) round($item['pack_qty']);
-
-        // Format material untuk display
-        $displayMaterial = $this->formatMaterialForDisplay($item['material']);
-
-        // Create history record
-        $history = HuHistory::create([
-            'stock_id' => $stockId,
-            'hu_number' => $request->hu_exid,
-            'material' => $displayMaterial,
-            'material_description' => $materialDescription,
-            'batch' => $item['batch'] ?? null,
-            'quantity' => $quantity,
-            'unit' => 'PC',
-            'plant' => $request->plant,
-            'storage_location' => $request->stge_loc,
-            'sales_document' => $item['sp_stck_no'] ?? null,
-            'scenario_type' => $scenarioType,
-            'created_by' => Auth::check() ? Auth::user()->name : 'System',
-            'created_at' => Carbon::now('Asia/Jakarta')
-        ]);
-
-        if ($history) {
-            Log::info('Multi HU History created successfully:', [
-                'hu_number' => $request->hu_exid,
-                'stock_id' => $stockId,
-                'material' => $displayMaterial,
-                'history_id' => $history->id,
-                'quantity' => $quantity
-            ]);
-            return true;
-        }
-
-        Log::error('Failed to create Multi HU History:', [
-            'hu_number' => $request->hu_exid,
-            'stock_id' => $stockId,
-            'material' => $displayMaterial
-        ]);
-        return false;
-    }
-
-    /**
-     * PERBAIKAN: Update stock status for multi HU dengan memperhitungkan sisa quantity
-     */
-    private function updateMultiStockStatus($stockId, $formattedMaterial, $request, $item)
+    private function saveMultipleHusHistory($husData, $result, $scenarioType)
     {
         try {
-            $packQty = (float) $item['pack_qty'];
+            Log::info('Saving multiple HUs history. Total HUs: ' . count($husData));
 
-            // Get current stock quantity
-            $currentStock = DB::table('stock_data')
-                ->where('id', $stockId)
-                ->value('stock_quantity');
-
-            $currentStock = (float) $currentStock;
-
-            Log::info('Updating multi stock status:', [
-                'stock_id' => $stockId,
-                'material' => $formattedMaterial,
-                'pack_qty' => $packQty,
-                'current_stock' => $currentStock
-            ]);
-
-            $remainingStock = $currentStock - $packQty;
-
-            $updateData = [
-                'stock_quantity' => $remainingStock,
-                'last_updated' => now(),
-                'sync_status' => 'MANUAL_UPDATE' // ✅ TANDAI SEBAGAI MANUAL UPDATE
-            ];
-
-            // PERBAIKAN: Hanya tandai sebagai hu_created jika stock habis
-            if ($remainingStock <= 0) {
-                $updateData['hu_created'] = true;
-                $updateData['hu_created_at'] = now();
-                $updateData['hu_number'] = $request->hu_exid;
-                $updateData['is_active'] = 0; // ✅ NON-AKTIFKAN JIKA STOCK HABIS
-            } else {
-                $updateData['hu_created'] = false; // Pastikan false jika masih ada sisa
-                $updateData['is_active'] = 1; // ✅ TETAP AKTIF JIKA MASIH ADA SISA
-            }
-
-            $updated = DB::table('stock_data')
-                ->where('id', $stockId)
-                ->update($updateData);
-
-            Log::info('Multi stock update result: ' . ($updated ? 'Success' : 'Failed'));
-            return $updated;
-
-        } catch (\Exception $e) {
-            Log::error('Error in updateMultiStockStatus: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Find stock item for multi HU with fallback
-     */
-    private function findStockItemForMulti($formattedMaterial, $plant, $storageLocation, $batch = null)
-    {
-        $queries = [
-            // First query with batch
-            [
-                'where' => [
-                    ['material', $formattedMaterial],
-                    ['plant', $plant],
-                    ['storage_location', $storageLocation]
-                ],
-                'batch' => $batch,
-                'description' => 'first query'
-            ],
-            // Second query without batch filter
-            [
-                'where' => [
-                    ['material', $formattedMaterial],
-                    ['plant', $plant],
-                    ['storage_location', $storageLocation]
-                ],
-                'batch' => null,
-                'description' => 'second query (no batch)'
-            ],
-            // Third query material only
-            [
-                'where' => [
-                    ['material', $formattedMaterial]
-                ],
-                'batch' => null,
-                'description' => 'third query (material only)'
-            ],
-            // Fourth query original material
-            [
-                'where' => [
-                    ['material', $this->formatMaterialForDisplay($formattedMaterial)]
-                ],
-                'batch' => null,
-                'description' => 'fourth query (original material)'
-            ]
-        ];
-
-        foreach ($queries as $query) {
-            $dbQuery = DB::table('stock_data')->where($query['where']);
-
-            if ($query['batch']) {
-                $dbQuery->where('batch', $query['batch']);
-            }
-
-            $stockItem = $dbQuery->select('id', 'material_description', 'hu_created', 'stock_quantity')->first();
-
-            if ($stockItem) {
-                Log::info('Stock found in ' . $query['description'] . ' for Multi:', [
-                    'stock_id' => $stockItem->id,
-                    'stock_quantity' => $stockItem->stock_quantity
-                ]);
-                return $stockItem;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * ✅ PERBAIKAN: Update stock dan history untuk multiple HUs dengan logika sisa stock
-     */
-    private function updateStockAndHistoryMultiple($request, $result, $scenarioType)
-    {
-        try {
             $successCount = 0;
+            $records = [];
 
-            foreach ($request->hus as $hu) {
-                $success = $this->processMultipleHUItem($hu, $scenarioType);
-                if ($success) $successCount++;
+            // ✅ PERBAIKAN: Gunakan Carbon dengan timezone Jakarta
+            $jakartaTime = Carbon::now('Asia/Jakarta');
+
+            foreach ($husData as $hu) {
+                $quantity = (int) round($hu['pack_qty']);
+                $displayMaterial = $this->formatMaterialForDisplay($hu['material']);
+
+                // ✅ PERBAIKAN: Ambil deskripsi material dari database
+                $materialDescription = $this->getMaterialDescriptionFromStock(
+                    $hu['material'],
+                    $hu['plant'],
+                    $hu['stge_loc'],
+                    $hu['batch'] ?? null
+                );
+
+                $records[] = [
+                    'stock_id' => null, // ✅ PERBAIKAN: Tambahkan stock_id NULL
+                    'hu_number' => $hu['hu_exid'],
+                    'material' => $displayMaterial,
+                    'material_description' => $materialDescription, // ✅ Deskripsi dari database
+                    'batch' => $hu['batch'] ?? null,
+                    'quantity' => $quantity,
+                    'unit' => 'PC',
+                    'plant' => $hu['plant'],
+                    'storage_location' => $hu['stge_loc'],
+                    'sales_document' => $hu['sp_stck_no'] ?? null,
+                    'scenario_type' => $scenarioType,
+                    'created_by' => Auth::check() ? Auth::user()->name : 'System',
+                    'created_at' => $jakartaTime,
+                    'updated_at' => $jakartaTime
+                ];
+
+                $successCount++;
             }
 
-            Log::info('Multiple HU history creation completed. Success: ' . $successCount . ' of ' . count($request->hus));
+            // Insert batch ke database
+            if (!empty($records)) {
+                DB::table('hu_histories')->insert($records);
+            }
+
+            Log::info('Multiple HUs history saved. Total: ' . $successCount);
             return $successCount > 0;
 
         } catch (\Exception $e) {
-            Log::error('Error updating stock and history for multiple: ' . $e->getMessage());
+            Log::error('Error saving multiple HUs history: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return false;
         }
-    }
-
-    /**
-     * Process individual HU for multiple HUs - DIPERBAIKI dengan logika sisa stock
-     */
-    private function processMultipleHUItem($hu, $scenarioType)
-    {
-        // Format material untuk query database
-        $formattedMaterial = $this->formatMaterialForQuery($hu['material']);
-
-        // Find stock item
-        $stockItem = $this->findStockItemForMultiple($formattedMaterial, $hu['plant'], $hu['stge_loc'], $hu['batch'] ?? null);
-
-        $materialDescription = $stockItem->material_description ?? 'Material description not found in database';
-        $stockId = $stockItem->id ?? null;
-
-        // PERBAIKAN: Update stock status dengan logika sisa stock
-        $stockUpdated = false;
-        if ($stockItem && $stockId) {
-            $stockUpdated = $this->updateStockStatusForMultiple($stockId, $formattedMaterial, $hu);
-        }
-
-        // Convert pack_qty to integer
-        $quantity = (int) round($hu['pack_qty']);
-
-        // Format material untuk display
-        $displayMaterial = $this->formatMaterialForDisplay($hu['material']);
-
-        // Create history record
-        $history = HuHistory::create([
-            'stock_id' => $stockId,
-            'hu_number' => $hu['hu_exid'],
-            'material' => $displayMaterial,
-            'material_description' => $materialDescription,
-            'batch' => $hu['batch'] ?? null,
-            'quantity' => $quantity,
-            'unit' => 'PC',
-            'plant' => $hu['plant'],
-            'storage_location' => $hu['stge_loc'],
-            'sales_document' => $hu['sp_stck_no'] ?? null,
-            'scenario_type' => $scenarioType,
-            'created_by' => Auth::check() ? Auth::user()->name : 'System',
-            'created_at' => Carbon::now('Asia/Jakarta')
-        ]);
-
-        if ($history) {
-            Log::info('Multiple HU history created for: ' . $hu['hu_exid'] .
-                    ', Material: ' . $displayMaterial .
-                    ', Stock ID: ' . $stockId .
-                    ', Quantity: ' . $quantity .
-                    ', Description: ' . $materialDescription);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * PERBAIKAN: Update stock status for multiple HUs dengan memperhitungkan sisa quantity
-     */
-    private function updateStockStatusForMultiple($stockId, $formattedMaterial, $hu)
-    {
-        try {
-            $packQty = (float) $hu['pack_qty'];
-
-            // Get current stock quantity
-            $currentStock = DB::table('stock_data')
-                ->where('id', $stockId)
-                ->value('stock_quantity');
-
-            $currentStock = (float) $currentStock;
-
-            Log::info('Updating multiple HU stock status:', [
-                'stock_id' => $stockId,
-                'material' => $formattedMaterial,
-                'pack_qty' => $packQty,
-                'current_stock' => $currentStock
-            ]);
-
-            $remainingStock = $currentStock - $packQty;
-
-            $updateData = [
-                'stock_quantity' => $remainingStock,
-                'last_updated' => now(),
-                'sync_status' => 'MANUAL_UPDATE' // ✅ TANDAI SEBAGAI MANUAL UPDATE
-            ];
-
-            // PERBAIKAN: Hanya tandai sebagai hu_created jika stock habis
-            if ($remainingStock <= 0) {
-                $updateData['hu_created'] = true;
-                $updateData['hu_created_at'] = now();
-                $updateData['hu_number'] = $hu['hu_exid'];
-                $updateData['is_active'] = 0; // ✅ NON-AKTIFKAN JIKA STOCK HABIS
-            } else {
-                $updateData['hu_created'] = false; // Pastikan false jika masih ada sisa
-                $updateData['is_active'] = 1; // ✅ TETAP AKTIF JIKA MASIH ADA SISA
-            }
-
-            $updated = DB::table('stock_data')
-                ->where('id', $stockId)
-                ->update($updateData);
-
-            Log::info('Multiple HU stock update result: ' . ($updated ? 'Success' : 'Failed'));
-            return $updated;
-
-        } catch (\Exception $e) {
-            Log::error('Error in updateStockStatusForMultiple: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Find stock item for multiple HUs
-     */
-    private function findStockItemForMultiple($formattedMaterial, $plant, $storageLocation, $batch = null)
-    {
-        $queries = [
-            // First try with all criteria including batch
-            [
-                'where' => [
-                    ['material', $formattedMaterial],
-                    ['plant', $plant],
-                    ['storage_location', $storageLocation]
-                ],
-                'batch' => $batch,
-                'description' => 'all criteria with batch'
-            ],
-            // Try without batch
-            [
-                'where' => [
-                    ['material', $formattedMaterial],
-                    ['plant', $plant],
-                    ['storage_location', $storageLocation]
-                ],
-                'batch' => null,
-                'description' => 'all criteria without batch'
-            ],
-            // Try material only
-            [
-                'where' => [
-                    ['material', $formattedMaterial]
-                ],
-                'batch' => null,
-                'description' => 'material only'
-            ],
-            // Try original material
-            [
-                'where' => [
-                    ['material', $this->formatMaterialForDisplay($formattedMaterial)]
-                ],
-                'batch' => null,
-                'description' => 'original material'
-            ]
-        ];
-
-        foreach ($queries as $query) {
-            $dbQuery = DB::table('stock_data')->where($query['where']);
-
-            if ($query['batch']) {
-                $dbQuery->where('batch', $query['batch']);
-            }
-
-            $stockItem = $dbQuery->select('id', 'material_description', 'hu_created', 'stock_quantity')->first();
-
-            if ($stockItem) {
-                return $stockItem;
-            }
-        }
-
-        return null;
     }
 }

@@ -180,14 +180,16 @@
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- NAVBAR DENGAN TOMBOL KEMBALI -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg no-print">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
                 <i class="fas fa-cubes me-2"></i>SAP HU Automation
             </a>
             <div class="d-flex">
+                <!-- ✅ TOMBOL KEMBALI -->
                 <a href="{{ route('hu.index') }}" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-arrow-left me-1"></i> Kembali
+                    <i class="fas fa-arrow-left me-1"></i> Kembali ke Dashboard
                 </a>
             </div>
         </div>
@@ -256,21 +258,21 @@
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
                                 <a href="{{ route('hu.history') }}" class="btn btn-outline-secondary btn-sm w-100">
-                                    <i class="fas fa-refresh me-1"></i> Reset
+                                    <i class="fas fa-refresh me-1"></i> Reset Filter
                                 </a>
                             </div>
                         </div>
                     </form>
                 </div>
 
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center mb-2">
                     <input type="checkbox" id="selectAll" class="form-check-input select-all-checkbox">
-                    <label for="selectAll" class="form-check-label text-muted small">
+                    <label for="selectAll" class="form-check-label text-muted small ms-1">
                         Pilih Semua
                     </label>
                     <span id="selectedCount" class="badge bg-primary ms-2">0 terpilih</span>
                 </div>
-                <small class="text-muted">Menampilkan 50 data per halaman</small>
+                <small class="text-muted d-block">Menampilkan {{ $historyData->count() }} dari {{ $historyData->total() }} data (50 data per halaman)</small>
             </div>
             <div class="card-body p-0">
                 <form id="exportForm" action="{{ route('hu.export') }}" method="POST">
@@ -302,8 +304,9 @@
                                 @foreach($historyData as $item)
                                     <tr class="hover:bg-gray-50">
                                         <td class="border-0">
+                                            <!-- ✅ PERBAIKAN: Gunakan $item->id bukan $item->hu_number -->
                                             <input type="checkbox" class="form-check-input row-checkbox"
-                                                   value="{{ $item->id ?? $item->hu_number }}" data-hu="{{ $item->hu_number }}">
+                                                   value="{{ $item->id }}" data-hu="{{ $item->hu_number }}">
                                         </td>
                                         <td class="border-0">
                                             <span class="fw-bold text-primary">{{ $item->hu_number }}</span>
@@ -355,6 +358,10 @@
                                     <td colspan="11" class="text-center py-4 text-muted">
                                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                                         Tidak ada data history HU
+                                        @if(request('search') || request('start_date') || request('end_date'))
+                                            <br>
+                                            <small class="text-muted mt-2">Coba gunakan filter yang berbeda atau <a href="{{ route('hu.history') }}" class="text-primary">reset filter</a></small>
+                                        @endif
                                     </td>
                                 </tr>
                             @endif
@@ -428,6 +435,7 @@
                     @if(request('start_date') || request('end_date'))
                         | Tanggal: {{ request('start_date', '') }} s/d {{ request('end_date', '') }}
                     @endif
+                    | Dicetak pada: {{ \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') }} WIB
                 </div>
             </div>
 
@@ -501,7 +509,7 @@
             <div class="print-footer">
                 Halaman {{ $historyData->currentPage() }} dari {{ $historyData->lastPage() }} |
                 Total Data: {{ $historyData->total() }} |
-                Dicetak pada: {{ \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') }} WIB
+                Dicetak oleh: {{ Auth::check() ? Auth::user()->name : 'System' }}
             </div>
         </div>
     </div>
@@ -646,6 +654,13 @@
             setTimeout(function() {
                 $('#successAlert').fadeOut();
             }, 5000);
+
+            // Auto submit filter form ketika input tanggal berubah
+            $('#startDate, #endDate').on('change', function() {
+                if ($('#startDate').val() && $('#endDate').val()) {
+                    $('#filterForm').submit();
+                }
+            });
         });
     </script>
 </body>
