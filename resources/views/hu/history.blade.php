@@ -296,6 +296,7 @@
                                 <th class="border-0">Dokumen Penjualan</th>
                                 <th class="border-0">Lokasi</th>
                                 <th class="border-0">Skenario</th>
+                                <th class="border-0">Dibuat Oleh</th> <!-- ✅ KOLOM BARU: CREATED BY -->
                                 <th class="border-0">Tanggal Dibuat (WIB)</th>
                             </tr>
                         </thead>
@@ -339,7 +340,13 @@
                                                 <span class="badge bg-purple-600 text-white">Skenario 3</span>
                                             @else
                                                 <span class="badge bg-secondary text-white">{{ $item->scenario_type ?: '-' }}</span>
-                                                @endif
+                                            @endif
+                                        </td>
+                                        <td class="border-0 text-gray-600">
+                                            <!-- ✅ KOLOM BARU: CREATED BY -->
+                                            <span class="created-by" title="{{ $item->created_by ?: 'System' }}">
+                                                {{ $item->created_by ?: 'System' }}
+                                            </span>
                                         </td>
                                         <td class="border-0 text-gray-600">
                                             @php
@@ -355,7 +362,7 @@
                                 @endforeach
                             @else
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 text-muted">
+                                    <td colspan="12" class="text-center py-4 text-muted"> <!-- ✅ UPDATE COLSPAN MENJADI 12 -->
                                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                                         Tidak ada data history HU
                                         @if(request('search') || request('start_date') || request('end_date'))
@@ -445,13 +452,14 @@
                         <th width="80">QR Code</th>
                         <th>HU Number</th>
                         <th>Material</th>
-                        <th width="200">Deskripsi Material</th>
+                        <th width="180">Deskripsi Material</th> <!-- ✅ Dikurangi lebar untuk ruang kolom baru -->
                         <th>Batch</th>
                         <th width="60">Qty</th>
                         <th width="60">Unit</th>
                         <th>Dokumen Penjualan</th>
                         <th>Lokasi</th>
                         <th width="80">Skenario</th>
+                        <th width="100">Dibuat Oleh</th> <!-- ✅ KOLOM BARU: CREATED BY -->
                         <th width="120">Tanggal Dibuat</th>
                     </tr>
                 </thead>
@@ -486,6 +494,9 @@
                                         {{ $item->scenario_type ?: '-' }}
                                     @endif
                                 </td>
+                                <td> <!-- ✅ KOLOM BARU: CREATED BY -->
+                                    {{ $item->created_by ?: 'System' }}
+                                </td>
                                 <td>
                                     @php
                                         try {
@@ -500,7 +511,7 @@
                         @endforeach
                     @else
                         <tr>
-                            <td colspan="11" class="text-center py-4">Tidak ada data history HU</td>
+                            <td colspan="12" class="text-center py-4">Tidak ada data history HU</td> <!-- ✅ UPDATE COLSPAN MENJADI 12 -->
                         </tr>
                     @endif
                 </tbody>

@@ -69,22 +69,6 @@ last_sync_status = {
         'is_running': False,
         'total_records': 0,
         'active_records': 0
-    },
-    '2000_21HU': {
-        'last_success_time': None,
-        'last_attempt_time': None,
-        'last_error': None,
-        'is_running': False,
-        'total_records': 0,
-        'active_records': 0
-    },
-    '2000_21NH': {
-        'last_success_time': None,
-        'last_attempt_time': None,
-        'last_error': None,
-        'is_running': False,
-        'total_records': 0,
-        'active_records': 0
     }
 }
 
@@ -116,11 +100,11 @@ def update_sync_status(plant, storage_location, success=True, error=None, total_
 
     return last_sync_status[key]
 
-# ===== FUNGSI AUTO SYNC YANG DIPERBAIKI UNTUK MULTIPLE PLANTS =====
+# ===== FUNGSI AUTO SYNC YANG DIPERBAIKI UNTUK DUA PLANT SAJA =====
 
 def auto_sync_job():
-    """Fungsi utama untuk auto sync semua plant"""
-    logger.info("Auto sync job dimulai...")
+    """Fungsi utama untuk auto sync dua plant saja"""
+    logger.info("Auto sync job dimulai (dua plant)...")
 
     try:
         # Sync untuk plant 3000 - 3D10
@@ -134,15 +118,7 @@ def auto_sync_job():
         logger.info("Memulai auto sync untuk Plant 2000, Lokasi 21LK")
         sync_plant_2000_21LK()
 
-        # Sync untuk plant 2000 - 21HU
-        logger.info("Memulai auto sync untuk Plant 2000, Lokasi 21HU")
-        sync_plant_2000_21HU()
-
-        # Sync untuk plant 2000 - 21NH
-        logger.info("Memulai auto sync untuk Plant 2000, Lokasi 21NH")
-        sync_plant_2000_21NH()
-
-        logger.info("Auto sync job selesai untuk semua plant")
+        logger.info("Auto sync job selesai untuk dua plant")
 
     except Exception as e:
         logger.error(f"Error dalam auto sync job: {e}")
@@ -262,120 +238,6 @@ def sync_plant_2000_21LK():
     finally:
         last_sync_status['2000_21LK']['is_running'] = False
 
-def sync_plant_2000_21HU():
-    """Sync khusus untuk plant 2000 - 21HU"""
-    if last_sync_status['2000_21HU']['is_running']:
-        logger.info("Sync untuk 2000_21HU ditunda karena sedang berjalan")
-        return
-
-    last_sync_status['2000_21HU']['is_running'] = True
-    last_sync_status['2000_21HU']['last_attempt_time'] = datetime.now()
-
-    try:
-        logger.info("Memulai sync untuk Plant 2000, Storage Location 21HU")
-
-        success = sync_stock_data('2000', '21HU')
-
-        if success:
-            # Ambil data statistik setelah sync
-            mysql_conn = connect_mysql()
-            if mysql_conn:
-                try:
-                    with mysql_conn.cursor() as cursor:
-                        cursor.execute("""
-                            SELECT
-                                COUNT(*) as total_records,
-                                SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_records
-                            FROM stock_data
-                            WHERE plant = '2000' AND storage_location = '21HU'
-                        """)
-                        result = cursor.fetchone()
-                        if result:
-                            total_records = result[0] or 0
-                            active_records = result[1] or 0
-                        else:
-                            total_records = 0
-                            active_records = 0
-                except Exception as e:
-                    logger.error(f"Error mengambil statistik: {e}")
-                    total_records = 0
-                    active_records = 0
-                finally:
-                    mysql_conn.close()
-            else:
-                total_records = 0
-                active_records = 0
-
-            update_sync_status('2000', '21HU', True, None, total_records, active_records)
-            logger.info(f"Auto sync berhasil untuk 2000/21HU: {active_records} record aktif")
-        else:
-            update_sync_status('2000', '21HU', False, "Sync gagal")
-            logger.error("Auto sync gagal untuk 2000/21HU")
-
-    except Exception as e:
-        error_msg = f"Error dalam auto sync 2000_21HU: {e}"
-        logger.error(error_msg)
-        update_sync_status('2000', '21HU', False, error_msg)
-    finally:
-        last_sync_status['2000_21HU']['is_running'] = False
-
-def sync_plant_2000_21NH():
-    """Sync khusus untuk plant 2000 - 21NH"""
-    if last_sync_status['2000_21NH']['is_running']:
-        logger.info("Sync untuk 2000_21NH ditunda karena sedang berjalan")
-        return
-
-    last_sync_status['2000_21NH']['is_running'] = True
-    last_sync_status['2000_21NH']['last_attempt_time'] = datetime.now()
-
-    try:
-        logger.info("Memulai sync untuk Plant 2000, Storage Location 21NH")
-
-        success = sync_stock_data('2000', '21NH')
-
-        if success:
-            # Ambil data statistik setelah sync
-            mysql_conn = connect_mysql()
-            if mysql_conn:
-                try:
-                    with mysql_conn.cursor() as cursor:
-                        cursor.execute("""
-                            SELECT
-                                COUNT(*) as total_records,
-                                SUM(CASE WHEN is_active = 1 AND stock_quantity > 0 THEN 1 ELSE 0 END) as active_records
-                            FROM stock_data
-                            WHERE plant = '2000' AND storage_location = '21NH'
-                        """)
-                        result = cursor.fetchone()
-                        if result:
-                            total_records = result[0] or 0
-                            active_records = result[1] or 0
-                        else:
-                            total_records = 0
-                            active_records = 0
-                except Exception as e:
-                    logger.error(f"Error mengambil statistik: {e}")
-                    total_records = 0
-                    active_records = 0
-                finally:
-                    mysql_conn.close()
-            else:
-                total_records = 0
-                active_records = 0
-
-            update_sync_status('2000', '21NH', True, None, total_records, active_records)
-            logger.info(f"Auto sync berhasil untuk 2000/21NH: {active_records} record aktif")
-        else:
-            update_sync_status('2000', '21NH', False, "Sync gagal")
-            logger.error("Auto sync gagal untuk 2000/21NH")
-
-    except Exception as e:
-        error_msg = f"Error dalam auto sync 2000_21NH: {e}"
-        logger.error(error_msg)
-        update_sync_status('2000', '21NH', False, error_msg)
-    finally:
-        last_sync_status['2000_21NH']['is_running'] = False
-
 # ===== FUNGSI START SCHEDULER YANG DIPERBAIKI =====
 
 def start_scheduler():
@@ -383,55 +245,24 @@ def start_scheduler():
         # Hapus semua job yang ada
         scheduler.remove_all_jobs()
 
-        # Job utama untuk auto sync semua plant (setiap 30 menit)
-        scheduler.add_job(
-            func=auto_sync_job,
-            trigger='interval',
-            minutes=30,
-            id='auto_sync_all_plants',
-            name='Auto Sync All Plants',
-            max_instances=1,
-            replace_existing=True
-        )
-
-        # Job tambahan untuk sync plant 3000 saja (setiap 15 menit)
+        # Job untuk sync plant 3000 saja (setiap 50 menit)
         scheduler.add_job(
             func=sync_plant_3000,
             trigger='interval',
-            minutes=15,
+            minutes=50,
             id='auto_sync_3000',
-            name='Auto Sync Plant 3000',
+            name='Auto Sync Plant 3000 (3D10)',
             max_instances=1,
             replace_existing=True
         )
 
-        # Job untuk sync plant 2000 locations (setiap 20 menit)
+        # Job untuk sync plant 2000 21LK (setiap 60 menit)
         scheduler.add_job(
             func=sync_plant_2000_21LK,
             trigger='interval',
-            minutes=20,
+            minutes=60,
             id='auto_sync_2000_21LK',
-            name='Auto Sync Plant 2000 - 21LK',
-            max_instances=1,
-            replace_existing=True
-        )
-
-        scheduler.add_job(
-            func=sync_plant_2000_21HU,
-            trigger='interval',
-            minutes=20,
-            id='auto_sync_2000_21HU',
-            name='Auto Sync Plant 2000 - 21HU',
-            max_instances=1,
-            replace_existing=True
-        )
-
-        scheduler.add_job(
-            func=sync_plant_2000_21NH,
-            trigger='interval',
-            minutes=20,
-            id='auto_sync_2000_21NH',
-            name='Auto Sync Plant 2000 - 21NH',
+            name='Auto Sync Plant 2000 (21LK)',
             max_instances=1,
             replace_existing=True
         )
@@ -449,9 +280,8 @@ def start_scheduler():
 
         scheduler.start()
         logger.info("Scheduler started dengan konfigurasi:")
-        logger.info("  - Auto Sync All Plants: setiap 30 menit")
-        logger.info("  - Auto Sync Plant 3000: setiap 15 menit")
-        logger.info("  - Auto Sync Plant 2000 (21LK, 21HU, 21NH): setiap 20 menit")
+        logger.info("  - Auto Sync Plant 3000 (3D10): setiap 50 menit")
+        logger.info("  - Auto Sync Plant 2000 (21LK): setiap 60 menit")
         logger.info("  - Cleanup Old Data: setiap hari jam 2 pagi")
 
         # Jalankan sync pertama kali saat startup
@@ -476,14 +306,8 @@ def initial_sync_on_startup():
         sync_plant_3000()
         time.sleep(10)
 
-        # Sync plant 2000 locations
+        # Sync plant 2000 location
         sync_plant_2000_21LK()
-        time.sleep(5)
-
-        sync_plant_2000_21HU()
-        time.sleep(5)
-
-        sync_plant_2000_21NH()
 
         logger.info("Initial sync pada startup selesai")
     except Exception as e:
@@ -2061,10 +1885,6 @@ def api_sync_trigger_all():
             sync_plant_3000()
             time.sleep(10)
             sync_plant_2000_21LK()
-            time.sleep(5)
-            sync_plant_2000_21HU()
-            time.sleep(5)
-            sync_plant_2000_21NH()
 
         sync_thread = threading.Thread(target=run_all_syncs)
         sync_thread.daemon = True
@@ -2175,14 +1995,6 @@ def api_health():
                 "2000_21LK": {
                     "last_success": last_sync_status['2000_21LK']['last_success_time'].isoformat() if last_sync_status['2000_21LK']['last_success_time'] else None,
                     "active_records": last_sync_status['2000_21LK']['active_records']
-                },
-                "2000_21HU": {
-                    "last_success": last_sync_status['2000_21HU']['last_success_time'].isoformat() if last_sync_status['2000_21HU']['last_success_time'] else None,
-                    "active_records": last_sync_status['2000_21HU']['active_records']
-                },
-                "2000_21NH": {
-                    "last_success": last_sync_status['2000_21NH']['last_success_time'].isoformat() if last_sync_status['2000_21NH']['last_success_time'] else None,
-                    "active_records": last_sync_status['2000_21NH']['active_records']
                 }
             },
             "timestamp": datetime.now().isoformat()
@@ -2689,3 +2501,4 @@ if __name__ == '__main__':
         logger.error(f"Gagal start Flask server: {e}")
     finally:
         stop_scheduler()
+
