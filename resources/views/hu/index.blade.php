@@ -330,17 +330,21 @@
             background-color: #6c757d !important;
             color: white !important;
         }
+        /* PERBAIKAN: Warna teks dropdown plant saat dipilih lebih gelap */
         .plant-option.active {
             background-color: #e6f7ff !important;
             font-weight: 600 !important;
+            color: #212529 !important; /* Tambahkan warna teks gelap */
         }
         .plant-option[data-plant="2000"].active {
             background-color: #fff7e6 !important;
             border-left: 3px solid #ff6b35 !important;
+            color: #212529 !important; /* Tambahkan warna teks gelap */
         }
         .plant-option[data-plant="3000"].active {
             background-color: #e6f7ff !important;
             border-left: 3px solid #3b82f6 !important;
+            color: #212529 !important; /* Tambahkan warna teks gelap */
         }
         #plantDropdown.active-2000 {
             background-color: #ff6b35 !important;
@@ -380,8 +384,9 @@
         .no-plant-selected p {
             margin-bottom: 1.5rem;
         }
+        /* Hapus style untuk tombol pilih plant di tengah tabel */
         .no-plant-selected .btn {
-            min-width: 150px;
+            display: none !important;
         }
         .material-warning {
             background-color: #fff3cd !important;
@@ -397,6 +402,10 @@
             padding: 1px 4px;
             border-radius: 3px;
             margin-left: 4px;
+        }
+        /* PERBAIKAN: Sembunyikan tombol jika masih ada */
+        #selectPlantBtn {
+            display: none !important;
         }
     </style>
 </head>
@@ -519,13 +528,12 @@
                     </div>
                     <div class="card-body p-0">
                         <div id="stockTableContainer">
+                            <!-- PERBAIKAN: Hapus tombol "Pilih Plant" dari pesan ini -->
                             <div class="no-plant-selected" id="noPlantSelectedMessage">
                                 <i class="fas fa-industry"></i>
                                 <h5>Pilih Plant Terlebih Dahulu</h5>
                                 <p>Silakan pilih plant dari dropdown di atas untuk melihat data stock</p>
-                                <button class="btn btn-primary" id="selectPlantBtn">
-                                    <i class="fas fa-chevron-down me-1"></i> Pilih Plant
-                                </button>
+                                <!-- Tombol dihapus dari sini -->
                             </div>
                             <div class="table-responsive d-none" id="stockTableWrapper">
                                 <table class="table table-hover stock-table mb-0">
@@ -1912,10 +1920,6 @@
         $('#clearSearchBtn').off('click').on('click', function() {
             clearSearch();
             loadStockData();
-        });
-
-        $('#selectPlantBtn').off('click').on('click', function() {
-            $('#plantDropdown').dropdown('toggle');
         });
 
         setupLiveSearch();
