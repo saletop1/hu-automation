@@ -1,35 +1,35 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <!-- Alert Messages dari Laravel Session -->
+<div class="container-fluid py-3">
+    <!-- Alert Messages -->
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-3" role="alert">
             <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-3" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
-    <!-- Action Buttons di ATAS Container -->
-    <div class="row mb-4">
+    <!-- Action Buttons -->
+    <div class="row mb-3">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
-                <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary px-4">
-                    <i class="fas fa-arrow-left me-2"></i>Kembali ke Home
+                <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary btn-sm px-3">
+                    <i class="fas fa-arrow-left me-1"></i>Back
                 </a>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-danger px-4" onclick="resetForm()">
-                        <i class="fas fa-times me-2"></i>Cancel
+                    <button type="button" class="btn btn-outline-danger btn-sm px-3" onclick="resetForm()">
+                        <i class="fas fa-times me-1"></i>Cancel
                     </button>
-                    <button type="button" class="btn btn-success px-4" id="createHuButton">
-                        <i class="fas fa-save me-2"></i>Create HU
+                    <button type="button" class="btn btn-success btn-sm px-3" id="createHuButton">
+                        <i class="fas fa-save me-1"></i>Create HU
                     </button>
                 </div>
             </div>
@@ -37,15 +37,15 @@
     </div>
 
     <!-- Header Section -->
-    <div class="row mb-4">
+    <div class="row mb-3">
         <div class="col-12">
-            <div class="d-flex align-items-center mb-3">
-                <div class="bg-green-100 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
-                    <i class="fas fa-boxes text-green-600 fa-lg"></i>
+            <div class="d-flex align-items-center">
+                <div class="bg-green-100 rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                    <i class="fas fa-boxes text-green-600"></i>
                 </div>
                 <div>
-                    <h1 class="h3 fw-bold text-gray-800 mb-1">Skenario 2</h1>
-                    <p class="text-muted mb-0">Buat Single HU dengan Multiple Material</p>
+                    <h1 class="h4 fw-bold text-gray-800 mb-0">Skenario 2</h1>
+                    <p class="text-muted small mb-0">Create Single HU with Multiple Materials</p>
                 </div>
             </div>
         </div>
@@ -54,108 +54,116 @@
     <div class="row justify-content-center">
         <div class="col-xxl-10 col-xl-12">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white py-3 border-bottom">
-                    <h5 class="card-title mb-0 fw-bold text-gray-800">
-                        <i class="fas fa-boxes me-2 text-green-500"></i>
-                        Buat Single HU dengan Multiple Material
-                    </h5>
+                <div class="card-header bg-white py-2 border-bottom">
+                    <h6 class="card-title mb-0 fw-bold text-gray-800">
+                        <i class="fas fa-boxes me-1 text-green-500"></i>
+                        Create Single HU with Multiple Materials
+                    </h6>
                 </div>
 
-                <div class="card-body p-4">
+                <div class="card-body p-3">
                     <form action="{{ route('hu.store-single-multi') }}" method="POST" id="huForm">
                         @csrf
                         <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
-                        <!-- Hidden inputs for SAP Credentials -->
                         <input type="hidden" id="sap_user" name="sap_user" value="">
                         <input type="hidden" id="sap_password" name="sap_password" value="">
 
-                        <!-- Header Information -->
-                        <div class="row mb-4">
-                            <div class="col-12 mb-3">
-                                <h6 class="fw-semibold text-gray-700 mb-3 border-bottom pb-2">
-                                    <i class="fas fa-header me-2 text-blue-500"></i>
-                                    Informasi Header HU
-                                </h6>
-                            </div>
-
-                            <div class="col-md-6 col-lg-4 mb-3">
-                                <label for="hu_exid" class="form-label fw-semibold text-gray-700">
-                                    HU External ID <span class="text-danger">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">
-                                        <i class="fas fa-barcode text-green-500"></i>
-                                    </span>
-                                    <input type="text" class="form-control border-start-0 hu-exid-input"
-                                           id="hu_exid" name="hu_exid" maxlength="10"
-                                           value="{{ old('hu_exid') }}" required
-                                           placeholder="Masukkan 10 digit angka"
-                                           oninput="validateHuExid(this)">
-                                </div>
-                                <div class="form-text text-muted small">
-                                    <span id="hu_exid_status" class="text-muted">Masukkan 10 digit angka</span>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 col-lg-4 mb-3">
-    <label for="pack_mat" class="form-label fw-semibold text-gray-700">
-        Packaging Material <span class="text-danger">*</span>
-    </label>
-    <select class="form-select" id="pack_mat" name="pack_mat">
-    <option value="">Pilih Packaging Material</option>
-    <option value="VSTDPLTBW01">VSTDPLTBW01</option>
-    <option value="VSTDPLTBW02">VSTDPLTBW02</option> <!-- ✅ TAMBAHAN UNTUK ZMG2 -->
-    <option value="50016873">50016873</option>
-</select>
-<div class="form-text text-muted small" id="pack_mat_suggestion">
-    Pilih packaging material
-</div>
-</div>
-
-                            <div class="col-md-6 col-lg-4 mb-3">
-                                <label for="plant" class="form-label fw-semibold text-gray-700">
-                                    Plant <span class="text-danger">*</span>
-                                </label>
-                                <input type="text" class="form-control bg-light" id="plant" name="plant"
-                                       value="{{ old('plant') }}" required readonly>
-                            </div>
-
-                            <div class="col-md-6 col-lg-4 mb-3">
-                                <label for="stge_loc" class="form-label fw-semibold text-gray-700">
-                                    Storage Location <span class="text-danger">*</span>
-                                </label>
-                                <input type="text" class="form-control bg-light" id="stge_loc" name="stge_loc"
-                                       value="{{ old('stge_loc') }}" required readonly>
-                            </div>
-                        </div>
-
-                        <!-- Materials Information -->
                         <div class="row">
-                            <div class="col-12 mb-3">
-                                <h6 class="fw-semibold text-gray-700 mb-3 border-bottom pb-2">
-                                    <i class="fas fa-list me-2 text-orange-500"></i>
-                                    Daftar Material
-                                    <span id="materialCount" class="badge bg-success ms-2">0 items</span>
+                            <!-- Left Column: Header Information -->
+                            <div class="col-lg-5 col-xl-4 mb-3 mb-lg-0">
+                                <h6 class="fw-semibold text-gray-700 mb-2 border-bottom pb-1">
+                                    <i class="fas fa-header me-1 text-blue-500"></i>
+                                    HU Header Information
                                 </h6>
-                                <div class="alert alert-info bg-light border-0 py-2">
-                                    <small class="text-muted">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        Data material akan terisi otomatis dari drag & drop di halaman utama
-                                    </small>
+
+                                <!-- HU External ID -->
+                                <div class="mb-3">
+                                    <label for="hu_exid" class="form-label fw-semibold small">
+                                        HU External ID <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="fas fa-barcode text-green-500"></i>
+                                        </span>
+                                        <input type="text" class="form-control border-start-0 hu-exid-input"
+                                               id="hu_exid" name="hu_exid" maxlength="10"
+                                               value="{{ old('hu_exid') }}" required
+                                               placeholder="Enter 10 digits"
+                                               oninput="validateHuExid(this)">
+                                    </div>
+                                    <div class="form-text small">
+                                        <span id="hu_exid_status" class="text-muted">Enter 10 digits</span>
+                                    </div>
+                                </div>
+
+                                <!-- Packaging Material -->
+                                <div class="mb-3">
+                                    <label for="pack_mat" class="form-label fw-semibold small">
+                                        Packaging Material <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select form-select-sm" id="pack_mat" name="pack_mat">
+                                        <option value="">Select Packaging Material</option>
+                                        <option value="VSTDPLTBW01">VSTDPLTBW01</option>
+                                        <option value="VSTDPLTBW02">VSTDPLTBW02</option>
+                                        <option value="50016873">50016873</option>
+                                    </select>
+                                    <div class="form-text small" id="pack_mat_suggestion">
+                                        Select packaging material
+                                    </div>
+                                </div>
+
+                                <!-- Plant -->
+                                <div class="mb-3">
+                                    <label for="plant" class="form-label fw-semibold small">
+                                        Plant <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control form-control-sm bg-light"
+                                           id="plant" name="plant" value="{{ old('plant') }}" required readonly>
+                                </div>
+
+                                <!-- Storage Location -->
+                                <div class="mb-3">
+                                    <label for="stge_loc" class="form-label fw-semibold small">
+                                        Storage Location <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control form-control-sm bg-light"
+                                           id="stge_loc" name="stge_loc" value="{{ old('stge_loc') }}" required readonly>
+                                </div>
+
+                                <!-- Info Alert -->
+                                <div class="alert alert-info bg-light border-0 py-1 px-2 small">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Header information will be auto-filled from selected materials
                                 </div>
                             </div>
 
-                            <div class="col-12">
-                                <!-- Compact List Container -->
-                                <div id="items-container" class="compact-list-container mb-3">
+                            <!-- Right Column: Materials List -->
+                            <div class="col-lg-7 col-xl-8">
+                                <!-- Materials Header -->
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-semibold text-gray-700 mb-0">
+                                        <i class="fas fa-list me-1 text-orange-500"></i>
+                                        Materials List
+                                    </h6>
+                                    <span id="materialCount" class="badge bg-success">0 items</span>
+                                </div>
+
+                                <!-- Materials Info -->
+                                <div class="alert alert-info bg-light border-0 py-1 px-2 small mb-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Material data will be auto-filled from drag & drop on main page
+                                </div>
+
+                                <!-- Materials Container -->
+                                <div id="items-container" class="compact-list-container mb-2">
                                     <!-- Items will be dynamically added here -->
                                 </div>
 
-                                <!-- Placeholder when no items -->
-                                <div id="itemsPreview" class="text-center py-5 border-2 border-dashed rounded bg-light">
-                                    <i class="fas fa-boxes fa-3x text-gray-400 mb-3"></i>
-                                    <h6 class="text-muted mb-2">Belum Ada Material</h6>
-                                    <p class="text-muted small mb-0">Data material akan ditampilkan di sini setelah dipilih dari halaman utama</p>
+                                <!-- Empty State -->
+                                <div id="itemsPreview" class="text-center py-4 border-2 border-dashed rounded bg-light">
+                                    <i class="fas fa-boxes fa-2x text-gray-400 mb-2"></i>
+                                    <h6 class="text-muted mb-1">No Materials</h6>
+                                    <p class="text-muted small mb-0">Material data will appear here after selecting from main page</p>
                                 </div>
                             </div>
                         </div>
@@ -168,30 +176,46 @@
 
 <!-- Modal SAP Credentials -->
 <div class="modal fade" id="sapCredentialsModal" tabindex="-1" aria-labelledby="sapCredentialsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="sapCredentialsModalLabel">
-                    <i class="fas fa-key me-2"></i>SAP Credentials
-                </h5>
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title mb-0" id="sapCredentialsModalLabel">
+                    <i class="fas fa-key me-1"></i>SAP Credentials
+                </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <form id="sapCredentialsForm">
-                    <div class="mb-3">
-                        <label for="sap_user_modal" class="form-label">SAP User <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="sap_user_modal" name="sap_user_modal" required>
+            <div class="modal-body p-3">
+                <!-- Progress Bar (Hidden by default) -->
+                <div id="sapProgressBar" class="d-none">
+                    <div class="text-center mb-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="sap_password_modal" class="form-label">SAP Password <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="sap_password_modal" name="sap_password_modal" required>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
                     </div>
-                </form>
+                    <p class="text-center small mt-2 text-muted">Creating HU. Please wait...</p>
+                </div>
+
+                <!-- Form (Shown by default) -->
+                <div id="sapCredentialsForm">
+                    <form id="sapCredentialsFormInner">
+                        <div class="mb-2">
+                            <label for="sap_user_modal" class="form-label small">SAP User <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="sap_user_modal" name="sap_user_modal" required>
+                        </div>
+                        <div class="mb-2">
+                            <label for="sap_password_modal" class="form-label small">SAP Password <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control form-control-sm" id="sap_password_modal" name="sap_password_modal" required>
+                        </div>
+                    </form>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="confirmSapCredentials">
-                    <i class="fas fa-check me-2"></i>Confirm & Create HU
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" id="cancelSapCredentials">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="confirmSapCredentials">
+                    <i class="fas fa-check me-1"></i>Confirm & Create
                 </button>
             </div>
         </div>
@@ -201,108 +225,39 @@
 
 @push('styles')
 <style>
-.border-dashed {
-    border-style: dashed !important;
-}
-.compact-list-container {
-    display: none; /* Sembunyikan saat kosong */
-}
+.border-dashed { border-style: dashed !important; }
+.compact-list-container { display: none; }
 .compact-item {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 8px;
-    transition: all 0.2s ease;
+    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 8px; margin-bottom: 8px;
+    border-left: 3px solid #28a745;
 }
-.compact-item:hover {
-    background: #e9ecef;
-    border-color: #dee2e6;
-}
-.compact-item-header {
-    display: flex;
-    justify-content: between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.compact-item-title {
-    font-weight: 600;
-    color: #333;
-    font-size: 0.9rem;
-}
-.compact-item-badge {
-    background: #28a745;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-.compact-item-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    font-size: 0.8rem;
-}
-.compact-item-field {
-    display: flex;
-    flex-direction: column;
-}
-.compact-item-label {
-    font-weight: 500;
-    color: #6c757d;
-    font-size: 0.75rem;
-    margin-bottom: 2px;
-}
-.compact-item-value {
-    color: #333;
-    font-weight: 400;
-}
-.compact-item-input {
-    width: 100%;
-    padding: 4px 8px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 0.8rem;
-}
-.compact-item-input:focus {
-    border-color: #28a745;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
-}
+.compact-item:hover { background: #e9ecef; border-color: #dee2e6; }
+.compact-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.compact-item-title { font-weight: 600; color: #333; font-size: 0.8rem; }
+.compact-item-badge { background: #28a745; color: white; padding: 1px 6px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; }
+.compact-item-content { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.75rem; }
+.compact-item-field { display: flex; flex-direction: column; }
+.compact-item-label { font-weight: 500; color: #6c757d; font-size: 0.7rem; margin-bottom: 2px; }
+.compact-item-value { color: #333; font-weight: 400; }
+.compact-item-input { width: 100%; padding: 4px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 0.75rem; }
+.compact-item-input:focus { border-color: #28a745; outline: none; box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.15); }
+.hu-exid-input { border-color: #6c757d !important; }
+.hu-exid-input.valid { border-color: #198754 !important; box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.15); }
+.hu-exid-input.warning { border-color: #ffc107 !important; box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.15); }
+.hu-exid-input.invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.15); }
+.status-valid { color: #198754; font-weight: 600; font-size: 0.7rem; }
+.status-warning { color: #ffc107; font-weight: 600; font-size: 0.7rem; }
+.status-invalid { color: #dc3545; font-weight: 600; font-size: 0.7rem; }
+.form-text { font-size: 0.7rem; }
+.form-control-sm, .form-select-sm { font-size: 0.8rem; }
+.alert { font-size: 0.8rem; }
+.small { font-size: 0.8rem; }
 
-.hu-exid-input {
-    border-color: #6c757d !important;
-}
-
-.hu-exid-input.valid {
-    border-color: #198754 !important;
-    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
-}
-
-.hu-exid-input.warning {
-    border-color: #ffc107 !important;
-    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
-}
-
-.hu-exid-input.invalid {
-    border-color: #dc3545 !important;
-    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-}
-
-.status-valid {
-    color: #198754;
-    font-weight: 600;
-}
-
-.status-warning {
-    color: #ffc107;
-    font-weight: 600;
-}
-
-.status-invalid {
-    color: #dc3545;
-    font-weight: 600;
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+    .compact-item-content {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 @endpush
@@ -313,7 +268,7 @@
 let itemCount = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('=== SKENARIO 2 LOADED ===');
+    console.log('=== SCENARIO 2 LOADED ===');
 
     // Cek jika ada pesan sukses dari server dan clear sessionStorage
     const serverSuccessAlert = document.querySelector('.alert-success');
@@ -326,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Auto-hide success alert setelah 5 detik
         setTimeout(() => {
             serverSuccessAlert.remove();
-        }, 5000);
+        }, 4000);
     }
 
     if (serverErrorAlert) {
@@ -334,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Auto-hide error alert setelah 8 detik
         setTimeout(() => {
             serverErrorAlert.remove();
-        }, 8000);
+        }, 6000);
     }
 
     // Ambil data dari sessionStorage hanya jika tidak ada pesan sukses/error dari server
@@ -375,17 +330,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             } else {
                 console.warn('❌ Data invalid - empty or not array');
-                showMessage('Data material tidak valid. Silakan pilih ulang dari halaman utama.', 'warning');
+                showMessage('Material data invalid. Please reselect from main page.', 'warning');
             }
         } catch (error) {
             console.error('❌ Error parsing scenario data:', error);
-            showMessage('Error memuat data material. Data mungkin korup. Silakan pilih ulang.', 'error');
+            showMessage('Error loading material data. Data may be corrupted. Please reselect.', 'error');
             sessionStorage.removeItem('scenario2_data');
         }
     } else {
         if (!scenarioDataRaw && !serverSuccessAlert && !serverErrorAlert) {
             console.warn('❌ No data found in sessionStorage for scenario2_data');
-            showMessage('Silakan pilih material dari halaman utama dengan drag & drop terlebih dahulu.', 'info');
+            showMessage('Please select materials from main page with drag & drop first.', 'info');
         }
     }
 
@@ -406,25 +361,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalSapPassword = document.querySelector('#sapCredentialsModal input[name="sap_password_modal"]').value;
 
         if (!modalSapUser || !modalSapPassword) {
-            showMessage('SAP User dan Password harus diisi', 'error');
+            showMessage('SAP User and Password required', 'error');
             return;
         }
+
+        // Sembunyikan form dan tombol, tampilkan progress bar
+        document.getElementById('sapCredentialsForm').classList.add('d-none');
+        document.getElementById('confirmSapCredentials').classList.add('d-none');
+        document.getElementById('cancelSapCredentials').classList.add('d-none');
+        document.getElementById('sapProgressBar').classList.remove('d-none');
 
         // Set nilai ke hidden input
         document.getElementById('sap_user').value = modalSapUser;
         document.getElementById('sap_password').value = modalSapPassword;
 
-        // Tampilkan loading state
-        const confirmBtn = document.getElementById('confirmSapCredentials');
-        const originalText = confirmBtn.innerHTML;
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating HU...';
-        confirmBtn.disabled = true;
-
-        // Tutup modal
-        const sapModal = bootstrap.Modal.getInstance(document.getElementById('sapCredentialsModal'));
-        sapModal.hide();
-
-        // Submit form
+        // Submit form setelah 500ms untuk memberi waktu progress bar terlihat
         setTimeout(() => {
             document.getElementById('huForm').submit();
         }, 500);
@@ -432,9 +383,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Reset modal ketika ditutup
     document.getElementById('sapCredentialsModal').addEventListener('hidden.bs.modal', function () {
+        // Reset form
         document.querySelector('#sapCredentialsModal form').reset();
+
+        // Sembunyikan progress bar, tampilkan form dan tombol
+        document.getElementById('sapProgressBar').classList.add('d-none');
+        document.getElementById('sapCredentialsForm').classList.remove('d-none');
+        document.getElementById('confirmSapCredentials').classList.remove('d-none');
+        document.getElementById('cancelSapCredentials').classList.remove('d-none');
+
+        // Reset tombol
         const confirmBtn = document.getElementById('confirmSapCredentials');
-        confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirm & Create HU';
+        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Confirm & Create';
         confirmBtn.disabled = false;
     });
 
@@ -446,6 +406,9 @@ document.addEventListener('DOMContentLoaded', function() {
             validateHuExid(this);
         }
     });
+
+    // Auto-set packaging material setelah data dimuat
+    setTimeout(autoSetPackagingMaterial, 300);
 });
 
 // Validasi HU External ID
@@ -465,19 +428,19 @@ function validateHuExid(input) {
     input.classList.remove('valid', 'warning', 'invalid');
 
     if (length === 0) {
-        statusElement.textContent = 'Masukkan 10 digit angka';
+        statusElement.textContent = 'Enter 10 digits';
         statusElement.className = 'text-muted';
     } else if (length < 10) {
         input.classList.add('warning');
-        statusElement.textContent = `Kurang ${10 - length} digit`;
+        statusElement.textContent = `Need ${10 - length} more digits`;
         statusElement.className = 'status-warning';
     } else if (length === 10) {
         input.classList.add('valid');
-        statusElement.textContent = '✓ Format valid';
+        statusElement.textContent = '✓ Valid format';
         statusElement.className = 'status-valid';
     } else {
         input.classList.add('invalid');
-        statusElement.textContent = 'Maksimal 10 digit';
+        statusElement.textContent = 'Max 10 digits';
         statusElement.className = 'status-invalid';
         // Potong ke 10 digit
         input.value = numericValue.slice(0, 10);
@@ -556,13 +519,13 @@ function addItemToForm(item, index) {
                 <input type="hidden" name="items[${itemCount}][batch]" value="${batch}">
             </div>
             <div class="compact-item-field">
-                <span class="compact-item-label">Pack Quantity <span class="text-danger">*</span></span>
+                <span class="compact-item-label">Pack Qty <span class="text-danger">*</span></span>
                 <input type="number" class="compact-item-input" name="items[${itemCount}][pack_qty]"
-                       placeholder="Masukkan quantity" step="0.001" min="0.001" max="${stockQty}"
+                       placeholder="Enter quantity" step="0.001" min="0.001" max="${stockQty}"
                        required data-max-qty="${stockQty}">
             </div>
             <div class="compact-item-field">
-                <span class="compact-item-label">Sales Order No</span>
+                <span class="compact-item-label">Sales Order</span>
                 <span class="compact-item-value">${salesOrderNo || '-'}</span>
                 <input type="hidden" name="items[${itemCount}][sp_stck_no]" value="${salesOrderNo}">
                 <input type="hidden" name="items[${itemCount}][plant]" value="${plant}">
@@ -571,7 +534,7 @@ function addItemToForm(item, index) {
         </div>
         ${materialDescription ? `
             <div class="compact-item-field mt-2">
-                <span class="compact-item-label">Deskripsi</span>
+                <span class="compact-item-label">Description</span>
                 <span class="compact-item-value">${materialDescription}</span>
             </div>
         ` : ''}
@@ -584,33 +547,33 @@ function validateForm() {
     // Validasi HU External ID
     const huExid = document.getElementById('hu_exid').value.trim();
     if (!huExid) {
-        showMessage('HU External ID harus diisi', 'error');
+        showMessage('HU External ID is required', 'error');
         document.getElementById('hu_exid').focus();
         return false;
     }
 
     if (huExid.length !== 10) {
-        showMessage('HU External ID harus tepat 10 digit angka', 'error');
+        showMessage('HU External ID must be exactly 10 digits', 'error');
         document.getElementById('hu_exid').focus();
         return false;
     }
 
     if (!/^\d+$/.test(huExid)) {
-        showMessage('HU External ID hanya boleh berisi angka', 'error');
+        showMessage('HU External ID must contain only numbers', 'error');
         document.getElementById('hu_exid').focus();
         return false;
     }
 
     // Validasi: pastikan ada material
     if (itemCount === 0) {
-        showMessage('Tidak ada material yang ditambahkan. Silakan pilih dari halaman utama.', 'error');
+        showMessage('No materials added. Please select from main page.', 'error');
         return false;
     }
 
     const packMat = document.getElementById('pack_mat').value;
 
     if (!packMat) {
-        showMessage('Packaging Material harus dipilih', 'error');
+        showMessage('Packaging Material is required', 'error');
         document.getElementById('pack_mat').focus();
         return false;
     }
@@ -627,14 +590,14 @@ function validateForm() {
         console.log(`Validating item ${index}:`, { enteredQty, qty, maxQty });
 
         if (!enteredQty || isNaN(qty) || qty <= 0) {
-            showMessage(`Pack Quantity untuk item ${index + 1} harus lebih dari 0`, 'error');
+            showMessage(`Pack Quantity for item ${index + 1} must be > 0`, 'error');
             input.focus();
             qtyError = true;
             return;
         }
 
         if (qty > maxQty) {
-            showMessage(`Pack Quantity (${qty.toLocaleString('id-ID')}) melebihi stok tersedia (${maxQty.toLocaleString('id-ID')}) untuk item ${index + 1}`, 'error');
+            showMessage(`Pack Quantity (${qty.toLocaleString('id-ID')}) exceeds available stock (${maxQty.toLocaleString('id-ID')}) for item ${index + 1}`, 'error');
             input.focus();
             qtyError = true;
             return;
@@ -651,13 +614,12 @@ function validateForm() {
 }
 
 function resetForm() {
-    if (confirm('Apakah Anda yakin ingin membatalkan? Semua data yang telah diisi akan hilang.')) {
+    if (confirm('Cancel? All data will be lost.')) {
         document.getElementById('huForm').reset();
         window.location.href = "{{ route('hu.index') }}";
     }
 }
 
-// Di bagian JavaScript create-single-multi.blade.php - TAMBAHKAN FUNGSI INI
 function autoSetPackagingMaterial() {
     const scenarioDataRaw = sessionStorage.getItem('scenario2_data');
     if (!scenarioDataRaw) return;
@@ -677,7 +639,7 @@ function autoSetPackagingMaterial() {
 
         // Reset ke default
         packMatSelect.value = '';
-        suggestionElement.innerHTML = '<span class="text-muted">Pilih packaging material</span>';
+        suggestionElement.innerHTML = '<span class="text-muted">Select packaging material</span>';
 
         if (magry === 'ZMG1') {
             packMatSelect.value = '50016873';
@@ -687,7 +649,7 @@ function autoSetPackagingMaterial() {
             packMatSelect.value = 'VSTDPLTBW01';
             suggestionElement.innerHTML = `
                 <span class="text-success"><i class="fas fa-check-circle me-1"></i>Auto-set: VSTDPLTBW01 (ZMG2)</span>
-                <br><small class="text-muted">Alternatif: VSTDPLTBW02</small>
+                <br><small class="text-muted">Alternative: VSTDPLTBW02</small>
             `;
         }
 
@@ -696,14 +658,6 @@ function autoSetPackagingMaterial() {
         console.error('Error in autoSetPackagingMaterial:', error);
     }
 }
-
-// Panggil fungsi ini ketika data dimuat
-document.addEventListener('DOMContentLoaded', function() {
-    // ... kode existing ...
-
-    // Auto-set packaging material setelah data dimuat
-    setTimeout(autoSetPackagingMaterial, 500);
-});
 
 function showMessage(message, type) {
     // Hapus alert existing (kecuali yang dari Laravel session)
@@ -714,9 +668,9 @@ function showMessage(message, type) {
     const iconClass = type === 'error' ? 'fa-exclamation-triangle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
 
     const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="fas ${iconClass} me-2"></i>${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-3 py-1 px-2" role="alert">
+            <i class="fas ${iconClass} me-1"></i>${message}
+            <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
         </div>
     `;
 
@@ -729,7 +683,7 @@ function showMessage(message, type) {
         if (alert && !alert.classList.contains('alert-success') && !alert.classList.contains('alert-danger')) {
             alert.remove();
         }
-    }, type === 'error' ? 8000 : 5000);
+    }, type === 'error' ? 6000 : 4000);
 }
 </script>
 @endpush

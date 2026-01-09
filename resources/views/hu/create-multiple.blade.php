@@ -276,21 +276,37 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
-                <form id="sapCredentialsForm">
-                    <div class="mb-2">
-                        <label for="sap_user_modal" class="form-label small">SAP User <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control form-control-sm" id="sap_user_modal" name="sap_user_modal" required>
+                <!-- Progress Bar (Hidden by default) -->
+                <div id="sapProgressBar" class="d-none">
+                    <div class="text-center mb-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
                     </div>
-                    <div class="mb-2">
-                        <label for="sap_password_modal" class="form-label small">SAP Password <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control form-control-sm" id="sap_password_modal" name="sap_password_modal" required>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
                     </div>
-                </form>
+                    <p class="text-center small mt-2 text-muted">Creating All HUs. Please wait...</p>
+                </div>
+
+                <!-- Form (Shown by default) -->
+                <div id="sapCredentialsForm">
+                    <form id="sapCredentialsFormInner">
+                        <div class="mb-2">
+                            <label for="sap_user_modal" class="form-label small">SAP User <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="sap_user_modal" name="sap_user_modal" required>
+                        </div>
+                        <div class="mb-2">
+                            <label for="sap_password_modal" class="form-label small">SAP Password <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control form-control-sm" id="sap_password_modal" name="sap_password_modal" required>
+                        </div>
+                    </form>
+                </div>
             </div>
             <div class="modal-footer py-2">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" id="cancelSapCredentials">Cancel</button>
                 <button type="button" class="btn btn-primary btn-sm" id="confirmSapCredentials">
-                    <i class="fas fa-check me-1"></i>Confirm & Create
+                    <i class="fas fa-check me-1"></i>Confirm & Create All HUs
                 </button>
             </div>
         </div>
@@ -443,28 +459,37 @@ function setupEventListeners() {
             return;
         }
 
+        // Sembunyikan form dan tombol, tampilkan progress bar
+        document.getElementById('sapCredentialsForm').classList.add('d-none');
+        document.getElementById('confirmSapCredentials').classList.add('d-none');
+        document.getElementById('cancelSapCredentials').classList.add('d-none');
+        document.getElementById('sapProgressBar').classList.remove('d-none');
+
+        // Set nilai ke hidden input
         document.getElementById('sap_user').value = modalSapUser;
         document.getElementById('sap_password').value = modalSapPassword;
         document.getElementById('creation_mode').value = creationMode;
         document.getElementById('total_hus').value = huCount;
 
-        const confirmBtn = document.getElementById('confirmSapCredentials');
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating...';
-        confirmBtn.disabled = true;
-
-        const sapModal = bootstrap.Modal.getInstance(document.getElementById('sapCredentialsModal'));
-        sapModal.hide();
-
-        setTimeout(() => {
-            document.getElementById('huForm').submit();
-        }, 300);
+        // Submit form secara langsung (modal akan tetap terbuka sampai redirect)
+        // Progress bar akan tetap terlihat
+        document.getElementById('huForm').submit();
     });
 
     // Reset modal
     document.getElementById('sapCredentialsModal').addEventListener('hidden.bs.modal', function() {
+        // Reset form
         document.querySelector('#sapCredentialsModal form').reset();
+
+        // Sembunyikan progress bar, tampilkan form dan tombol
+        document.getElementById('sapProgressBar').classList.add('d-none');
+        document.getElementById('sapCredentialsForm').classList.remove('d-none');
+        document.getElementById('confirmSapCredentials').classList.remove('d-none');
+        document.getElementById('cancelSapCredentials').classList.remove('d-none');
+
+        // Reset tombol
         const confirmBtn = document.getElementById('confirmSapCredentials');
-        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Confirm & Create';
+        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Confirm & Create All HUs';
         confirmBtn.disabled = false;
     });
 }
