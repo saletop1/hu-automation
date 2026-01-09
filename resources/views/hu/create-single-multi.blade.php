@@ -49,14 +49,6 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4 text-end">
-            <button type="button" class="btn btn-outline-danger btn-sm me-2" onclick="resetForm()">
-                <i class="fas fa-times me-1"></i>Cancel
-            </button>
-            <button type="button" class="btn btn-success btn-sm" id="createHuButton">
-                <i class="fas fa-save me-1"></i>Create HU
-            </button>
-        </div>
     </div>
 
     <div class="row justify-content-center">
@@ -144,33 +136,6 @@
                                     Header information will be auto-filled from selected materials
                                 </div>
                             </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Materials List -->
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white py-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold text-gray-800 mb-0">
-                            <i class="fas fa-list me-2 text-success"></i>Daftar Material
-                            <span id="materialCount" class="badge bg-success ms-2">0 items</span>
-                        </h6>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="autoFillAllQuantities()">
-                            <i class="fas fa-magic me-1"></i> Auto Fill Qty
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body p-3">
-                    <div class="alert alert-info py-2 mb-3">
-                        <small>
-                            <i class="fas fa-info-circle me-1"></i>
-                            Data material akan terisi otomatis dari drag & drop di halaman utama
-                        </small>
-                    </div>
 
                             <!-- Right Column: Materials List -->
                             <div class="col-lg-7 col-xl-8">
@@ -202,7 +167,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -299,8 +264,8 @@
 
 @push('scripts')
 <script>
+// Global variable untuk menghitung items
 let itemCount = 0;
-let materialsData = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== SCENARIO 2 LOADED ===');
@@ -451,12 +416,15 @@ function validateHuExid(input) {
     const value = input.value;
     const statusElement = document.getElementById('hu_exid_status');
 
+    // Hanya menerima angka
     const numericValue = value.replace(/[^0-9]/g, '');
     if (value !== numericValue) {
         input.value = numericValue;
     }
 
     const length = numericValue.length;
+
+    // Update styling berdasarkan panjang karakter
     input.classList.remove('valid', 'warning', 'invalid');
 
     if (length === 0) {
@@ -474,21 +442,60 @@ function validateHuExid(input) {
         input.classList.add('invalid');
         statusElement.textContent = 'Max 10 digits';
         statusElement.className = 'status-invalid';
+        // Potong ke 10 digit
         input.value = numericValue.slice(0, 10);
     }
 }
 
-function confirmSapCredentials() {
-    const sapUser = document.getElementById('sap_user_modal').value.trim();
-    const sapPassword = document.getElementById('sap_password_modal').value;
-
-    if (!sapUser || !sapPassword) {
-        showMessage('SAP User dan Password harus diisi', 'error');
-        return;
+// Fungsi format material number
+function formatMaterialNumber(material) {
+    if (!material) return '';
+    if (/^\d+$/.test(material)) {
+        return material.replace(/^0+/, '') || '0';
     }
+    return material;
+}
 
-    document.getElementById('sap_user').value = sapUser;
-    document.getElementById('sap_password').value = sapPassword;
+// Fungsi get sales order number
+function getSalesOrderNo(item) {
+    if (item.combined_sales_doc && item.combined_sales_doc !== '-') {
+        return item.combined_sales_doc;
+    }
+    if (item.sales_document && item.item_number) {
+        return item.sales_document + item.item_number;
+    }
+    if (item.sales_document) {
+        return item.sales_document;
+    }
+    return '';
+}
+
+// Fungsi add item to form
+function addItemToForm(item, index) {
+    const container = document.getElementById('items-container');
+
+    // Validasi data
+    const material = item.material || '';
+    const batch = item.batch || '';
+    const plant = item.plant || '3000';
+    const storageLocation = item.storage_location || '3D10';
+
+    // Handle stock quantity
+    let stockQty = 0;
+    if (item.stock_quantity !== undefined && item.stock_quantity !== null) {
+        stockQty = parseFloat(item.stock_quantity);
+    }
+    if (isNaN(stockQty)) stockQty = 0;
+
+    const salesOrderNo = getSalesOrderNo(item);
+    const formattedMaterial = formatMaterialNumber(material);
+    const materialDescription = item.material_description || '';
+
+    console.log(`📝 Creating form item ${itemCount}:`, {
+        material: formattedMaterial,
+        batch: batch,
+        stockQty: stockQty
+    });
 
     const newItem = document.createElement('div');
     newItem.className = 'compact-item';
@@ -537,6 +544,7 @@ function confirmSapCredentials() {
 }
 
 function validateForm() {
+    // Validasi HU External ID
     const huExid = document.getElementById('hu_exid').value.trim();
     if (!huExid) {
         showMessage('HU External ID is required', 'error');
@@ -563,16 +571,21 @@ function validateForm() {
     }
 
     const packMat = document.getElementById('pack_mat').value;
+
     if (!packMat) {
         showMessage('Packaging Material is required', 'error');
         document.getElementById('pack_mat').focus();
         return false;
     }
 
+    // Validasi Qty
     let qtyError = false;
-    document.querySelectorAll('.compact-item-input[name*="[pack_qty]"]').forEach((input, index) => {
+    const qtyInputs = document.querySelectorAll('#items-container input[name*="[pack_qty]"]');
+
+    qtyInputs.forEach((input, index) => {
         const maxQty = parseFloat(input.dataset.maxQty);
-        const qty = parseFloat(input.value || 0);
+        let enteredQty = input.value.replace(/,/g, '.');
+        const qty = parseFloat(enteredQty);
 
         console.log(`Validating item ${index}:`, { enteredQty, qty, maxQty });
 
@@ -589,9 +602,15 @@ function validateForm() {
             qtyError = true;
             return;
         }
+
+        input.value = enteredQty;
     });
 
-    return !qtyError;
+    if (qtyError) {
+        return false;
+    }
+
+    return true;
 }
 
 function resetForm() {
@@ -641,8 +660,12 @@ function autoSetPackagingMaterial() {
 }
 
 function showMessage(message, type) {
-    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+    // Hapus alert existing (kecuali yang dari Laravel session)
+    const existingAlerts = document.querySelectorAll('.alert.alert-dismissible:not(.alert-success):not(.alert-danger)');
+    existingAlerts.forEach(alert => alert.remove());
+
+    const alertClass = type === 'error' ? 'alert-danger' : type === 'warning' ? 'alert-warning' : 'alert-info';
+    const iconClass = type === 'error' ? 'fa-exclamation-triangle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
 
     const alertHtml = `
         <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-3 py-1 px-2" role="alert">
@@ -654,6 +677,7 @@ function showMessage(message, type) {
     const container = document.querySelector('.container-fluid');
     container.insertAdjacentHTML('afterbegin', alertHtml);
 
+    // Auto-hide setelah beberapa detik
     setTimeout(() => {
         const alert = document.querySelector('.alert.' + alertClass);
         if (alert && !alert.classList.contains('alert-success') && !alert.classList.contains('alert-danger')) {

@@ -265,17 +265,6 @@
     </div>
 </div>
 
-<!-- Form Hidden -->
-<form action="{{ route('hu.store-multiple') }}" method="POST" id="huForm" class="d-none">
-    @csrf
-    <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
-    <input type="hidden" id="sap_user" name="sap_user" value="">
-    <input type="hidden" id="sap_password" name="sap_password" value="">
-    <input type="hidden" id="creation_mode" name="creation_mode" value="split">
-    <input type="hidden" id="total_hus" name="total_hus" value="0">
-    <!-- HUs will be dynamically added -->
-</form>
-
 <!-- Modal SAP Credentials -->
 <div class="modal fade" id="sapCredentialsModal" tabindex="-1" aria-labelledby="sapCredentialsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -327,9 +316,8 @@
 
 @push('styles')
 <style>
-.btn-purple { background-color: #8b5cf6; border-color: #8b5cf6; color: white; }
-.btn-purple:hover { background-color: #7c3aed; border-color: #7c3aed; }
-.compact-hus-container { display: none; }
+.border-dashed { border-style: dashed !important; }
+.compact-list-container { display: none; }
 .compact-hu-item {
     background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 8px; margin-bottom: 8px;
     border-left: 3px solid #8b5cf6;
@@ -402,7 +390,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function initializeApp() {
     setupEventListeners();
-    loadMaterialsFromSession();
+    loadInitialData();
+    updateModeDisplay();
 }
 
 function setupEventListeners() {
@@ -412,17 +401,45 @@ function setupEventListeners() {
             creationMode = this.value;
             updateModeDisplay();
             if (currentMaterials.length > 0) {
-                generateHUs();
+                processMaterials(currentMaterials);
+            } else {
+                processMaterialsFromSessionStorage();
             }
         });
     });
 
-    // Partial settings
+    // Partial quantity settings
     document.getElementById('partialQtyPerHU').addEventListener('change', function() {
-        document.getElementById('customQtyContainer').classList.toggle('d-none', this.value !== 'custom');
+        const customContainer = document.getElementById('customQtyContainer');
+        if (this.value === 'custom') {
+            customContainer.classList.remove('d-none');
+        } else {
+            customContainer.classList.add('d-none');
+        }
+        if (creationMode === 'partial' && currentMaterials.length > 0) {
+            processMaterials(currentMaterials);
+        }
     });
 
-    // Create button
+    document.getElementById('partialTotalQty').addEventListener('input', function() {
+        if (creationMode === 'partial' && currentMaterials.length > 0) {
+            processMaterials(currentMaterials);
+        }
+    });
+
+    document.getElementById('customQtyPerHU').addEventListener('input', function() {
+        if (creationMode === 'partial' && document.getElementById('partialQtyPerHU').value === 'custom' && currentMaterials.length > 0) {
+            processMaterials(currentMaterials);
+        }
+    });
+
+    // Global packaging material
+    document.getElementById('globalPackMat').addEventListener('change', function() {
+        lastPackMat = this.value;
+        applyPackMatToAll();
+    });
+
+    // Create HU Button
     document.getElementById('createHuButton').addEventListener('click', function() {
         if (!validateForm()) return;
         if (creationMode === 'partial' && !validatePartialStock()) return;
@@ -432,10 +449,10 @@ function setupEventListeners() {
         sapModal.show();
     });
 
-    // SAP credentials
+    // Confirm SAP Credentials
     document.getElementById('confirmSapCredentials').addEventListener('click', function() {
-        const sapUser = document.getElementById('sap_user_modal').value.trim();
-        const sapPassword = document.getElementById('sap_password_modal').value;
+        const modalSapUser = document.querySelector('#sapCredentialsModal input[name="sap_user_modal"]').value;
+        const modalSapPassword = document.querySelector('#sapCredentialsModal input[name="sap_password_modal"]').value;
 
         if (!modalSapUser || !modalSapPassword) {
             showMessage('SAP User and Password required', 'error');
@@ -579,9 +596,11 @@ function processMaterialsFromSessionStorage() {
     }
 }
 
-function generateHUs() {
-    if (currentMaterials.length === 0) {
-        showMessage('Tidak ada material yang dipilih', 'warning');
+function loadAvailableStocks(materials, callback) {
+    availableStocks = {};
+
+    if (materials.length === 0) {
+        callback();
         return;
     }
 
@@ -631,15 +650,15 @@ function processMaterials(materials) {
 function groupMaterials(materials) {
     const groups = {};
     materials.forEach(item => {
-        const key = `${item.material}_${item.batch || ''}_${item.plant}_${item.storage_location}`;
+        const key = `${item.material}_${item.batch || ''}_${getSalesOrderNo(item)}`;
         if (!groups[key]) {
             groups[key] = {
                 material: item.material,
-                materialDescription: item.material_description || '',
                 batch: item.batch || '',
+                salesOrderNo: getSalesOrderNo(item),
                 plant: item.plant || '3000',
                 storageLocation: item.storage_location || '3D10',
-                salesOrderNo: getSalesOrderNo(item),
+                materialDescription: item.material_description || '',
                 totalQuantity: 0,
                 items: []
             };
@@ -678,7 +697,7 @@ function addHUGroupToForm(group) {
                 for (let i = 0; i < numberOfHUs; i++) {
                     const isLastHU = i === numberOfHUs - 1;
                     const huQty = isLastHU ? actualTotalQty - (i * qtyPerHU) : qtyPerHU;
-                    addHU(group, i + 1, numberOfHUs, numberOfHUs > 1, huQty);
+                    addSingleHUToForm(group, i + 1, numberOfHUs, numberOfHUs > 1, huQty);
                 }
             }
             break;
@@ -717,12 +736,13 @@ function getPartialSettings() {
     return { totalQty, qtyPerHU };
 }
 
-function addHU(group, sequence, totalHUs, isSplit, quantity) {
+function addSingleHUToForm(group, sequence, totalHUs, isSplit, quantity) {
     const container = document.getElementById('hus-container');
     const formattedMaterial = formatMaterialNumber(group.material);
 
-    const startHuExid = document.getElementById('startHuExid').value || '9900000000';
-    const huExid = (parseInt(startHuExid) + huCount).toString().padStart(10, '0');
+    const defaultStartNumber = 9900000000;
+    const sequenceNumber = huCount + 1;
+    const autoHuExid = (defaultStartNumber + sequenceNumber).toString().padStart(10, '0');
 
     const newHU = document.createElement('div');
     newHU.className = 'compact-hu-item';
@@ -740,7 +760,7 @@ function addHU(group, sequence, totalHUs, isSplit, quantity) {
     newHU.innerHTML = `
         <div class="compact-hu-header">
             <div class="compact-hu-title">
-                <i class="fas fa-pallet me-1 text-purple"></i>
+                <i class="fas fa-pallet me-1 text-purple-500"></i>
                 HU ${huCount + 1}: ${formattedMaterial}
                 ${splitIndicator}
                 ${quantityBadge}
@@ -763,6 +783,7 @@ function addHU(group, sequence, totalHUs, isSplit, quantity) {
                        pattern="\\d{10}" title="10 digits required">
                 ${huCount === 0 ? '<div class="auto-sequence-hint">Fill manually, others auto-sequence</div>' : ''}
             </div>
+
             <div class="compact-hu-field">
                 <span class="compact-hu-label">Pack Mat <span class="text-danger">*</span></span>
                 <select class="compact-hu-select pack-mat-select" name="hus[${huCount}][pack_mat]" required>
@@ -773,26 +794,31 @@ function addHU(group, sequence, totalHUs, isSplit, quantity) {
                 </select>
                 ${huCount === 0 ? '<div class="auto-sequence-hint">Select once, applies to all</div>' : ''}
             </div>
+
             <div class="compact-hu-field">
-                <span class="compact-hu-label">Material</span>
-                <input type="text" class="compact-hu-input bg-light"
-                       name="hus[${huCount}][material]" value="${formattedMaterial}" readonly>
+                <span class="compact-hu-label">Plant <span class="text-danger">*</span></span>
+                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][plant]"
+                       value="${group.plant}" readonly>
             </div>
+
             <div class="compact-hu-field">
                 <span class="compact-hu-label">Storage Loc <span class="text-danger">*</span></span>
                 <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][stge_loc]"
                        value="${group.storageLocation}" readonly>
             </div>
+
             <div class="compact-hu-field">
-                <span class="compact-hu-label">Pack Quantity</span>
-                <input type="number" class="compact-hu-input"
-                       name="hus[${huCount}][pack_qty]" value="${quantity}" step="0.001" readonly>
+                <span class="compact-hu-label">Material <span class="text-danger">*</span></span>
+                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][material]"
+                       value="${formattedMaterial}" readonly>
             </div>
+
             <div class="compact-hu-field">
-                <span class="compact-hu-label">Sales Order</span>
-                <input type="text" class="compact-hu-input bg-light"
-                       name="hus[${huCount}][sp_stck_no]" value="${group.salesOrderNo}" readonly>
+                <span class="compact-hu-label">Batch</span>
+                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][batch]"
+                       value="${group.batch}" readonly>
             </div>
+
             <div class="compact-hu-field">
                 <span class="compact-hu-label">Pack Qty <span class="text-danger">*</span></span>
                 <input type="number" class="compact-hu-input" name="hus[${huCount}][pack_qty]"
@@ -804,34 +830,22 @@ function addHU(group, sequence, totalHUs, isSplit, quantity) {
                         `${quantity.toLocaleString('id-ID')} PC`}
                 </div>
             </div>
+
             <div class="compact-hu-field">
                 <span class="compact-hu-label">Sales Order</span>
                 <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][sp_stck_no]"
                        value="${group.salesOrderNo}" readonly>
             </div>
         </div>
-        ${group.materialDescription ? `
-            <div class="compact-hu-field mt-1">
-                <span class="compact-hu-label">Deskripsi</span>
-                <span class="compact-hu-value small">${group.materialDescription}</span>
-            </div>
-        ` : ''}
     `;
-
     container.appendChild(newHU);
-
-    // Add to form
-    const form = document.getElementById('huForm');
-    const huDiv = document.createElement('div');
-    huDiv.innerHTML = newHU.innerHTML;
-    form.appendChild(huDiv);
-
     huCount++;
     totalQuantity += quantity;
+}
 
-    // Update container visibility
-    document.getElementById('husPreview').style.display = 'none';
-    document.getElementById('hus-container').style.display = 'block';
+function updateHUSummary() {
+    document.getElementById('huCount').textContent = `${huCount} HUs`;
+    document.getElementById('totalQty').textContent = `${totalQuantity.toLocaleString('id-ID')} PC`;
 }
 
 function showStockValidation() {
@@ -952,6 +966,7 @@ function validateForm() {
             showMessage(`HU ${index + 1}: External ID must be 10 digits`, 'error');
             input.focus();
             validationError = true;
+            return;
         }
     });
 
@@ -963,6 +978,7 @@ function validateForm() {
             showMessage(`HU ${index + 1}: Pack Mat required`, 'error');
             select.focus();
             validationError = true;
+            return;
         }
     });
 
@@ -973,7 +989,6 @@ function resetForm() {
     if (confirm('Cancel? All data will be lost.')) {
         window.location.href = "{{ route('hu.index') }}";
     }
-    return material;
 }
 
 function autoSetPackagingMaterialForAllHUs() {
@@ -1010,8 +1025,13 @@ function autoSetPackagingMaterialForAllHUs() {
 }
 
 function showMessage(message, type) {
-    const alertClass = type === 'success' ? 'alert-success' : type === 'warning' ? 'alert-warning' : 'alert-danger';
-    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+    const existingAlerts = document.querySelectorAll('.alert.alert-dismissible:not(.alert-success):not(.alert-danger)');
+    existingAlerts.forEach(alert => alert.remove());
+
+    const alertClass = type === 'error' ? 'alert-danger' :
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    const iconClass = type === 'error' ? 'fa-exclamation-triangle' :
+                     type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
 
     const alertHtml = `
         <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-3 py-1 px-2" role="alert">
@@ -1028,8 +1048,10 @@ function showMessage(message, type) {
 
     setTimeout(() => {
         const alert = document.querySelector('.alert.' + alertClass);
-        if (alert) alert.remove();
-    }, 4000);
+        if (alert && !alert.classList.contains('alert-success') && !alert.classList.contains('alert-danger')) {
+            alert.remove();
+        }
+    }, autoHideTime);
 }
 </script>
 @endpush

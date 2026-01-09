@@ -49,14 +49,6 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4 text-end">
-            <button type="button" class="btn btn-outline-danger btn-sm me-2" onclick="resetForm()">
-                <i class="fas fa-times me-1"></i>Cancel
-            </button>
-            <button type="button" class="btn btn-primary btn-sm" id="createHuButton" disabled>
-                <i class="fas fa-save me-1"></i>Create HU
-            </button>
-        </div>
     </div>
 
     <div class="row justify-content-center">
@@ -214,26 +206,6 @@
                     </form>
                 </div>
             </div>
-
-            <!-- Quick Actions -->
-            <div class="mt-3">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body p-3">
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <button class="btn btn-outline-secondary w-100 btn-sm" onclick="autoFillFromStock()">
-                                    <i class="fas fa-magic me-1"></i> Auto Fill
-                                </button>
-                            </div>
-                            <div class="col-6">
-                                <button class="btn btn-outline-warning w-100 btn-sm" onclick="validateBeforeSubmit()">
-                                    <i class="fas fa-check-circle me-1"></i> Validasi
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -261,7 +233,7 @@
                     </div>
                     <p class="text-center small mt-2 text-muted">Creating HU. Please wait...</p>
                 </div>
-                
+
                 <!-- Form (Shown by default) -->
                 <div id="sapCredentialsForm">
                     <form id="sapCredentialsFormInner">
@@ -310,13 +282,19 @@
 
 @push('scripts')
 <script>
+// Global variable untuk menyimpan data material
 let currentMaterialData = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded - initializing HU creation single');
+
+    // Load data dari sessionStorage
     loadMaterialData();
 
+    // Setup create button event
     document.getElementById('createHuButton').addEventListener('click', function() {
         if (validateForm()) {
+            // Show SAP credentials modal
             const modal = new bootstrap.Modal(document.getElementById('sapCredentialsModal'));
             modal.show();
         }
@@ -336,13 +314,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('sapCredentialsModal').addEventListener('hidden.bs.modal', function () {
         // Reset form
         document.querySelector('#sapCredentialsModal form').reset();
-        
+
         // Sembunyikan progress bar, tampilkan form dan tombol
         document.getElementById('sapProgressBar').classList.add('d-none');
         document.getElementById('sapCredentialsForm').classList.remove('d-none');
         document.getElementById('confirmSapCredentials').classList.remove('d-none');
         document.getElementById('cancelSapCredentials').classList.remove('d-none');
-        
+
         // Reset tombol
         const confirmBtn = document.getElementById('confirmSapCredentials');
         confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Confirm & Create';
@@ -351,10 +329,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadMaterialData() {
-    const scenarioDataRaw = sessionStorage.getItem('scenario1_data');
+    console.log('Loading material data from sessionStorage...');
+
+    // Coba beberapa key yang mungkin digunakan
+    const scenarioDataRaw = sessionStorage.getItem('scenario1_data') ||
+                           sessionStorage.getItem('selected_material') ||
+                           sessionStorage.getItem('current_material');
+
     if (scenarioDataRaw) {
         try {
             const materialData = JSON.parse(scenarioDataRaw);
+            console.log('Material data loaded:', materialData);
+
             if (materialData && materialData.material) {
                 currentMaterialData = materialData;
                 fillFormWithData(materialData);
@@ -371,7 +357,7 @@ function loadMaterialData() {
         // Redirect otomatis setelah 3 detik
         setTimeout(() => {
             window.location.href = "{{ route('hu.index') }}";
-        }, 2000);
+        }, 3000);
     }
 }
 
@@ -401,9 +387,15 @@ function fillFormWithData(materialData) {
         }
 
         function getSalesOrderNo(item) {
-            if (item.combined_sales_doc && item.combined_sales_doc !== '-') return item.combined_sales_doc;
-            if (item.sales_document && item.item_number) return item.sales_document + item.item_number;
-            if (item.sales_document) return item.sales_document;
+            if (item.combined_sales_doc && item.combined_sales_doc !== '-') {
+                return item.combined_sales_doc;
+            }
+            if (item.sales_document && item.item_number) {
+                return item.sales_document + item.item_number;
+            }
+            if (item.sales_document) {
+                return item.sales_document;
+            }
             return '';
         }
 
@@ -411,6 +403,7 @@ function fillFormWithData(materialData) {
         const formattedMaterial = formatMaterialNumber(materialData.material);
         const stockQty = parseFloat(materialData.stock_quantity || '0');
 
+        // Set form values (display only)
         document.getElementById('material').value = formattedMaterial;
         document.getElementById('material-description').textContent = materialData.material_description || 'Description not available';
         document.getElementById('plant').value = materialData.plant || '';
@@ -419,16 +412,20 @@ function fillFormWithData(materialData) {
         document.getElementById('sp_stck_no').value = salesOrderNo;
         document.getElementById('stock_quantity').value = stockQty.toLocaleString('id-ID') + ' PC';
 
+        // Set hidden fields untuk form submission
         document.getElementById('hidden_material').value = formattedMaterial;
         document.getElementById('hidden_plant').value = materialData.plant || '';
         document.getElementById('hidden_stge_loc').value = materialData.storage_location || '';
         document.getElementById('hidden_batch').value = materialData.batch || '';
         document.getElementById('hidden_sp_stck_no').value = salesOrderNo;
 
+        // Auto-set pack quantity dari stock
         document.getElementById('pack_qty').value = stockQty;
         document.getElementById('pack_qty_text').textContent = `Quantity auto-set from stock: ${stockQty.toLocaleString('id-ID')} PC`;
 
+        // Auto-set Packaging Material berdasarkan magry
         const magry = materialData.magry || '';
+        const suggestedPackMat = materialData.suggested_pack_mat || '';
         const packMatSelect = document.getElementById('pack_mat');
         const suggestionElement = document.getElementById('pack_mat_suggestion');
 
@@ -462,6 +459,13 @@ function fillFormWithData(materialData) {
                     ${magry ? `<br><strong>Magry:</strong> <span class="badge bg-primary">${magry}</span>` : ''}
                 </div>
             </div>
+            ${salesOrderNo ?
+                `<div class="row mt-2">
+                    <div class="col-12">
+                        <strong>Sales Order No:</strong> ${salesOrderNo}
+                    </div>
+                </div>` : ''
+            }
         `;
         document.getElementById('materialPreview').innerHTML = previewHtml;
 
@@ -473,6 +477,7 @@ function fillFormWithData(materialData) {
 
         // Check form validity setelah data dimuat
         checkFormValidity();
+
     } catch (error) {
         console.error('Error in fillFormWithData:', error);
         showError('Error loading material data: ' + error.message);
@@ -525,6 +530,7 @@ function confirmSapCredentials() {
 
     // Submit form setelah 500ms untuk memberi waktu progress bar terlihat
     setTimeout(() => {
+        console.log('Submitting form with SAP credentials...');
         document.getElementById('huForm').submit();
     }, 500);
 }
@@ -573,16 +579,20 @@ function validateForm() {
     return true;
 }
 
+// Validasi HU External ID
 function validateHuExid(input) {
     const value = input.value;
     const statusElement = document.getElementById('hu_exid_status');
 
+    // Hanya menerima angka
     const numericValue = value.replace(/[^0-9]/g, '');
     if (value !== numericValue) {
         input.value = numericValue;
     }
 
     const length = numericValue.length;
+
+    // Update styling berdasarkan panjang karakter
     input.classList.remove('valid', 'warning', 'invalid');
 
     if (length === 0) {
@@ -600,6 +610,7 @@ function validateHuExid(input) {
         input.classList.add('invalid');
         statusElement.textContent = 'Max 10 digits';
         statusElement.className = 'status-invalid';
+        // Potong ke 10 digit
         input.value = numericValue.slice(0, 10);
     }
 
@@ -649,26 +660,6 @@ function resetForm() {
         sessionStorage.removeItem('scenario1_data');
         window.location.href = "{{ route('hu.index') }}";
     }
-}
-
-function showMessage(message, type) {
-    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
-
-    const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show shadow-sm mb-3" role="alert">
-            <i class="fas ${icon} me-2"></i>${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
-
-    const container = document.querySelector('.container-fluid');
-    container.insertAdjacentHTML('afterbegin', alertHtml);
-
-    setTimeout(() => {
-        const alert = document.querySelector('.alert.' + alertClass);
-        if (alert) alert.remove();
-    }, 4000);
 }
 </script>
 @endpush
