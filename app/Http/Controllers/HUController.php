@@ -141,11 +141,41 @@ class HUController extends Controller
             // Pagination 50 baris per halaman
             $historyData = $query->paginate(50);
 
+            // Simpan query parameters untuk pagination
+            if ($search) {
+                $historyData->appends(['search' => $search]);
+            }
+            if ($startDate) {
+                $historyData->appends(['start_date' => $startDate]);
+            }
+            if ($endDate) {
+                $historyData->appends(['end_date' => $endDate]);
+            }
+
             Log::info('History data loaded: ' . $historyData->total() . ' records');
+
+            // Jika request AJAX, kembalikan JSON
+            if ($request->ajax() || $request->has('ajax')) {
+                return response()->json([
+                    'success' => true,
+                    'tableBody' => view('hu.history_table_body', compact('historyData'))->render(),
+                    'pagination' => view('hu.history_pagination', compact('historyData'))->render(),
+                    'summary' => 'Menampilkan ' . $historyData->count() . ' dari ' . $historyData->total() . ' data (50 data per halaman)',
+                    'currentPage' => $historyData->currentPage()
+                ]);
+            }
 
             return view('hu.history', compact('historyData', 'search', 'startDate', 'endDate'));
         } catch (\Exception $e) {
             Log::error('History fetch error: ' . $e->getMessage());
+            
+            if ($request->ajax() || $request->has('ajax')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to load history: ' . $e->getMessage()
+                ], 500);
+            }
+            
             return view('hu.history', ['historyData' => []])
                 ->with('error', 'Failed to load history: ' . $e->getMessage());
         }

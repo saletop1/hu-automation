@@ -13,6 +13,7 @@
     <style>
         .table-responsive {
             max-height: 70vh;
+            position: relative;
         }
         .history-table {
             font-size: 0.875rem;
@@ -66,6 +67,16 @@
             display: none;
         }
 
+        /* STICKY HEADER */
+        .table-responsive thead tr:nth-child(1) th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: #f8f9fa !important;
+            border-bottom: 2px solid #dee2e6 !important;
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+        }
+        
         /* STYLE UNTUK PRINT */
         @media print {
             body * {
@@ -177,6 +188,25 @@
         .page-item.disabled .page-link {
             color: #6c757d;
         }
+
+        /* Loading indicator */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            display: none;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -233,7 +263,7 @@
 
                 <!-- Filter Section -->
                 <div class="filter-container mb-3">
-                    <form method="GET" action="{{ route('hu.history') }}" id="filterForm" class="w-100">
+                    <div class="w-100">
                         <div class="row g-2">
                             <div class="col-md-4">
                                 <label class="date-filter-label">Pencarian</label>
@@ -243,26 +273,26 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="date-filter-label">Tanggal Mulai</label>
-                                <input type="date" name="start_date" id="startDate" class="form-control form-control-sm"
+                                <input type="date" name="start_date" id="startDate" class="form-control form-control-sm date-filter"
                                        value="{{ request('start_date', '') }}">
                             </div>
                             <div class="col-md-2">
                                 <label class="date-filter-label">Tanggal Akhir</label>
-                                <input type="date" name="end_date" id="endDate" class="form-control form-control-sm"
+                                <input type="date" name="end_date" id="endDate" class="form-control form-control-sm date-filter"
                                        value="{{ request('end_date', '') }}">
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
-                                <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <button id="filterBtn" class="btn btn-primary btn-sm w-100">
                                     <i class="fas fa-search me-1"></i> Filter
                                 </button>
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
-                                <a href="{{ route('hu.history') }}" class="btn btn-outline-secondary btn-sm w-100">
+                                <button id="resetFilterBtn" class="btn btn-outline-secondary btn-sm w-100">
                                     <i class="fas fa-refresh me-1"></i> Reset Filter
-                                </a>
+                                </button>
                             </div>
                         </div>
-                    </form>
+                    </div>
                 </div>
 
                 <div class="d-flex align-items-center mb-2">
@@ -272,15 +302,24 @@
                     </label>
                     <span id="selectedCount" class="badge bg-primary ms-2">0 terpilih</span>
                 </div>
-                <small class="text-muted d-block">Menampilkan {{ $historyData->count() }} dari {{ $historyData->total() }} data (50 data per halaman)</small>
+                <small class="text-muted d-block" id="summaryText">
+                    Menampilkan {{ $historyData->count() }} dari {{ $historyData->total() }} data (50 data per halaman)
+                </small>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0 position-relative">
+                <!-- Loading Overlay -->
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
                 <form id="exportForm" action="{{ route('hu.export') }}" method="POST">
                     @csrf
                     <input type="hidden" name="selected_data" id="selectedData">
                 </form>
 
-                <div class="table-responsive">
+                <div class="table-responsive" id="tableContainer">
                     <table class="table table-hover history-table mb-0">
                         <thead class="bg-gray-50">
                             <tr>
@@ -296,137 +335,20 @@
                                 <th class="border-0">Dokumen Penjualan</th>
                                 <th class="border-0">Lokasi</th>
                                 <th class="border-0">Skenario</th>
-                                <th class="border-0">Dibuat Oleh</th> <!-- ✅ KOLOM BARU: CREATED BY -->
+                                <th class="border-0">Dibuat Oleh</th>
                                 <th class="border-0">Tanggal Dibuat (WIB)</th>
                             </tr>
                         </thead>
                         <tbody id="historyTableBody">
-                            @if($historyData->count() > 0)
-                                @foreach($historyData as $item)
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="border-0">
-                                            <!-- ✅ PERBAIKAN: Gunakan $item->id bukan $item->hu_number -->
-                                            <input type="checkbox" class="form-check-input row-checkbox"
-                                                   value="{{ $item->id }}" data-hu="{{ $item->hu_number }}">
-                                        </td>
-                                        <td class="border-0">
-                                            <span class="fw-bold text-primary">{{ $item->hu_number }}</span>
-                                        </td>
-                                        <td class="border-0">
-                                            <span class="material-number">
-                                                {{ preg_match('/^\d+$/', $item->material) ? ltrim($item->material, '0') : $item->material }}
-                                            </span>
-                                        </td>
-                                        <td class="border-0 text-gray-600 material-description">
-                                            {{ $item->material_description ?: '-' }}
-                                        </td>
-                                        <td class="border-0 text-gray-600">{{ $item->batch ?: '-' }}</td>
-                                        <td class="border-0 text-end">
-                                            <span class="badge bg-success bg-opacity-10 text-success fs-6">
-                                                {{ number_format((float)($item->quantity ?? 0), 0, ',', '.') }}
-                                            </span>
-                                        </td>
-                                        <td class="border-0 text-gray-600">{{ $item->unit == 'ST' ? 'PC' : ($item->unit ?: '-') }}</td>
-                                        <td class="border-0">
-                                            <span class="sales-document">{{ $item->sales_document ?: '-' }}</span>
-                                        </td>
-                                        <td class="border-0 text-gray-600">{{ $item->storage_location ?: '-' }}</td>
-                                        <td class="border-0">
-                                            @if($item->scenario_type == 'single')
-                                                <span class="badge bg-primary text-white">Skenario 1</span>
-                                            @elseif($item->scenario_type == 'single-multi')
-                                                <span class="badge bg-success text-white">Skenario 2</span>
-                                            @elseif($item->scenario_type == 'multiple')
-                                                <span class="badge bg-purple-600 text-white">Skenario 3</span>
-                                            @else
-                                                <span class="badge bg-secondary text-white">{{ $item->scenario_type ?: '-' }}</span>
-                                            @endif
-                                        </td>
-                                        <td class="border-0 text-gray-600">
-                                            <!-- ✅ KOLOM BARU: CREATED BY -->
-                                            <span class="created-by" title="{{ $item->created_by ?: 'System' }}">
-                                                {{ $item->created_by ?: 'System' }}
-                                            </span>
-                                        </td>
-                                        <td class="border-0 text-gray-600">
-                                            @php
-                                                try {
-                                                    $createdAt = $item->created_at ? \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') : '-';
-                                                } catch (Exception $e) {
-                                                    $createdAt = '-';
-                                                }
-                                            @endphp
-                                            {{ $createdAt }}
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            @else
-                                <tr>
-                                    <td colspan="12" class="text-center py-4 text-muted"> <!-- ✅ UPDATE COLSPAN MENJADI 12 -->
-                                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                        Tidak ada data history HU
-                                        @if(request('search') || request('start_date') || request('end_date'))
-                                            <br>
-                                            <small class="text-muted mt-2">Coba gunakan filter yang berbeda atau <a href="{{ route('hu.history') }}" class="text-primary">reset filter</a></small>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endif
+                            @include('hu.history_table_body', ['historyData' => $historyData])
                         </tbody>
                     </table>
                 </div>
 
                 <!-- Pagination Section -->
-                @if($historyData->hasPages())
-                <div class="card-footer bg-white py-3 no-print">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted small">
-                            Menampilkan {{ $historyData->firstItem() ?? 0 }} - {{ $historyData->lastItem() ?? 0 }} dari {{ $historyData->total() }} data
-                        </div>
-                        <nav aria-label="Page navigation">
-                            <ul class="pagination pagination-sm mb-0">
-                                {{-- Previous Page Link --}}
-                                @if($historyData->onFirstPage())
-                                    <li class="page-item disabled">
-                                        <span class="page-link">&laquo; Sebelumnya</span>
-                                    </li>
-                                @else
-                                    <li class="page-item">
-                                        <a class="page-link" href="{{ $historyData->previousPageUrl() . '&' . http_build_query(request()->except('page')) }}" rel="prev">&laquo; Sebelumnya</a>
-                                    </li>
-                                @endif
-
-                                {{-- Pagination Elements --}}
-                                @foreach($historyData->getUrlRange(1, $historyData->lastPage()) as $page => $url)
-                                    @if($page == $historyData->currentPage())
-                                        <li class="page-item active">
-                                            <span class="page-link">{{ $page }}</span>
-                                        </li>
-                                    @else
-                                        <li class="page-item">
-                                            <a class="page-link" href="{{ $url . '&' . http_build_query(request()->except('page')) }}">{{ $page }}</a>
-                                        </li>
-                                    @endif
-                                @endforeach
-
-                                {{-- Next Page Link --}}
-                                @if($historyData->hasMorePages())
-                                    <li class="page-item">
-                                        <a class="page-link" href="{{ $historyData->nextPageUrl() . '&' . http_build_query(request()->except('page')) }}" rel="next">Selanjutnya &raquo;</a>
-                                    </li>
-                                @else
-                                    <li class="page-item disabled">
-                                        <span class="page-link">Selanjutnya &raquo;</span>
-                                    </li>
-                                @endif
-                            </ul>
-                        </nav>
-                        <div class="text-muted small">
-                            Halaman {{ $historyData->currentPage() }} dari {{ $historyData->lastPage() }}
-                        </div>
-                    </div>
+                <div id="paginationContainer">
+                    @include('hu.history_pagination', ['historyData' => $historyData])
                 </div>
-                @endif
             </div>
         </div>
 
@@ -452,14 +374,14 @@
                         <th width="80">QR Code</th>
                         <th>HU Number</th>
                         <th>Material</th>
-                        <th width="180">Deskripsi Material</th> <!-- ✅ Dikurangi lebar untuk ruang kolom baru -->
+                        <th width="180">Deskripsi Material</th>
                         <th>Batch</th>
                         <th width="60">Qty</th>
                         <th width="60">Unit</th>
                         <th>Dokumen Penjualan</th>
                         <th>Lokasi</th>
                         <th width="80">Skenario</th>
-                        <th width="100">Dibuat Oleh</th> <!-- ✅ KOLOM BARU: CREATED BY -->
+                        <th width="100">Dibuat Oleh</th>
                         <th width="120">Tanggal Dibuat</th>
                     </tr>
                 </thead>
@@ -494,7 +416,7 @@
                                         {{ $item->scenario_type ?: '-' }}
                                     @endif
                                 </td>
-                                <td> <!-- ✅ KOLOM BARU: CREATED BY -->
+                                <td>
                                     {{ $item->created_by ?: 'System' }}
                                 </td>
                                 <td>
@@ -511,7 +433,7 @@
                         @endforeach
                     @else
                         <tr>
-                            <td colspan="12" class="text-center py-4">Tidak ada data history HU</td> <!-- ✅ UPDATE COLSPAN MENJADI 12 -->
+                            <td colspan="12" class="text-center py-4">Tidak ada data history HU</td>
                         </tr>
                     @endif
                 </tbody>
@@ -530,6 +452,9 @@
     <script>
         $(document).ready(function() {
             let selectedHUs = [];
+            let searchTimeout = null;
+            let currentPage = {{ $historyData->currentPage() }};
+            let isLiveSearchEnabled = true;
 
             // Set default dates (last 30 days) jika tidak ada filter
             @if(!request('start_date') && !request('end_date'))
@@ -540,38 +465,6 @@
                 $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
                 $('#endDate').val(today.toISOString().split('T')[0]);
             @endif
-
-            // Generate QR Codes untuk semua HU number
-            function generateQRCodes() {
-                @foreach($historyData as $item)
-                    try {
-                        // Buat canvas untuk QR code
-                        const canvas = document.createElement('canvas');
-                        QRCode.toCanvas(canvas, '{{ $item->hu_number }}', {
-                            width: 60,
-                            height: 60,
-                            margin: 1,
-                            color: {
-                                dark: '#000000',
-                                light: '#FFFFFF'
-                            }
-                        }, function(error) {
-                            if (error) {
-                                console.error('QR Code error:', error);
-                                // Fallback: tampilkan text jika QR code gagal
-                                $('#qrcode-{{ $item->hu_number }}').html('<div style="width:60px;height:60px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;">{{ $item->hu_number }}</div>');
-                            } else {
-                                // Convert canvas to image
-                                const dataURL = canvas.toDataURL('image/png');
-                                $('#qrcode-{{ $item->hu_number }}').html('<img src="' + dataURL + '" width="60" height="60" alt="QR Code">');
-                            }
-                        });
-                    } catch (error) {
-                        console.error('Error generating QR code:', error);
-                        $('#qrcode-{{ $item->hu_number }}').html('<div style="width:60px;height:60px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;">{{ $item->hu_number }}</div>');
-                    }
-                @endforeach
-            }
 
             // Refresh button
             $('#refreshBtn').on('click', function() {
@@ -655,6 +548,115 @@
                 $('#exportForm').submit();
             });
 
+            // Live Search Functionality
+            function performSearch(page = 1) {
+                const search = $('#searchInput').val();
+                const startDate = $('#startDate').val();
+                const endDate = $('#endDate').val();
+                
+                showLoading();
+                
+                $.ajax({
+                    url: '{{ route("hu.history") }}',
+                    method: 'GET',
+                    data: {
+                        search: search,
+                        start_date: startDate,
+                        end_date: endDate,
+                        page: page,
+                        ajax: 1
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#historyTableBody').html(response.tableBody);
+                            $('#paginationContainer').html(response.pagination);
+                            $('#summaryText').text(response.summary);
+                            updateSelectionUI();
+                            
+                            // Update current page
+                            currentPage = response.currentPage;
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                        hideLoading();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('AJAX Error:', error);
+                        alert('Terjadi kesalahan saat memuat data.');
+                        hideLoading();
+                    }
+                });
+            }
+
+            // Live Search with debounce
+            $('#searchInput').on('keyup', function() {
+                if (!isLiveSearchEnabled) return;
+                
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(function() {
+                    performSearch(1);
+                }, 500);
+            });
+
+            // Date filter change
+            $('#startDate, #endDate').on('change', function() {
+                if (!isLiveSearchEnabled) return;
+                
+                if ($('#startDate').val() && $('#endDate').val()) {
+                    performSearch(1);
+                }
+            });
+
+            // Manual filter button
+            $('#filterBtn').on('click', function() {
+                performSearch(1);
+            });
+
+            // Reset filter button
+            $('#resetFilterBtn').on('click', function() {
+                $('#searchInput').val('');
+                $('#startDate').val('');
+                $('#endDate').val('');
+                
+                // Set default dates
+                const today = new Date();
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(today.getDate() - 30);
+                
+                $('#startDate').val(thirtyDaysAgo.toISOString().split('T')[0]);
+                $('#endDate').val(today.toISOString().split('T')[0]);
+                
+                performSearch(1);
+            });
+
+            // Handle pagination clicks
+            $(document).on('click', '.pagination .page-link', function(e) {
+                e.preventDefault();
+                
+                const url = $(this).attr('href');
+                if (!url || url === '#') return;
+                
+                const pageMatch = url.match(/page=(\d+)/);
+                if (pageMatch) {
+                    const page = pageMatch[1];
+                    performSearch(page);
+                } else {
+                    // Try to extract page from URL structure
+                    const urlObj = new URL(url, window.location.origin);
+                    const page = urlObj.searchParams.get('page') || 1;
+                    performSearch(page);
+                }
+            });
+
+            // Loading functions
+            function showLoading() {
+                $('#loadingOverlay').fadeIn();
+            }
+
+            function hideLoading() {
+                $('#loadingOverlay').fadeOut();
+            }
+
             // Initialize UI
             updateSelectionUI();
 
@@ -665,14 +667,50 @@
             setTimeout(function() {
                 $('#successAlert').fadeOut();
             }, 5000);
+        });
 
-            // Auto submit filter form ketika input tanggal berubah
-            $('#startDate, #endDate').on('change', function() {
-                if ($('#startDate').val() && $('#endDate').val()) {
-                    $('#filterForm').submit();
+        // Generate QR Codes untuk semua HU number - Dipisahkan dari fungsi utama
+        function generateQRCodes() {
+            // Data HU numbers dari PHP
+            const huNumbers = [
+                @foreach($historyData as $item)
+                    '{{ $item->hu_number }}',
+                @endforeach
+            ];
+
+            huNumbers.forEach(function(huNumber) {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const qrcodeElement = document.getElementById('qrcode-' + huNumber);
+                    
+                    if (!qrcodeElement) return;
+                    
+                    QRCode.toCanvas(canvas, huNumber, {
+                        width: 60,
+                        height: 60,
+                        margin: 1,
+                        color: {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        }
+                    }, function(error) {
+                        if (error) {
+                            console.error('QR Code error:', error);
+                            qrcodeElement.innerHTML = '<div style="width:60px;height:60px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;">' + huNumber.substring(0, 8) + '</div>';
+                        } else {
+                            const dataURL = canvas.toDataURL('image/png');
+                            qrcodeElement.innerHTML = '<img src="' + dataURL + '" width="60" height="60" alt="QR Code">';
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error generating QR code:', error);
+                    const qrcodeElement = document.getElementById('qrcode-' + huNumber);
+                    if (qrcodeElement) {
+                        qrcodeElement.innerHTML = '<div style="width:60px;height:60px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;">' + huNumber.substring(0, 8) + '</div>';
+                    }
                 }
             });
-        });
+        }
     </script>
 </body>
 </html>
