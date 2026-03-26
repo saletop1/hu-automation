@@ -22,11 +22,48 @@
         .stock-table {
             font-size: 0.875rem;
         }
-        .refresh-btn {
-            transition: all 0.3s ease;
+        /* === TOMBOL SYNC === */
+        @keyframes spin-once {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
         }
-        .refresh-btn:hover {
-            transform: rotate(180deg);
+        @keyframes spin-loop {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+        @keyframes btn-glow-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+            50%  { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.15); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .refresh-btn {
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+            transform: none !important; /* pastikan tidak ada rotate dari style lama */
+        }
+        /* Animasi glow berdenyut saat hover — BUKAN rotate */
+        .refresh-btn:hover:not(:disabled) {
+            transform: none !important;
+            animation: btn-glow-pulse 1s ease-in-out infinite;
+        }
+        .refresh-btn .fa-sync-alt {
+            display: inline-block;
+        }
+        /* Icon TIDAK ikut berputar saat hover */
+        .refresh-btn:hover .fa-sync-alt {
+            animation: none;
+            transform: none;
+        }
+        /* Putar ikon 1x saat tombol baru diklik */
+        .refresh-btn.spin-click .fa-sync-alt {
+            animation: spin-once 0.5s ease-in-out;
+        }
+        /* Putar ikon terus-menerus selama sedang sync */
+        .refresh-btn.syncing .fa-sync-alt {
+            animation: spin-loop 0.8s linear infinite;
+        }
+        /* Matikan glow saat sedang sync (sudah ada animasi ikon) */
+        .refresh-btn.syncing:hover {
+            animation: none;
         }
         .loading-spinner {
             display: none;
@@ -1288,7 +1325,7 @@
 
         isSyncing = true;
 
-        $('#refreshStock').prop('disabled', true).addClass('disabled');
+        $('#refreshStock').prop('disabled', true).addClass('disabled syncing');
         showLoading(true);
 
         console.log('Syncing stock data for plant:', selectedPlant, 'location:', selectedStorageLocation);
@@ -1330,7 +1367,7 @@
                 isSyncing = false;
                 showLoading(false);
                 setTimeout(() => {
-                    $('#refreshStock').prop('disabled', false).removeClass('disabled');
+                    $('#refreshStock').prop('disabled', false).removeClass('disabled syncing');
                 }, 1000);
             }
         });
@@ -1904,6 +1941,10 @@
         // Event handlers
         $('#refreshStock').off('click').on('click', function() {
             if (!isSyncing) {
+                // Tambah animasi spin sekali saat diklik
+                const btn = $(this);
+                btn.addClass('spin-click');
+                setTimeout(() => btn.removeClass('spin-click'), 500);
                 syncStockData();
             }
         });
