@@ -1,177 +1,159 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-3">
+<div class="container-fluid py-2">
     <!-- Alert Messages -->
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-3" role="alert">
-            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-2 py-1 px-2 small" role="alert">
+            <i class="fas fa-check-circle me-1"></i>{{ session('success') }}
+            <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
         </div>
     @endif
-
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-3" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-2 py-1 px-2 small" role="alert">
+            <i class="fas fa-exclamation-triangle me-1"></i>{{ session('error') }}
+            <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary btn-sm px-3">
-                    <i class="fas fa-arrow-left me-1"></i>Back
-                </a>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-danger btn-sm px-3" onclick="resetForm()">
-                        <i class="fas fa-times me-1"></i>Cancel
-                    </button>
-                    <button type="button" class="btn btn-success btn-sm px-3" id="createHuButton">
-                        <i class="fas fa-save me-1"></i>Create HU
-                    </button>
-                </div>
+    <!-- Top Bar: Header + Action Buttons dalam 1 baris -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="d-flex align-items-center gap-2">
+            <div class="bg-green-100 rounded-circle d-flex align-items-center justify-content-center" style="width:30px;height:30px;min-width:30px">
+                <i class="fas fa-boxes text-green-600" style="font-size:0.85rem"></i>
             </div>
+            <div>
+                <h1 class="h6 fw-bold text-gray-800 mb-0 lh-1">Skenario 2 — Single HU, Multiple Materials</h1>
+                <span class="text-muted" style="font-size:0.8rem">1 HU berisi banyak material</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary btn-sm py-1 px-2">
+                <i class="fas fa-arrow-left me-1"></i>Back
+            </a>
+            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2" onclick="resetForm()">
+                <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="button" class="btn btn-success btn-sm py-1 px-2" id="createHuButton">
+                <i class="fas fa-save me-1"></i>Create HU
+            </button>
         </div>
     </div>
 
-    <!-- Header Section -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="d-flex align-items-center">
-                <div class="bg-green-100 rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
-                    <i class="fas fa-boxes text-green-600"></i>
-                </div>
-                <div>
-                    <h1 class="h4 fw-bold text-gray-800 mb-0">Skenario 2</h1>
-                    <p class="text-muted small mb-0">Create Single HU with Multiple Materials</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <form action="{{ route('hu.store-single-multi') }}" method="POST" id="huForm">
+        @csrf
+        <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
+        <input type="hidden" id="sap_user" name="sap_user" value="">
+        <input type="hidden" id="sap_password" name="sap_password" value="">
 
-    <div class="row justify-content-center">
-        <div class="col-xxl-10 col-xl-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white py-2 border-bottom">
-                    <h6 class="card-title mb-0 fw-bold text-gray-800">
-                        <i class="fas fa-boxes me-1 text-green-500"></i>
-                        Create Single HU with Multiple Materials
-                    </h6>
-                </div>
+        <div class="row g-2">
 
-                <div class="card-body p-3">
-                    <form action="{{ route('hu.store-single-multi') }}" method="POST" id="huForm">
-                        @csrf
-                        <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
-                        <input type="hidden" id="sap_user" name="sap_user" value="">
-                        <input type="hidden" id="sap_password" name="sap_password" value="">
+            <!-- ===== KIRI: HU Header ===== -->
+            <div class="col-lg-4 col-xl-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-1 px-3 border-bottom d-flex align-items-center gap-1">
+                        <i class="fas fa-edit text-blue-500" style="font-size:0.85rem"></i>
+                        <span class="fw-semibold" style="font-size:0.85rem">HU Header Information</span>
+                    </div>
+                    <div class="card-body p-3">
 
-                        <div class="row">
-                            <!-- Left Column: Header Information -->
-                            <div class="col-lg-5 col-xl-4 mb-3 mb-lg-0">
-                                <h6 class="fw-semibold text-gray-700 mb-2 border-bottom pb-1">
-                                    <i class="fas fa-header me-1 text-blue-500"></i>
-                                    HU Header Information
-                                </h6>
-
-                                <!-- HU External ID -->
-                                <div class="mb-3">
-                                    <label for="hu_exid" class="form-label fw-semibold small">
-                                        HU External ID <span class="text-danger">*</span>
-                                    </label>
-                                    <div class="input-group input-group-sm">
-                                        <span class="input-group-text bg-light border-end-0">
-                                            <i class="fas fa-barcode text-green-500"></i>
-                                        </span>
-                                        <input type="text" class="form-control border-start-0 hu-exid-input"
-                                               id="hu_exid" name="hu_exid" maxlength="10"
-                                               value="{{ old('hu_exid') }}" required
-                                               placeholder="Enter 10 digits"
-                                               oninput="validateHuExid(this)">
-                                    </div>
-                                    <div class="form-text small">
-                                        <span id="hu_exid_status" class="text-muted">Enter 10 digits</span>
-                                    </div>
-                                </div>
-
-                                <!-- Packaging Material -->
-                                <div class="mb-3">
-                                    <label for="pack_mat" class="form-label fw-semibold small">
-                                        Packaging Material <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select form-select-sm" id="pack_mat" name="pack_mat">
-                                        <option value="">Select Packaging Material</option>
-                                        <option value="VSTDPLTBW01">VSTDPLTBW01</option>
-                                        <option value="VSTDPLTBW02">VSTDPLTBW02</option>
-                                        <option value="50016873">50016873</option>
-                                    </select>
-                                    <div class="form-text small" id="pack_mat_suggestion">
-                                        Select packaging material
-                                    </div>
-                                </div>
-
-                                <!-- Plant -->
-                                <div class="mb-3">
-                                    <label for="plant" class="form-label fw-semibold small">
-                                        Plant <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" class="form-control form-control-sm bg-light"
-                                           id="plant" name="plant" value="{{ old('plant') }}" required readonly>
-                                </div>
-
-                                <!-- Storage Location -->
-                                <div class="mb-3">
-                                    <label for="stge_loc" class="form-label fw-semibold small">
-                                        Storage Location <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" class="form-control form-control-sm bg-light"
-                                           id="stge_loc" name="stge_loc" value="{{ old('stge_loc') }}" required readonly>
-                                </div>
-
-                                <!-- Info Alert -->
-                                <div class="alert alert-info bg-light border-0 py-1 px-2 small">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    Header information will be auto-filled from selected materials
-                                </div>
+                        <!-- HU External ID -->
+                        <div class="mb-2">
+                            <label for="hu_exid" class="form-label fw-semibold mb-1" style="font-size:0.83rem">
+                                HU External ID <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0" style="font-size:0.83rem">
+                                    <i class="fas fa-barcode text-green-500"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0 hu-exid-input"
+                                       id="hu_exid" name="hu_exid" maxlength="10"
+                                       value="{{ old('hu_exid') }}" required
+                                       placeholder="10 digits"
+                                       oninput="validateHuExid(this)"
+                                       style="font-size:0.85rem">
                             </div>
-
-                            <!-- Right Column: Materials List -->
-                            <div class="col-lg-7 col-xl-8">
-                                <!-- Materials Header -->
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="fw-semibold text-gray-700 mb-0">
-                                        <i class="fas fa-list me-1 text-orange-500"></i>
-                                        Materials List
-                                    </h6>
-                                    <span id="materialCount" class="badge bg-success">0 items</span>
-                                </div>
-
-                                <!-- Materials Info -->
-                                <div class="alert alert-info bg-light border-0 py-1 px-2 small mb-2">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    Material data will be auto-filled from drag & drop on main page
-                                </div>
-
-                                <!-- Materials Container -->
-                                <div id="items-container" class="compact-list-container mb-2">
-                                    <!-- Items will be dynamically added here -->
-                                </div>
-
-                                <!-- Empty State -->
-                                <div id="itemsPreview" class="text-center py-4 border-2 border-dashed rounded bg-light">
-                                    <i class="fas fa-boxes fa-2x text-gray-400 mb-2"></i>
-                                    <h6 class="text-muted mb-1">No Materials</h6>
-                                    <p class="text-muted small mb-0">Material data will appear here after selecting from main page</p>
-                                </div>
+                            <div style="font-size:0.75rem;margin-top:2px">
+                                <span id="hu_exid_status" class="text-muted">Enter 10 digits</span>
                             </div>
                         </div>
-                    </form>
+
+                        <!-- Packaging Material -->
+                        <div class="mb-2">
+                            <label for="pack_mat" class="form-label fw-semibold mb-1" style="font-size:0.83rem">
+                                Packaging Material <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select form-select-sm" id="pack_mat" name="pack_mat" style="font-size:0.85rem">
+                                <option value="">— Select —</option>
+                                <option value="VSTDPLTBW01">VSTDPLTBW01</option>
+                                <option value="VSTDPLTBW02">VSTDPLTBW02</option>
+                                <option value="50016873">50016873</option>
+                            </select>
+                            <div style="font-size:0.75rem;margin-top:2px" id="pack_mat_suggestion">
+                                <span class="text-muted">Select packaging material</span>
+                            </div>
+                        </div>
+
+                        <!-- Plant & Storage Location (read-only info grid) -->
+                        <div class="mt-2 rounded border overflow-hidden" style="font-size:0.83rem">
+                            <div class="info-row-sm">
+                                <span class="info-label-sm">Plant</span>
+                                <input type="text" class="info-input-sm" id="plant" name="plant"
+                                       value="{{ old('plant') }}" required readonly>
+                            </div>
+                            <div class="info-row-sm" style="border-bottom:none">
+                                <span class="info-label-sm">Stor. Loc</span>
+                                <input type="text" class="info-input-sm" id="stge_loc" name="stge_loc"
+                                       value="{{ old('stge_loc') }}" required readonly>
+                            </div>
+                        </div>
+                        <p class="text-muted mt-1 mb-0" style="font-size:0.72rem">
+                            <i class="fas fa-info-circle me-1"></i>Plant & Lokasi otomatis dari material
+                        </p>
+
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
+
+            <!-- ===== KANAN: Materials List ===== -->
+            <div class="col-lg-8 col-xl-9">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-1 px-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-1">
+                            <i class="fas fa-list text-orange-500" style="font-size:0.85rem"></i>
+                            <span class="fw-semibold" style="font-size:0.85rem">Materials List</span>
+                        </div>
+                        <span id="materialCount" class="badge bg-success" style="font-size:0.75rem">0 items</span>
+                    </div>
+                    <div class="card-body p-2">
+
+                        <!-- Empty State -->
+                        <div id="itemsPreview" class="text-center py-3 border-dashed rounded" style="border:2px dashed #dee2e6">
+                            <i class="fas fa-boxes fa-lg text-gray-400 mb-1"></i>
+                            <p class="text-muted mb-0" style="font-size:0.83rem">Belum ada material — pilih dari main page dengan drag & drop</p>
+                        </div>
+
+                        <!-- Materials Table Container -->
+                        <div id="items-container" style="display:none">
+                            <!-- Header row tabel -->
+                            <div class="mat-table-header">
+                                <div class="mat-col mat-col-no">#</div>
+                                <div class="mat-col mat-col-mat">Material</div>
+                                <div class="mat-col mat-col-desc">Deskripsi</div>
+                                <div class="mat-col mat-col-batch">Batch</div>
+                                <div class="mat-col mat-col-stock">Stock</div>
+                                <div class="mat-col mat-col-so">Sales Order</div>
+                                <div class="mat-col mat-col-qty">Pack Qty <span class="text-danger">*</span></div>
+                            </div>
+                            <!-- Rows akan di-inject JS di sini -->
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /row -->
+    </form>
 </div>
 
 <!-- Modal SAP Credentials -->
@@ -225,39 +207,111 @@
 
 @push('styles')
 <style>
-.border-dashed { border-style: dashed !important; }
-.compact-list-container { display: none; }
-.compact-item {
-    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 8px; margin-bottom: 8px;
-    border-left: 3px solid #28a745;
-}
-.compact-item:hover { background: #e9ecef; border-color: #dee2e6; }
-.compact-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.compact-item-title { font-weight: 600; color: #333; font-size: 0.8rem; }
-.compact-item-badge { background: #28a745; color: white; padding: 1px 6px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; }
-.compact-item-content { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.75rem; }
-.compact-item-field { display: flex; flex-direction: column; }
-.compact-item-label { font-weight: 500; color: #6c757d; font-size: 0.7rem; margin-bottom: 2px; }
-.compact-item-value { color: #333; font-weight: 400; }
-.compact-item-input { width: 100%; padding: 4px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 0.75rem; }
-.compact-item-input:focus { border-color: #28a745; outline: none; box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.15); }
-.hu-exid-input { border-color: #6c757d !important; }
-.hu-exid-input.valid { border-color: #198754 !important; box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.15); }
-.hu-exid-input.warning { border-color: #ffc107 !important; box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.15); }
-.hu-exid-input.invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.15); }
-.status-valid { color: #198754; font-weight: 600; font-size: 0.7rem; }
-.status-warning { color: #ffc107; font-weight: 600; font-size: 0.7rem; }
-.status-invalid { color: #dc3545; font-weight: 600; font-size: 0.7rem; }
-.form-text { font-size: 0.7rem; }
-.form-control-sm, .form-select-sm { font-size: 0.8rem; }
-.alert { font-size: 0.8rem; }
-.small { font-size: 0.8rem; }
+/* === COLOR UTILS === */
+.bg-green-100 { background-color: #d1fae5; }
+.text-green-600 { color: #059669; }
+.text-green-500 { color: #10b981; }
+.text-blue-500  { color: #2196f3; }
+.text-orange-500{ color: #f97316; }
 
-/* Responsive adjustments */
+/* === HU EXID === */
+.hu-exid-input { border-color: #6c757d !important; }
+.hu-exid-input.valid   { border-color: #198754 !important; box-shadow: 0 0 0 2px rgba(25,135,84,.15); }
+.hu-exid-input.warning { border-color: #ffc107 !important; box-shadow: 0 0 0 2px rgba(255,193,7,.15); }
+.hu-exid-input.invalid { border-color: #dc3545 !important; box-shadow: 0 0 0 2px rgba(220,53,69,.15); }
+.status-valid   { color: #198754; font-weight:600; font-size:0.68rem; }
+.status-warning { color: #e6a817; font-weight:600; font-size:0.68rem; }
+.status-invalid { color: #dc3545; font-weight:600; font-size:0.68rem; }
+
+/* === INFO ROW (Plant / Stor.Loc readonly) === */
+.info-row-sm {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #f0f0f0;
+    padding: 4px 8px;
+    background: #fafafa;
+}
+.info-label-sm {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #6c757d;
+    min-width: 60px;
+    flex-shrink: 0;
+}
+.info-input-sm {
+    border: none;
+    background: transparent;
+    font-size: 0.85rem;
+    color: #1f2937;
+    font-weight: 500;
+    padding: 0;
+    width: 100%;
+    outline: none;
+}
+
+/* === MATERIAL TABLE === */
+.mat-table-header {
+    display: flex;
+    align-items: center;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px 4px 0 0;
+    padding: 5px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.03em;
+}
+.mat-row {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+    background: #fff;
+    transition: background 0.1s;
+}
+.mat-row:last-child { border-radius: 0 0 4px 4px; }
+.mat-row:nth-child(even) { background: #f8fafc; }
+.mat-row:hover { background: #f0fdf4; }
+.mat-col         { padding: 0 5px; overflow: hidden; }
+.mat-col-no      { width: 28px;  flex-shrink:0; color:#94a3b8; font-size:0.72rem; text-align:center; }
+.mat-col-mat     { width: 100px; flex-shrink:0; font-weight:600; font-family:monospace; color:#1e40af; font-size:0.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mat-col-desc    { flex: 1;      color:#4b5563; font-size:0.8rem; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mat-col-batch   { width: 88px;  flex-shrink:0; font-family:monospace; font-size:0.8rem; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mat-col-stock   { width: 80px;  flex-shrink:0; text-align:center; }
+/* Sales Order: tidak dipotong, biarkan wrap */
+.mat-col-so      { width: 120px; flex-shrink:0; font-family:monospace; font-size:0.78rem; color:#6b7280; white-space:normal; word-break:break-all; line-height:1.3; }
+.mat-col-qty     { width: 108px; flex-shrink:0; }
+
+.stock-badge {
+    background: #16a34a;
+    color: white;
+    padding: 2px 7px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.qty-input {
+    width: 100%;
+    padding: 3px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    text-align: right;
+}
+.qty-input:focus {
+    border-color: #28a745;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(40,167,69,.15);
+}
+
 @media (max-width: 991.98px) {
-    .compact-item-content {
-        grid-template-columns: 1fr;
-    }
+    .mat-col-desc, .mat-col-so { display: none; }
 }
 </style>
 @endpush
@@ -307,8 +361,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Reset counter
                 itemCount = 0;
 
-                // Clear container
-                document.getElementById('items-container').innerHTML = '';
+                // Clear container (hanya hapus baris, bukan header tabel)
+                const existingRows = document.querySelectorAll('#items-container .mat-row');
+                existingRows.forEach(r => r.remove());
 
                 // Isi header dengan data dari item pertama
                 const firstItem = materials[0];
@@ -470,76 +525,50 @@ function getSalesOrderNo(item) {
     return '';
 }
 
-// Fungsi add item to form
+// Fungsi add item to form — versi tabel padat
 function addItemToForm(item, index) {
     const container = document.getElementById('items-container');
 
-    // Validasi data
-    const material = item.material || '';
-    const batch = item.batch || '';
-    const plant = item.plant || '3000';
-    const storageLocation = item.storage_location || '3D10';
-
-    // Handle stock quantity
-    let stockQty = 0;
-    if (item.stock_quantity !== undefined && item.stock_quantity !== null) {
-        stockQty = parseFloat(item.stock_quantity);
-    }
-    if (isNaN(stockQty)) stockQty = 0;
-
-    const salesOrderNo = getSalesOrderNo(item);
-    const formattedMaterial = formatMaterialNumber(material);
+    const material         = item.material || '';
+    const batch            = item.batch || '';
+    const plant            = item.plant || '3000';
+    const storageLocation  = item.storage_location || '3D10';
     const materialDescription = item.material_description || '';
 
-    console.log(`📝 Creating form item ${itemCount}:`, {
-        material: formattedMaterial,
-        batch: batch,
-        stockQty: stockQty
-    });
+    let stockQty = parseFloat(item.stock_quantity);
+    if (isNaN(stockQty)) stockQty = 0;
 
-    const newItem = document.createElement('div');
-    newItem.className = 'compact-item';
-    newItem.innerHTML = `
-        <div class="compact-item-header">
-            <div class="compact-item-title">
-                <i class="fas fa-box me-1 text-green-500"></i>
-                ${formattedMaterial}
-            </div>
-            <div class="compact-item-badge">${stockQty.toLocaleString('id-ID')} PC</div>
+    const salesOrderNo     = getSalesOrderNo(item);
+    const formattedMaterial = formatMaterialNumber(material);
+    const rowNum           = itemCount + 1;
+
+    console.log(`📝 Creating table row ${itemCount}:`, { material: formattedMaterial, batch, stockQty });
+
+    const row = document.createElement('div');
+    row.className = 'mat-row';
+    row.innerHTML = `
+        <div class="mat-col mat-col-no">${rowNum}</div>
+        <div class="mat-col mat-col-mat" title="${formattedMaterial}">
+            ${formattedMaterial}
+            <input type="hidden" name="items[${itemCount}][material]" value="${formattedMaterial}">
+            <input type="hidden" name="items[${itemCount}][batch]" value="${batch}">
+            <input type="hidden" name="items[${itemCount}][plant]" value="${plant}">
+            <input type="hidden" name="items[${itemCount}][storage_location]" value="${storageLocation}">
+            <input type="hidden" name="items[${itemCount}][sp_stck_no]" value="${salesOrderNo}">
         </div>
-        <div class="compact-item-content">
-            <div class="compact-item-field">
-                <span class="compact-item-label">Material</span>
-                <span class="compact-item-value">${formattedMaterial}</span>
-                <input type="hidden" name="items[${itemCount}][material]" value="${formattedMaterial}">
-            </div>
-            <div class="compact-item-field">
-                <span class="compact-item-label">Batch</span>
-                <span class="compact-item-value">${batch || '-'}</span>
-                <input type="hidden" name="items[${itemCount}][batch]" value="${batch}">
-            </div>
-            <div class="compact-item-field">
-                <span class="compact-item-label">Pack Qty <span class="text-danger">*</span></span>
-                <input type="number" class="compact-item-input" name="items[${itemCount}][pack_qty]"
-                       placeholder="Enter quantity" step="0.001" min="0.001" max="${stockQty}"
-                       required data-max-qty="${stockQty}">
-            </div>
-            <div class="compact-item-field">
-                <span class="compact-item-label">Sales Order</span>
-                <span class="compact-item-value">${salesOrderNo || '-'}</span>
-                <input type="hidden" name="items[${itemCount}][sp_stck_no]" value="${salesOrderNo}">
-                <input type="hidden" name="items[${itemCount}][plant]" value="${plant}">
-                <input type="hidden" name="items[${itemCount}][storage_location]" value="${storageLocation}">
-            </div>
+        <div class="mat-col mat-col-desc" title="${materialDescription}">${materialDescription || '-'}</div>
+        <div class="mat-col mat-col-batch" title="${batch}">${batch || '-'}</div>
+        <div class="mat-col mat-col-stock">
+            <span class="stock-badge">${stockQty.toLocaleString('id-ID')} PC</span>
         </div>
-        ${materialDescription ? `
-            <div class="compact-item-field mt-2">
-                <span class="compact-item-label">Description</span>
-                <span class="compact-item-value">${materialDescription}</span>
-            </div>
-        ` : ''}
+        <div class="mat-col mat-col-so" title="${salesOrderNo}">${salesOrderNo || '-'}</div>
+        <div class="mat-col mat-col-qty">
+            <input type="number" class="qty-input" name="items[${itemCount}][pack_qty]"
+                   placeholder="0" step="1" min="1" max="${stockQty}"
+                   value="${stockQty}" required data-max-qty="${stockQty}">
+        </div>
     `;
-    container.appendChild(newItem);
+    container.appendChild(row);
     itemCount++;
 }
 

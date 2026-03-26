@@ -1,268 +1,214 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-3">
+<div class="container-fluid py-2">
     <!-- Alert Messages -->
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-3" role="alert">
-            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-2 py-1 px-2 small" role="alert">
+            <i class="fas fa-check-circle me-1"></i>{{ session('success') }}
+            <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
         </div>
     @endif
-
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-3" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-2 py-1 px-2 small" role="alert">
+            <i class="fas fa-exclamation-triangle me-1"></i>{{ session('error') }}
+            <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary btn-sm px-3">
-                    <i class="fas fa-arrow-left me-1"></i>Back
-                </a>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-danger btn-sm px-3" onclick="resetForm()">
-                        <i class="fas fa-times me-1"></i>Cancel
-                    </button>
-                    <button type="button" class="btn btn-primary btn-sm px-3" id="createHuButton">
-                        <i class="fas fa-save me-1"></i>Create All
-                    </button>
-                </div>
+    <!-- Top Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="d-flex align-items-center gap-2">
+            <div class="bg-purple-100 rounded-circle d-flex align-items-center justify-content-center" style="width:30px;height:30px;min-width:30px">
+                <i class="fas fa-pallet text-purple-600" style="font-size:0.85rem"></i>
             </div>
+            <div>
+                <h1 class="h6 fw-bold text-gray-800 mb-0 lh-1">Skenario 3 &mdash; Create Multiple HUs</h1>
+                <span class="text-muted" style="font-size:0.8rem">Flexible Quantity per HU</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('hu.index') }}" class="btn btn-outline-secondary btn-sm py-1 px-2">
+                <i class="fas fa-arrow-left me-1"></i>Back
+            </a>
+            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2" onclick="resetForm()">
+                <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="button" class="btn btn-primary btn-sm py-1 px-2" id="createHuButton">
+                <i class="fas fa-save me-1"></i>Create All
+            </button>
         </div>
     </div>
 
-    <!-- Header Section -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="d-flex align-items-center">
-                <div class="bg-purple-100 rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
-                    <i class="fas fa-pallet text-purple-600"></i>
-                </div>
-                <div>
-                    <h1 class="h4 fw-bold text-gray-800 mb-0">Skenario 3</h1>
-                    <p class="text-muted small mb-0">Create Multiple HUs (Flexible Quantity)</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <form action="{{ route('hu.store-multiple') }}" method="POST" id="huForm">
+        @csrf
+        <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
+        <input type="hidden" id="sap_user" name="sap_user" value="">
+        <input type="hidden" id="sap_password" name="sap_password" value="">
+        <input type="hidden" id="creation_mode" name="creation_mode" value="split">
+        <input type="hidden" id="total_hus" name="total_hus" value="0">
 
-    <div class="row justify-content-center">
-        <div class="col-xxl-10 col-xl-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white py-2 border-bottom">
-                    <h6 class="card-title mb-0 fw-bold text-gray-800">
-                        <i class="fas fa-pallet me-1 text-purple-500"></i>
-                        Create Multiple Handling Units
-                    </h6>
-                </div>
+        <div class="row g-2">
 
-                <div class="card-body p-3">
-                    <!-- Form harus mencakup kedua kolom -->
-                    <form action="{{ route('hu.store-multiple') }}" method="POST" id="huForm">
-                        @csrf
-                        <input type="hidden" id="base_unit_qty" name="base_unit_qty" value="">
-                        <input type="hidden" id="sap_user" name="sap_user" value="">
-                        <input type="hidden" id="sap_password" name="sap_password" value="">
-                        <input type="hidden" id="creation_mode" name="creation_mode" value="split">
-                        <input type="hidden" id="total_hus" name="total_hus" value="0">
+            <!-- KIRI: Settings -->
+            <div class="col-lg-3 col-xl-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-1 px-3 border-bottom d-flex align-items-center gap-1">
+                        <i class="fas fa-cogs text-purple-500" style="font-size:0.85rem"></i>
+                        <span class="fw-semibold" style="font-size:0.85rem">Creation Settings</span>
+                    </div>
+                    <div class="card-body p-2">
 
-                        <div class="row">
-                            <!-- Left Column: Creation Mode Settings -->
-                            <div class="col-lg-5 col-xl-4 mb-3 mb-lg-0">
-                                <!-- Mode Selection -->
-                                <div class="card bg-light border-0 mb-3">
-                                    <div class="card-body p-2">
-                                        <h6 class="fw-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-cogs me-1 text-purple-500"></i>
-                                            Creation Mode
-                                        </h6>
-                                        <div class="row g-1 mb-2">
-                                            <div class="col-4">
-                                                <div class="form-check card-mode-selector">
-                                                    <input class="form-check-input" type="radio" name="creationMode" id="modeSplit" value="split" checked>
-                                                    <label class="form-check-label w-100" for="modeSplit">
-                                                        <div class="card border-2">
-                                                            <div class="card-body p-1 text-center">
-                                                                <i class="fas fa-cubes fa-lg text-primary mb-1"></i>
-                                                                <h6 class="fw-bold small mb-1">Split</h6>
-                                                                <small class="text-muted">1 HU = 1 PC</small>
-                                                            </div>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            <div class="col-4">
-                                                <div class="form-check card-mode-selector">
-                                                    <input class="form-check-input" type="radio" name="creationMode" id="modeSingle" value="single">
-                                                    <label class="form-check-label w-100" for="modeSingle">
-                                                        <div class="card border-2">
-                                                            <div class="card-body p-1 text-center">
-                                                                <i class="fas fa-cube fa-lg text-success mb-1"></i>
-                                                                <h6 class="fw-bold small mb-1">Single</h6>
-                                                                <small class="text-muted">1 HU = Total</small>
-                                                            </div>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            <div class="col-4">
-                                                <div class="form-check card-mode-selector">
-                                                    <input class="form-check-input" type="radio" name="creationMode" id="modePartial" value="partial">
-                                                    <label class="form-check-label w-100" for="modePartial">
-                                                        <div class="card border-2">
-                                                            <div class="card-body p-1 text-center">
-                                                                <i class="fas fa-sliders fa-lg text-warning mb-1"></i>
-                                                                <h6 class="fw-bold small mb-1">Partial</h6>
-                                                                <small class="text-muted">Custom Qty</small>
-                                                            </div>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
+                        <p class="text-uppercase fw-bold mb-1" style="font-size:0.68rem;color:#8b5cf6;letter-spacing:0.05em">Mode</p>
+                        <div class="row g-1 mb-2">
+                            <div class="col-4">
+                                <div class="form-check card-mode-selector p-0">
+                                    <input class="form-check-input" type="radio" name="creationMode" id="modeSplit" value="split" checked>
+                                    <label class="form-check-label w-100" for="modeSplit">
+                                        <div class="card border mode-card text-center p-1">
+                                            <i class="fas fa-cubes text-primary" style="font-size:0.9rem"></i>
+                                            <div style="font-size:0.72rem;font-weight:700">Split</div>
+                                            <div style="font-size:0.62rem;color:#6c757d">1 HU=1 PC</div>
                                         </div>
-
-                                        <div class="mb-2">
-                                            <div id="modeSplitDesc" class="mode-description">
-                                                <small class="text-muted">
-                                                    <i class="fas fa-info-circle me-1"></i>
-                                                    <strong>Split:</strong> Each PC becomes separate HU
-                                                </small>
-                                            </div>
-                                            <div id="modeSingleDesc" class="mode-description d-none">
-                                                <small class="text-muted">
-                                                    <i class="fas fa-info-circle me-1"></i>
-                                                    <strong>Single:</strong> All quantity merged in 1 HU
-                                                </small>
-                                            </div>
-                                            <div id="modePartialDesc" class="mode-description d-none">
-                                                <small class="text-muted">
-                                                    <i class="fas fa-info-circle me-1"></i>
-                                                    <strong>Partial:</strong> Create HUs with custom quantity
-                                                </small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Partial Quantity Settings -->
-                                <div id="partialSettings" class="card bg-warning bg-opacity-10 border-warning mb-3 d-none">
-                                    <div class="card-body p-2">
-                                        <h6 class="fw-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-edit me-1 text-warning"></i>
-                                            Partial Quantity Settings
-                                        </h6>
-                                        <div class="mb-2">
-                                            <label class="form-label fw-semibold small">Total Qty to Create</label>
-                                            <input type="number" class="form-control form-control-sm" id="partialTotalQty"
-                                                   placeholder="Enter total PCs" min="1" step="1">
-                                            <small class="text-muted">Total PCs to create as HUs</small>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label class="form-label fw-semibold small">Qty per HU</label>
-                                            <select class="form-select form-select-sm" id="partialQtyPerHU">
-                                                <option value="1">1 PC/HU</option>
-                                                <option value="2">2 PC/HU</option>
-                                                <option value="5">5 PC/HU</option>
-                                                <option value="10">10 PC/HU</option>
-                                                <option value="custom">Custom...</option>
-                                            </select>
-                                            <div id="customQtyContainer" class="mt-1 d-none">
-                                                <input type="number" class="form-control form-control-sm" id="customQtyPerHU"
-                                                       placeholder="Custom qty per HU" min="1" step="1">
-                                            </div>
-                                        </div>
-                                        <div class="alert alert-info py-1 px-2 mt-1 small">
-                                            <i class="fas fa-lightbulb me-1"></i>
-                                            Create partial HUs even if more stock available
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Auto Sequence Settings -->
-                                <div class="card bg-light border-0">
-                                    <div class="card-body p-2">
-                                        <h6 class="fw-semibold text-gray-700 mb-2">
-                                            <i class="fas fa-magic me-1 text-purple-500"></i>
-                                            Auto Sequence Settings
-                                        </h6>
-                                        <div class="mb-2">
-                                            <label class="form-label fw-semibold small">
-                                                <i class="fas fa-barcode me-1 text-purple-500"></i>
-                                                HU External ID
-                                            </label>
-                                            <div class="alert alert-info p-1 small">
-                                                <i class="fas fa-info-circle me-1"></i>
-                                                10 digits number. Fill first HU manually, others auto-sequence.
-                                            </div>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label class="form-label fw-semibold small">
-                                                <i class="fas fa-box me-1 text-purple-500"></i>
-                                                Packaging Material
-                                            </label>
-                                            <select class="form-select form-select-sm" id="globalPackMat">
-                                                <option value="">Select Pack Mat (Apply to All)</option>
-                                                <option value="VSTDPLTBW01">VSTDPLTBW01</option>
-                                                <option value="VSTDPLBW002">VSTDPLBW002</option>
-                                                <option value="50016873">50016873</option>
-                                            </select>
-                                            <small class="text-muted">Select once, applies to all HUs</small>
-                                        </div>
-                                    </div>
+                                    </label>
                                 </div>
                             </div>
-
-                            <!-- Right Column: HU List -->
-                            <div class="col-lg-7 col-xl-8">
-                                <!-- Summary and Info -->
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="fw-semibold text-gray-700 mb-0">
-                                        <i class="fas fa-list-ol me-1 text-purple-500"></i>
-                                        Handling Units List
-                                    </h6>
-                                    <div>
-                                        <span id="huCount" class="badge bg-purple me-1">0 HUs</span>
-                                        <span id="totalQty" class="badge bg-success">0 PC</span>
-                                    </div>
+                            <div class="col-4">
+                                <div class="form-check card-mode-selector p-0">
+                                    <input class="form-check-input" type="radio" name="creationMode" id="modeSingle" value="single">
+                                    <label class="form-check-label w-100" for="modeSingle">
+                                        <div class="card border mode-card text-center p-1">
+                                            <i class="fas fa-cube text-success" style="font-size:0.9rem"></i>
+                                            <div style="font-size:0.72rem;font-weight:700">Single</div>
+                                            <div style="font-size:0.62rem;color:#6c757d">1 HU=Total</div>
+                                        </div>
+                                    </label>
                                 </div>
-
-                                <div class="alert alert-info bg-light border-0 py-1 px-2 small mb-2">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    <span id="modeDescription">Each PC will be separate HU for material with qty > 1</span>
-                                    <br>
-                                    <i class="fas fa-lightbulb me-1 text-warning"></i>
-                                    <strong>Tip:</strong> Fill first HU's External ID & Pack Mat, others auto-follow
-                                </div>
-
-                                <!-- HU List Container -->
-                                <div id="hus-container" class="compact-list-container mb-2">
-                                    <!-- HUs will be dynamically added here -->
-                                </div>
-
-                                <!-- Empty State -->
-                                <div id="husPreview" class="text-center py-4 border-2 border-dashed rounded bg-light">
-                                    <i class="fas fa-pallet fa-2x text-gray-400 mb-2"></i>
-                                    <h6 class="text-muted mb-1">No Handling Units</h6>
-                                    <p class="text-muted small mb-0">HU data will appear here after selecting materials from main page</p>
-                                </div>
-
-                                <!-- Stock Validation Info -->
-                                <div id="stockValidation" class="alert alert-warning mt-2 d-none py-1 px-2 small">
-                                    <i class="fas fa-exclamation-triangle me-1"></i>
-                                    <span id="stockValidationMessage"></span>
+                            </div>
+                            <div class="col-4">
+                                <div class="form-check card-mode-selector p-0">
+                                    <input class="form-check-input" type="radio" name="creationMode" id="modePartial" value="partial">
+                                    <label class="form-check-label w-100" for="modePartial">
+                                        <div class="card border mode-card text-center p-1">
+                                            <i class="fas fa-sliders text-warning" style="font-size:0.9rem"></i>
+                                            <div style="font-size:0.72rem;font-weight:700">Partial</div>
+                                            <div style="font-size:0.62rem;color:#6c757d">Custom Qty</div>
+                                        </div>
+                                    </label>
                                 </div>
                             </div>
                         </div>
-                    </form>
+
+                        <div id="modeSplitDesc" class="mode-description" style="font-size:0.72rem;color:#6c757d;margin-bottom:6px">
+                            <i class="fas fa-info-circle me-1 text-primary"></i><strong>Split:</strong> Setiap PC jadi HU terpisah
+                        </div>
+                        <div id="modeSingleDesc" class="mode-description d-none" style="font-size:0.72rem;color:#6c757d;margin-bottom:6px">
+                            <i class="fas fa-info-circle me-1 text-success"></i><strong>Single:</strong> Semua qty digabung dalam 1 HU
+                        </div>
+                        <div id="modePartialDesc" class="mode-description d-none" style="font-size:0.72rem;color:#6c757d;margin-bottom:6px">
+                            <i class="fas fa-info-circle me-1 text-warning"></i><strong>Partial:</strong> Buat HU dengan qty custom
+                        </div>
+
+                        <!-- Partial Settings -->
+                        <div id="partialSettings" class="d-none rounded p-2 mb-2" style="background:#fffbeb;border:1px solid #fde68a">
+                            <p class="text-uppercase fw-bold mb-1" style="font-size:0.68rem;color:#d97706;letter-spacing:0.05em">Partial Settings</p>
+                            <div class="mb-1">
+                                <label class="form-label fw-semibold mb-0" style="font-size:0.75rem">Total Qty</label>
+                                <input type="number" class="form-control form-control-sm" id="partialTotalQty"
+                                       placeholder="Total PCs" min="1" step="1" style="font-size:0.83rem">
+                            </div>
+                            <div class="mb-1">
+                                <label class="form-label fw-semibold mb-0" style="font-size:0.75rem">Qty per HU</label>
+                                <select class="form-select form-select-sm" id="partialQtyPerHU" style="font-size:0.83rem">
+                                    <option value="1">1 PC/HU</option>
+                                    <option value="2">2 PC/HU</option>
+                                    <option value="5">5 PC/HU</option>
+                                    <option value="10">10 PC/HU</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                                <div id="customQtyContainer" class="mt-1 d-none">
+                                    <input type="number" class="form-control form-control-sm" id="customQtyPerHU"
+                                           placeholder="Custom qty/HU" min="1" step="1" style="font-size:0.83rem">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-2">
+
+                        <p class="text-uppercase fw-bold mb-1" style="font-size:0.68rem;color:#8b5cf6;letter-spacing:0.05em">Auto Sequence</p>
+                        <p style="font-size:0.72rem;color:#6c757d;margin-bottom:6px">
+                            <i class="fas fa-barcode me-1 text-purple-500"></i>
+                            Isi HU di line 1, sisanya auto-urut
+                        </p>
+                        <div>
+                            <label class="form-label fw-semibold mb-1" style="font-size:0.75rem">
+                                <i class="fas fa-box me-1 text-purple-500"></i>Pack Mat (All)
+                            </label>
+                            <select class="form-select form-select-sm" id="globalPackMat" style="font-size:0.83rem">
+                                <option value="">— Apply to All —</option>
+                                <option value="VSTDPLTBW01">VSTDPLTBW01</option>
+                                <option value="VSTDPLBW002">VSTDPLBW002</option>
+                                <option value="50016873">50016873</option>
+                            </select>
+                            <span style="font-size:0.72rem;color:#6c757d">Pilih sekali, berlaku ke semua HU</span>
+                        </div>
+
+                    </div>
                 </div>
             </div>
+
+            <!-- KANAN: HU Table -->
+            <div class="col-lg-9 col-xl-9">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-1 px-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fas fa-list-ol text-purple-500" style="font-size:0.85rem"></i>
+                            <span class="fw-semibold" style="font-size:0.85rem">Handling Units List</span>
+                            <span style="font-size:0.75rem;color:#6c757d" id="modeDescription"></span>
+                        </div>
+                        <div class="d-flex gap-1 align-items-center">
+                            <span id="huCount" class="badge bg-purple" style="font-size:0.75rem">0 HUs</span>
+                            <span id="totalQty" class="badge bg-success" style="font-size:0.75rem">0 PC</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-2">
+
+                        <div id="stockValidation" class="alert alert-warning d-none py-1 px-2 mb-2" style="font-size:0.75rem">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <span id="stockValidationMessage"></span>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div id="husPreview" class="text-center py-3" style="border:2px dashed #dee2e6;border-radius:4px">
+                            <i class="fas fa-pallet fa-lg text-gray-400 mb-1"></i>
+                            <p class="text-muted mb-0" style="font-size:0.83rem">Belum ada HU &mdash; pilih material dari main page</p>
+                            <p style="font-size:0.72rem;color:#6c757d;margin:2px 0 0">
+                                <i class="fas fa-lightbulb me-1 text-warning"></i>
+                                Isi HU Ext ID &amp; Pack Mat di baris pertama, baris lain akan mengikuti otomatis
+                            </p>
+                        </div>
+
+                        <!-- HU Table -->
+                        <div id="hus-container" style="display:none">
+                            <div class="hu-table-header">
+                                <div class="hu-col hu-col-no">#</div>
+                                <div class="hu-col hu-col-mat">Material</div>
+                                <div class="hu-col hu-col-desc">Deskripsi</div>
+                                <div class="hu-col hu-col-batch">Batch</div>
+                                <div class="hu-col hu-col-so">Sales Order</div>
+                                <div class="hu-col hu-col-qty">Qty</div>
+                                <div class="hu-col hu-col-exid">HU Ext No <span class="text-danger">*</span></div>
+                                <div class="hu-col hu-col-pm">Pack Mat <span class="text-danger">*</span></div>
+                                <div class="hu-col hu-col-plant">Plant/Sloc</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
         </div>
-    </div>
+    </form>
 </div>
 
 <!-- Modal SAP Credentials -->
@@ -316,59 +262,122 @@
 
 @push('styles')
 <style>
-.border-dashed { border-style: dashed !important; }
-.compact-list-container { display: none; }
-.compact-hu-item {
-    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 8px; margin-bottom: 8px;
-    border-left: 3px solid #8b5cf6;
-}
-.compact-hu-item:hover { background: #e9ecef; border-color: #dee2e6; }
-.compact-hu-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.compact-hu-title { font-weight: 600; color: #333; font-size: 0.8rem; }
-.compact-hu-badge { background: #8b5cf6; color: white; padding: 1px 6px; border-radius: 10px; font-size: 0.7rem; font-weight: 500; }
-.compact-hu-content { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.75rem; }
-.compact-hu-field { display: flex; flex-direction: column; }
-.compact-hu-label { font-weight: 500; color: #6c757d; font-size: 0.7rem; margin-bottom: 2px; }
-.compact-hu-value { color: #333; font-weight: 400; }
-.compact-hu-input { width: 100%; padding: 4px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 0.75rem; }
-.compact-hu-input:focus { border-color: #8b5cf6; outline: none; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15); }
-.compact-hu-select { width: 100%; padding: 4px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 0.75rem; background: white; }
-.compact-hu-select:focus { border-color: #8b5cf6; outline: none; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15); }
-.quantity-badge { background: #10b981; color: white; padding: 1px 4px; border-radius: 6px; font-size: 0.65rem; margin-left: 3px; }
-.split-indicator { background: #f59e0b; color: white; padding: 1px 4px; border-radius: 6px; font-size: 0.65rem; margin-left: 3px; }
-.auto-sequence-hint { background: #e9d5ff; border: 1px solid #c4b5fd; border-radius: 3px; padding: 2px 6px; font-size: 0.65rem; color: #6d28d9; margin-top: 2px; }
-.field-description { font-size: 0.65rem; color: #6c757d; margin-top: 1px; }
+/* === COLOR UTILS === */
+.bg-purple-100  { background-color: #ede9fe; }
+.text-purple-600{ color: #7c3aed; }
+.text-purple-500{ color: #8b5cf6; }
+.bg-purple      { background-color: #8b5cf6 !important; }
 
-/* Mode Selector Styles */
-.card-mode-selector .form-check-input {
-    position: absolute;
-    opacity: 0;
-}
-.card-mode-selector .card {
+/* === MODE CARD SELECTOR === */
+.card-mode-selector .form-check-input { position:absolute; opacity:0; }
+.mode-card {
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     border-color: #dee2e6 !important;
     border-width: 1px !important;
-    height: 100%;
+    border-radius: 5px;
 }
-.card-mode-selector .form-check-input:checked + .card {
-    border-color: #8b5cf6 !important;
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
-}
-.card-mode-selector #modeSplit:checked + .card { border-color: #3b82f6 !important; }
-.card-mode-selector #modeSingle:checked + .card { border-color: #10b981 !important; }
-.card-mode-selector #modePartial:checked + .card { border-color: #f59e0b !important; }
-
+.card-mode-selector .form-check-input:checked ~ label .mode-card { border-color: #8b5cf6 !important; box-shadow: 0 0 0 2px rgba(139,92,246,.15); }
+#modeSplit:checked  ~ label .mode-card { border-color: #3b82f6 !important; background:#eff6ff; }
+#modeSingle:checked ~ label .mode-card { border-color: #10b981 !important; background:#f0fdf4; }
+#modePartial:checked~ label .mode-card { border-color: #f59e0b !important; background:#fffbeb; }
 .mode-description { display: block; }
-.form-control-sm, .form-select-sm { font-size: 0.8rem; }
-.alert { font-size: 0.8rem; }
-.small { font-size: 0.8rem; }
 
-/* Responsive adjustments */
+/* === HU TABLE === */
+.hu-table-header {
+    display: flex;
+    align-items: center;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px 4px 0 0;
+    padding: 5px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.03em;
+}
+.hu-row {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    padding: 5px 8px;
+    font-size: 0.82rem;
+    background: #fff;
+    transition: background 0.1s;
+}
+.hu-row:last-child  { border-radius: 0 0 4px 4px; }
+.hu-row:nth-child(even) { background: #f8fafc; }
+.hu-row:hover       { background: #faf5ff; }
+.hu-col             { padding: 0 4px; overflow: hidden; }
+.hu-col-no          { width: 26px;  flex-shrink:0; color:#94a3b8; font-size:0.72rem; text-align:center; }
+.hu-col-mat         { width: 90px;  flex-shrink:0; font-weight:600; font-family:monospace; color:#6d28d9; font-size:0.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hu-col-desc        { flex:1;       color:#4b5563; font-size:0.78rem; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hu-col-batch       { width: 82px;  flex-shrink:0; font-family:monospace; font-size:0.78rem; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hu-col-so          { width: 110px; flex-shrink:0; font-family:monospace; font-size:0.75rem; color:#6b7280; white-space:normal; word-break:break-all; line-height:1.3; }
+.hu-col-qty         { width: 68px;  flex-shrink:0; text-align:center; }
+.hu-col-exid        { width: 115px; flex-shrink:0; }
+.hu-col-pm          { width: 120px; flex-shrink:0; }
+.hu-col-plant       { width: 80px;  flex-shrink:0; font-size:0.72rem; color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.qty-badge {
+    background: #7c3aed;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.split-badge {
+    background: #f59e0b;
+    color: white;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    margin-left: 2px;
+    vertical-align: middle;
+}
+.hu-input {
+    width: 100%;
+    padding: 3px 5px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-family: monospace;
+}
+.hu-input:focus {
+    border-color: #8b5cf6;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(139,92,246,.15);
+}
+.hu-select {
+    width: 100%;
+    padding: 3px 5px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    background: white;
+}
+.hu-select:focus {
+    border-color: #8b5cf6;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(139,92,246,.15);
+}
+.auto-hint {
+    font-size: 0.62rem;
+    color: #7c3aed;
+    background: #ede9fe;
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin-top: 2px;
+    display: block;
+}
+
 @media (max-width: 991.98px) {
-    .compact-hu-content {
-        grid-template-columns: 1fr;
-    }
+    .hu-col-desc, .hu-col-so { display: none; }
 }
 </style>
 @endpush
@@ -623,7 +632,8 @@ function loadAvailableStocks(materials, callback) {
 function processMaterials(materials) {
     huCount = 0;
     totalQuantity = 0;
-    document.getElementById('hus-container').innerHTML = '';
+    // Hapus hanya baris data, bukan header tabel
+    document.querySelectorAll('#hus-container .hu-row').forEach(r => r.remove());
 
     loadAvailableStocks(materials, () => {
         const groupedMaterials = groupMaterials(materials);
@@ -744,101 +754,50 @@ function addSingleHUToForm(group, sequence, totalHUs, isSplit, quantity) {
     const sequenceNumber = huCount + 1;
     const autoHuExid = (defaultStartNumber + sequenceNumber).toString().padStart(10, '0');
 
-    const newHU = document.createElement('div');
-    newHU.className = 'compact-hu-item';
+    const splitBadge = (isSplit && totalHUs > 1)
+        ? `<span class="split-badge">${sequence}/${totalHUs}</span>` : '';
 
-    let splitIndicator = '';
-    if (isSplit && totalHUs > 1) {
-        splitIndicator = `<span class="split-indicator">${sequence}/${totalHUs}</span>`;
-    }
+    const rowNum = huCount + 1;
 
-    let quantityBadge = '';
-    if (quantity > 1 && !isSplit) {
-        quantityBadge = `<span class="quantity-badge">${quantity} PCs</span>`;
-    }
-
-    newHU.innerHTML = `
-        <div class="compact-hu-header">
-            <div class="compact-hu-title">
-                <i class="fas fa-pallet me-1 text-purple-500"></i>
-                HU ${huCount + 1}: ${formattedMaterial}
-                ${splitIndicator}
-                ${quantityBadge}
-            </div>
-            <div class="compact-hu-badge">${quantity.toLocaleString('id-ID')} PC</div>
+    const row = document.createElement('div');
+    row.className = 'hu-row';
+    row.innerHTML = `
+        <div class="hu-col hu-col-no">${rowNum}</div>
+        <div class="hu-col hu-col-mat" title="${formattedMaterial}">
+            ${formattedMaterial}${splitBadge}
+            <input type="hidden" name="hus[${huCount}][material]" value="${formattedMaterial}">
+            <input type="hidden" name="hus[${huCount}][plant]" value="${group.plant}">
+            <input type="hidden" name="hus[${huCount}][stge_loc]" value="${group.storageLocation}">
+            <input type="hidden" name="hus[${huCount}][batch]" value="${group.batch}">
+            <input type="hidden" name="hus[${huCount}][sp_stck_no]" value="${group.salesOrderNo}">
+            <input type="hidden" name="hus[${huCount}][pack_qty]" value="${quantity}">
         </div>
-
-        ${group.materialDescription ? `
-            <div class="compact-hu-field mb-1">
-                <span class="compact-hu-label">Description</span>
-                <span class="compact-hu-value">${group.materialDescription}</span>
-            </div>
-        ` : ''}
-
-        <div class="compact-hu-content">
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">HU External ID <span class="text-danger">*</span></span>
-                <input type="text" class="compact-hu-input hu-exid-input" name="hus[${huCount}][hu_exid]"
-                       value="${autoHuExid}" required placeholder="10 digits" maxlength="10"
-                       pattern="\\d{10}" title="10 digits required">
-                ${huCount === 0 ? '<div class="auto-sequence-hint">Fill manually, others auto-sequence</div>' : ''}
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Pack Mat <span class="text-danger">*</span></span>
-                <select class="compact-hu-select pack-mat-select" name="hus[${huCount}][pack_mat]" required>
-                    <option value="">Select Pack Mat</option>
-                    <option value="VSTDPLTBW01" ${lastPackMat === 'VSTDPLTBW01' ? 'selected' : ''}>VSTDPLTBW01</option>
-                    <option value="VSTDPLBW002" ${lastPackMat === 'VSTDPLBW002' ? 'selected' : ''}>VSTDPLBW002</option>
-                    <option value="50016873" ${lastPackMat === '50016873' ? 'selected' : ''}>50016873</option>
-                </select>
-                ${huCount === 0 ? '<div class="auto-sequence-hint">Select once, applies to all</div>' : ''}
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Plant <span class="text-danger">*</span></span>
-                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][plant]"
-                       value="${group.plant}" readonly>
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Storage Loc <span class="text-danger">*</span></span>
-                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][stge_loc]"
-                       value="${group.storageLocation}" readonly>
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Material <span class="text-danger">*</span></span>
-                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][material]"
-                       value="${formattedMaterial}" readonly>
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Batch</span>
-                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][batch]"
-                       value="${group.batch}" readonly>
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Pack Qty <span class="text-danger">*</span></span>
-                <input type="number" class="compact-hu-input" name="hus[${huCount}][pack_qty]"
-                       value="${quantity}" step="0.001" min="0.001"
-                       required data-max-qty="${quantity}" readonly>
-                <div class="field-description">
-                    ${isSplit && totalHUs > 1 ?
-                        `Part ${sequence}/${totalHUs}` :
-                        `${quantity.toLocaleString('id-ID')} PC`}
-                </div>
-            </div>
-
-            <div class="compact-hu-field">
-                <span class="compact-hu-label">Sales Order</span>
-                <input type="text" class="compact-hu-input bg-light" name="hus[${huCount}][sp_stck_no]"
-                       value="${group.salesOrderNo}" readonly>
-            </div>
+        <div class="hu-col hu-col-desc" title="${group.materialDescription || ''}">${group.materialDescription || '-'}</div>
+        <div class="hu-col hu-col-batch" title="${group.batch}">${group.batch || '-'}</div>
+        <div class="hu-col hu-col-so">${group.salesOrderNo || '-'}</div>
+        <div class="hu-col hu-col-qty">
+            <span class="qty-badge">${quantity.toLocaleString('id-ID')} PC</span>
+        </div>
+        <div class="hu-col hu-col-exid">
+            <input type="text" class="hu-input hu-exid-input" name="hus[${huCount}][hu_exid]"
+                   value="${autoHuExid}" required placeholder="10 digits" maxlength="10"
+                   pattern="\\d{10}" title="10 digits required">
+            ${huCount === 0 ? '<span class="auto-hint">Isi manual, lain auto-urut</span>' : ''}
+        </div>
+        <div class="hu-col hu-col-pm">
+            <select class="hu-select pack-mat-select" name="hus[${huCount}][pack_mat]" required>
+                <option value="">— Pilih —</option>
+                <option value="VSTDPLTBW01" ${lastPackMat === 'VSTDPLTBW01' ? 'selected' : ''}>VSTDPLTBW01</option>
+                <option value="VSTDPLBW002" ${lastPackMat === 'VSTDPLBW002' ? 'selected' : ''}>VSTDPLBW002</option>
+                <option value="50016873"    ${lastPackMat === '50016873'    ? 'selected' : ''}>50016873</option>
+            </select>
+            ${huCount === 0 ? '<span class="auto-hint">Pilih sekali, berlaku semua</span>' : ''}
+        </div>
+        <div class="hu-col hu-col-plant" title="${group.plant} / ${group.storageLocation}">
+            ${group.plant} / ${group.storageLocation}
         </div>
     `;
-    container.appendChild(newHU);
+    container.appendChild(row);
     huCount++;
     totalQuantity += quantity;
 }
