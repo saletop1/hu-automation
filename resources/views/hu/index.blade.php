@@ -12,7 +12,7 @@
         .card-hover {
             transition: all 0.3s ease;
             border: 1px solid #e2e8f0;
-            min-height: 180px;
+            min-height: unset;
         }
         .card-hover:hover {
             transform: translateY(-5px);
@@ -147,14 +147,14 @@
         }
         .drop-zone {
             position: relative;
-            min-height: 100px;
+            min-height: 48px;
             border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 10px;
+            border-radius: 6px;
+            padding: 5px 6px;
             text-align: center;
             transition: all 0.3s ease;
             background: #fafafa;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
         }
         .drop-zone.drag-over {
             border-color: #3b82f6;
@@ -193,29 +193,30 @@
             display: none !important;
         }
         .compact-card .card-body {
-            padding: 0.75rem;
+            padding: 0.4rem 0.5rem;
         }
         .compact-card .card-title {
-            font-size: 0.9rem;
-            margin-bottom: 0.25rem;
+            font-size: 0.78rem;
+            margin-bottom: 0.1rem;
         }
         .compact-card .card-text {
-            font-size: 0.7rem;
+            font-size: 0.62rem;
+            margin-bottom: 0 !important;
         }
         .compact-card .icon-container {
-            width: 40px;
-            height: 40px;
+            width: 28px;
+            height: 28px;
         }
         .compact-card .icon-container i {
-            font-size: 1.25rem;
+            font-size: 0.9rem;
         }
         .compact-card .btn {
-            font-size: 0.7rem;
-            padding: 0.25rem 0.5rem;
+            font-size: 0.68rem;
+            padding: 0.18rem 0.4rem;
         }
         .scenario-sidebar {
             position: sticky;
-            top: 50px;
+            top: 58px;
             height: fit-content;
             max-height: 95vh;
             overflow-y: auto;
@@ -252,12 +253,12 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            padding: 4px;
+            padding: 2px 3px;
             background: #f8f9fa;
-            border-radius: 4px;
-            margin-bottom: 3px;
-            font-size: 0.65rem;
-            min-height: 32px;
+            border-radius: 3px;
+            margin-bottom: 2px;
+            font-size: 0.62rem;
+            min-height: 22px;
         }
         .material-code-compact {
             font-family: 'Courier New', monospace;
@@ -440,6 +441,13 @@
             border-radius: 3px;
             margin-left: 4px;
         }
+        /* Hide drop placeholder when zone has items */
+        .drop-zone.has-items .drop-placeholder {
+            display: none;
+        }
+        .drop-zone .drop-placeholder {
+            pointer-events: none;
+        }
         /* PERBAIKAN: Sembunyikan tombol jika masih ada */
         #selectPlantBtn {
             display: none !important;
@@ -447,7 +455,7 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-to-r from-green-700 to-yellow-800 shadow-lg">
+    <nav class="navbar navbar-expand-lg navbar-dark shadow-lg" style="position:sticky;top:0;z-index:1050;background:linear-gradient(135deg,rgba(21,128,61,0.88),rgba(133,77,14,0.88));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.15);">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="{{ route('hu.index') }}">
                 <i class="fas fa-cubes me-2"></i>SAP HU Automation
@@ -471,7 +479,7 @@
         </div>
     </nav>
 
-    <div class="container-fluid mt-4">
+    <div class="container-fluid mt-2">
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
                 <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
@@ -507,7 +515,7 @@
                                     {{ $availableStockCount }} items
                                 </span>
                                 </h5>
-                                <small class="text-muted">Hanya menampilkan material dengan stock > 0 dan belum dibuat HU</small>
+                                <!-- <small class="text-muted">Hanya menampilkan material dengan stock > 0 dan belum dibuat HU</small> -->
                                 <div class="selection-info">
                                     <span class="selected-count" id="selectedCount">0 item terpilih</span>
                                 </div>
@@ -579,7 +587,6 @@
                                             <th class="border-0" style="width: 40px;">
                                                 <input type="checkbox" id="selectAllHeader" class="table-checkbox">
                                             </th>
-                                            <th class="border-0">Status</th>
                                             <th class="border-0">Material</th>
                                             <th class="border-0">Deskripsi</th>
                                             <th class="border-0">Batch</th>
@@ -602,94 +609,94 @@
             <div class="col-lg-2 mb-4">
                 <div class="scenario-sidebar">
                     <div class="row">
-                        <div class="col-12 mb-3">
+                        <div class="col-12 mb-1">
                             <div class="card card-hover h-100 border-0 shadow-sm compact-card">
                                 <div class="card-body p-3">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <div class="bg-blue-100 rounded-circle d-inline-flex align-items-center justify-content-center me-2 icon-container">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <div class="bg-blue-100 rounded-circle d-inline-flex align-items-center justify-content-center me-1 icon-container">
                                             <i class="fas fa-cube text-blue-600"></i>
                                         </div>
                                         <div>
                                             <h5 class="card-title fw-bold text-gray-800 mb-0">Skenario 1</h5>
-                                            <p class="card-text text-gray-600 small">1 HU dengan 1 Material</p>
+                                            <p class="card-text text-gray-600 small mb-0">1 HU · 1 Material</p>
                                         </div>
                                     </div>
 
                                     <div class="drop-zone mb-2" data-scenario="single" id="dropZoneSingle">
-                                        <i class="fas fa-arrow-down text-gray-400 mb-1"></i>
-                                        <p class="text-muted small mb-1">Seret material ke sini</p>
+                                        <div class="drop-placeholder">
+                                            <i class="fas fa-arrow-down text-gray-400 mb-1"></i>
+                                            <p class="text-muted small mb-1">Seret material ke sini</p>
+                                        </div>
                                         <div id="scenarioSingleItems"></div>
                                     </div>
 
-                                    <div class="d-grid gap-1">
-                                        <a href="{{ route('hu.create-single') }}" class="btn btn-primary btn-sm" id="goToScenario1">
+                                    <div class="d-flex gap-1 mt-1">
+                                        <a href="{{ route('hu.create-single') }}" class="btn btn-primary btn-sm flex-fill" id="goToScenario1">
                                             <i class="fas fa-arrow-right me-1"></i>Lanjut
                                         </a>
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="clearScenario('single')">
-                                            <i class="fas fa-trash me-1"></i>Hapus
-                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm px-2" onclick="clearScenario('single')" title="Hapus"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-12 mb-3">
+                        <div class="col-12 mb-1">
                             <div class="card card-hover h-100 border-0 shadow-sm compact-card">
                                 <div class="card-body p-3">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <div class="bg-green-100 rounded-circle d-inline-flex align-items-center justify-content-center me-2 icon-container">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <div class="bg-green-100 rounded-circle d-inline-flex align-items-center justify-content-center me-1 icon-container">
                                             <i class="fas fa-boxes text-green-600"></i>
                                         </div>
                                         <div>
                                             <h5 class="card-title fw-bold text-gray-800 mb-0">Skenario 2</h5>
-                                            <p class="card-text text-gray-600 small">1 HU dengan Multiple Material</p>
+                                            <p class="card-text text-gray-600 small mb-0">1 HU · Multi Material</p>
                                         </div>
                                     </div>
 
                                     <div class="drop-zone mb-2" data-scenario="single-multi" id="dropZoneSingleMulti">
-                                        <i class="fas fa-arrow-down text-gray-400 mb-1"></i>
-                                        <p class="text-muted small mb-1">Seret material ke sini</p>
+                                        <div class="drop-placeholder">
+                                            <i class="fas fa-arrow-down text-gray-400 mb-1"></i>
+                                            <p class="text-muted small mb-1">Seret material ke sini</p>
+                                        </div>
                                         <div id="scenarioSingleMultiItems"></div>
                                     </div>
 
-                                    <div class="d-grid gap-1">
-                                        <a href="{{ route('hu.create-single-multi') }}" class="btn btn-success btn-sm" id="goToScenario2">
+                                    <div class="d-flex gap-1 mt-1">
+                                        <a href="{{ route('hu.create-single-multi') }}" class="btn btn-success btn-sm flex-fill" id="goToScenario2">
                                             <i class="fas fa-arrow-right me-1"></i>Lanjut
                                         </a>
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="clearScenario('single-multi')">
-                                            <i class="fas fa-trash me-1"></i>Hapus
-                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm px-2" onclick="clearScenario('single-multi')" title="Hapus"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-12 mb-3">
+                        <div class="col-12 mb-1">
                             <div class="card card-hover h-100 border-0 shadow-sm compact-card">
                                 <div class="card-body p-3">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <div class="bg-purple-100 rounded-circle d-inline-flex align-items-center justify-content-center me-2 icon-container">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <div class="bg-purple-100 rounded-circle d-inline-flex align-items-center justify-content-center me-1 icon-container">
                                             <i class="fas fa-pallet text-purple-600"></i>
                                         </div>
                                         <div>
                                             <h5 class="card-title fw-bold text-gray-800 mb-0">Skenario 3</h5>
-                                            <p class="card-text text-gray-600 small">Multiple HU (Setiap HU 1 Material)</p>
+                                            <p class="card-text text-gray-600 small mb-0">Multi HU · 1 Material/HU</p>
                                         </div>
                                     </div>
 
                                     <div class="drop-zone mb-2" data-scenario="multiple" id="dropZoneMultiple">
-                                        <i class="fas fa-arrow-down text-gray-400 mb-1"></i>
-                                        <p class="text-muted small mb-1">Seret material ke sini</p>
+                                        <div class="drop-placeholder">
+                                            <i class="fas fa-arrow-down text-gray-400 mb-1"></i>
+                                            <p class="text-muted small mb-1">Seret material ke sini</p>
+                                        </div>
                                         <div id="scenarioMultipleItems"></div>
                                     </div>
 
-                                    <div class="d-grid gap-1">
-                                        <a href="{{ route('hu.create-multiple') }}" class="btn btn-purple btn-sm" id="goToScenario3">
+                                    <div class="d-flex gap-1 mt-1">
+                                        <a href="{{ route('hu.create-multiple') }}" class="btn btn-purple btn-sm flex-fill" id="goToScenario3">
                                             <i class="fas fa-arrow-right me-1"></i>Lanjut
                                         </a>
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="clearScenario('multiple')">
-                                            <i class="fas fa-trash me-1"></i>Hapus
-                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm px-2" onclick="clearScenario('multiple')" title="Hapus"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -1111,7 +1118,7 @@
                     const newRow = document.createElement('tr');
                     newRow.id = 'noResultsMessage';
                     newRow.innerHTML = `
-                        <td colspan="10" class="text-center py-4 text-muted">
+                        <td colspan="9" class="text-center py-4 text-muted">
                             <i class="fas fa-search me-2"></i>
                             Tidak ada material yang cocok dengan "${searchTerm}"
                         </td>
@@ -1383,7 +1390,7 @@
         if (data.length === 0) {
             tbody.append(`
                 <tr>
-                    <td colspan="10" class="text-center py-4 text-muted">
+                    <td colspan="9" class="text-center py-4 text-muted">
                         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                         Tidak ada data stock tersedia untuk Plant ${selectedPlant}
                         ${selectedStorageLocation ? `, Lokasi ${selectedStorageLocation}` : ''}
@@ -1419,9 +1426,6 @@
                     data-stock-quantity="${item.stock_quantity}">
                     <td class="border-0">
                         <input type="checkbox" class="table-checkbox row-select" data-index="${originalIndex}">
-                    </td>
-                    <td class="border-0">
-                        <span class="material-status" id="status-${item.material}-${item.batch}"></span>
                     </td>
                     <td class="border-0">
                         <span class="material-number ${showTooltip ? 'has-tooltip' : ''}"
@@ -1626,12 +1630,12 @@
                 const itemElement = `
                     <div class="material-item-compact position-relative d-flex justify-content-between align-items-center ${isDifferentPlant ? 'material-warning' : ''}">
                         <button type="button" class="btn-close btn-close-sm" style="font-size: 0.5rem; padding: 2px;" onclick="removeItemFromScenario('${scenario}', ${index})"></button>
-                        <div class="d-flex flex-column flex-grow-1 ms-1" style="min-width: 0;">
-                            <div class="material-code-compact text-truncate">
+                        <div class="d-flex align-items-center justify-content-between flex-grow-1 ms-1 gap-1" style="min-width:0;">
+                            <div class="material-code-compact text-truncate" style="flex:1;min-width:0;">
                                 ${formattedMaterial}
                                 ${isDifferentPlant ? '<span class="warning-badge">Plant ' + item.plant + '</span>' : ''}
                             </div>
-                            <div class="material-qty-compact text-end">${parseFloat(item.stock_quantity || 0).toLocaleString('id-ID')}</div>
+                            <div class="material-qty-compact flex-shrink-0">${parseFloat(item.stock_quantity || 0).toLocaleString('id-ID')}</div>
                         </div>
                     </div>
                 `;

@@ -199,7 +199,7 @@
                                 <div class="hu-col hu-col-qty">Qty</div>
                                 <div class="hu-col hu-col-exid">HU Ext No <span class="text-danger">*</span></div>
                                 <div class="hu-col hu-col-pm">Pack Mat <span class="text-danger">*</span></div>
-                                <div class="hu-col hu-col-plant">Plant/Sloc</div>
+                                <div class="hu-col hu-col-plant">Lokasi</div>
                             </div>
                         </div>
 
@@ -315,7 +315,7 @@
 .hu-col-mat         { width: 90px;  flex-shrink:0; font-weight:600; font-family:monospace; color:#6d28d9; font-size:0.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hu-col-desc        { flex:1;       color:#4b5563; font-size:0.78rem; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hu-col-batch       { width: 82px;  flex-shrink:0; font-family:monospace; font-size:0.78rem; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hu-col-so          { width: 110px; flex-shrink:0; font-family:monospace; font-size:0.75rem; color:#6b7280; white-space:normal; word-break:break-all; line-height:1.3; }
+.hu-col-so          { width: 130px; flex-shrink:0; font-family:monospace; font-size:0.75rem; color:#6b7280; white-space:normal; word-break:break-all; line-height:1.3; }
 .hu-col-qty         { width: 68px;  flex-shrink:0; text-align:center; }
 .hu-col-exid        { width: 115px; flex-shrink:0; }
 .hu-col-pm          { width: 120px; flex-shrink:0; }
@@ -329,16 +329,6 @@
     font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
-}
-.split-badge {
-    background: #f59e0b;
-    color: white;
-    padding: 1px 4px;
-    border-radius: 4px;
-    font-size: 0.62rem;
-    font-weight: 600;
-    margin-left: 2px;
-    vertical-align: middle;
 }
 .hu-input {
     width: 100%;
@@ -365,15 +355,6 @@
     border-color: #8b5cf6;
     outline: none;
     box-shadow: 0 0 0 2px rgba(139,92,246,.15);
-}
-.auto-hint {
-    font-size: 0.62rem;
-    color: #7c3aed;
-    background: #ede9fe;
-    border-radius: 3px;
-    padding: 1px 4px;
-    margin-top: 2px;
-    display: block;
 }
 
 @media (max-width: 991.98px) {
@@ -514,13 +495,13 @@ function updateModeDisplay() {
     const modeDescription = document.getElementById('modeDescription');
     switch(creationMode) {
         case 'split':
-            modeDescription.textContent = 'Each PC becomes separate HU for material with qty > 1';
+            modeDescription.textContent = 'Setiap PC menjadi HU terpisah untuk material dengan kuantitas > 1.';
             break;
         case 'single':
-            modeDescription.textContent = 'Each material becomes separate HU (quantity merged per material)';
+            modeDescription.textContent = 'Setiap material menjadi HU terpisah (kuantitas digabung per material).';
             break;
         case 'partial':
-            modeDescription.textContent = 'Create HUs with custom quantity as per settings above';
+            modeDescription.textContent = 'Buat HU dengan kuantitas khusus sesuai pengaturan di atas.';
             break;
     }
 
@@ -754,17 +735,19 @@ function addSingleHUToForm(group, sequence, totalHUs, isSplit, quantity) {
     const sequenceNumber = huCount + 1;
     const autoHuExid = (defaultStartNumber + sequenceNumber).toString().padStart(10, '0');
 
-    const splitBadge = (isSplit && totalHUs > 1)
-        ? `<span class="split-badge">${sequence}/${totalHUs}</span>` : '';
+    const rowNum   = huCount + 1;
+    const isFirst  = huCount === 0;
 
-    const rowNum = huCount + 1;
+    // Baris 2+ : HU Ext ID readonly (auto-urut dari baris 1), Pack Mat readonly
+    const exidReadonly   = isFirst ? '' : 'readonly style="background:#f8f9fa;color:#6c757d"';
+    const exidPlaceholder = isFirst ? '10 digits' : 'auto';
 
     const row = document.createElement('div');
     row.className = 'hu-row';
     row.innerHTML = `
         <div class="hu-col hu-col-no">${rowNum}</div>
         <div class="hu-col hu-col-mat" title="${formattedMaterial}">
-            ${formattedMaterial}${splitBadge}
+            ${formattedMaterial}
             <input type="hidden" name="hus[${huCount}][material]" value="${formattedMaterial}">
             <input type="hidden" name="hus[${huCount}][plant]" value="${group.plant}">
             <input type="hidden" name="hus[${huCount}][stge_loc]" value="${group.storageLocation}">
@@ -780,18 +763,20 @@ function addSingleHUToForm(group, sequence, totalHUs, isSplit, quantity) {
         </div>
         <div class="hu-col hu-col-exid">
             <input type="text" class="hu-input hu-exid-input" name="hus[${huCount}][hu_exid]"
-                   value="${autoHuExid}" required placeholder="10 digits" maxlength="10"
-                   pattern="\\d{10}" title="10 digits required">
-            ${huCount === 0 ? '<span class="auto-hint">Isi manual, lain auto-urut</span>' : ''}
+                   value="${autoHuExid}" required placeholder="${exidPlaceholder}" maxlength="10"
+                   pattern="\\d{10}" title="10 digits required" ${exidReadonly}>
         </div>
         <div class="hu-col hu-col-pm">
+            ${isFirst ? `
             <select class="hu-select pack-mat-select" name="hus[${huCount}][pack_mat]" required>
                 <option value="">— Pilih —</option>
                 <option value="VSTDPLTBW01" ${lastPackMat === 'VSTDPLTBW01' ? 'selected' : ''}>VSTDPLTBW01</option>
                 <option value="VSTDPLBW002" ${lastPackMat === 'VSTDPLBW002' ? 'selected' : ''}>VSTDPLBW002</option>
                 <option value="50016873"    ${lastPackMat === '50016873'    ? 'selected' : ''}>50016873</option>
-            </select>
-            ${huCount === 0 ? '<span class="auto-hint">Pilih sekali, berlaku semua</span>' : ''}
+            </select>` : `
+            <input type="text" class="hu-input pack-mat-display" name="hus[${huCount}][pack_mat]"
+                   value="${lastPackMat}" readonly style="background:#f8f9fa;color:#6c757d">
+            `}
         </div>
         <div class="hu-col hu-col-plant" title="${group.plant} / ${group.storageLocation}">
             ${group.plant} / ${group.storageLocation}
@@ -903,8 +888,12 @@ function updateAllHuExidSequence(startNumber) {
 }
 
 function applyPackMatToAll() {
+    // Update select (baris 1)
     const packMatSelects = document.querySelectorAll('#hus-container .pack-mat-select');
     packMatSelects.forEach(select => select.value = lastPackMat);
+    // Update readonly text input (baris 2+)
+    const packMatDisplays = document.querySelectorAll('#hus-container .pack-mat-display');
+    packMatDisplays.forEach(input => input.value = lastPackMat);
     if (lastPackMat) {
         showMessage(`Pack Mat "${lastPackMat}" applied to all HUs`, 'success');
     }
