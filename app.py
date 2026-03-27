@@ -249,23 +249,23 @@ def start_scheduler():
         scheduler.add_job(
             func=sync_plant_3000,
             trigger='interval',
-            minutes=50,
+            minutes=240,
             id='auto_sync_3000',
             name='Auto Sync Plant 3000 (3D10)',
             max_instances=1,
             replace_existing=True
         )
 
-        # Job untuk sync plant 2000 21LK (setiap 60 menit)
-        scheduler.add_job(
-            func=sync_plant_2000_21LK,
-            trigger='interval',
-            minutes=60,
-            id='auto_sync_2000_21LK',
-            name='Auto Sync Plant 2000 (21LK)',
-            max_instances=1,
-            replace_existing=True
-        )
+        # # Job untuk sync plant 2000 21LK (setiap 60 menit)
+        # scheduler.add_job(
+        #     func=sync_plant_2000_21LK,
+        #     trigger='interval',
+        #     minutes=60,
+        #     id='auto_sync_2000_21LK',
+        #     name='Auto Sync Plant 2000 (21LK)',
+        #     max_instances=1,
+        #     replace_existing=True
+        # )
 
         # Job untuk cleanup data lama (setiap hari jam 2 pagi)
         scheduler.add_job(
@@ -280,8 +280,8 @@ def start_scheduler():
 
         scheduler.start()
         logger.info("Scheduler started dengan konfigurasi:")
-        logger.info("  - Auto Sync Plant 3000 (3D10): setiap 50 menit")
-        logger.info("  - Auto Sync Plant 2000 (21LK): setiap 60 menit")
+        logger.info("  - Auto Sync Plant 3000 (3D10): setiap 240 menit")
+        # logger.info("  - Auto Sync Plant 2000 (21LK): setiap 60 menit")
         logger.info("  - Cleanup Old Data: setiap hari jam 2 pagi")
 
         # Jalankan sync pertama kali saat startup
@@ -307,7 +307,7 @@ def initial_sync_on_startup():
         time.sleep(10)
 
         # Sync plant 2000 location
-        sync_plant_2000_21LK()
+        # sync_plant_2000_21LK()
 
         logger.info("Initial sync pada startup selesai")
     except Exception as e:
