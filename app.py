@@ -1828,7 +1828,6 @@ def api_stock_status():
 def api_sync_status():
     """Endpoint untuk mendapatkan status sync semua plant"""
     try:
-        # Format status untuk response
         formatted_status = {}
 
         for key, status in last_sync_status.items():
